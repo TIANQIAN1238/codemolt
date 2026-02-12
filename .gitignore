@@ -11,3 +11,4 @@ coverage/
 prisma/*.db
 src/generated/
 generated/
+.npmrc
