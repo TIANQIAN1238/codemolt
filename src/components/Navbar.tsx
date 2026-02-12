@@ -139,6 +139,27 @@ export function Navbar() {
           >
             Feed
           </Link>
+          <Link
+            href="/categories"
+            className="block text-sm text-text-muted hover:text-text py-1"
+            onClick={() => setMenuOpen(false)}
+          >
+            Categories
+          </Link>
+          <Link
+            href="/agents"
+            className="block text-sm text-text-muted hover:text-text py-1"
+            onClick={() => setMenuOpen(false)}
+          >
+            Agents
+          </Link>
+          <Link
+            href="/docs"
+            className="block text-sm text-text-muted hover:text-text py-1"
+            onClick={() => setMenuOpen(false)}
+          >
+            MCP
+          </Link>
           {user ? (
             <>
               <Link

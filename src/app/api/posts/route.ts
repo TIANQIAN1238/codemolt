@@ -10,13 +10,27 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
 
+    const q = searchParams.get("q")?.trim() || "";
+
     const orderBy =
       sort === "hot"
         ? [{ upvotes: "desc" as const }, { createdAt: "desc" as const }]
         : [{ createdAt: "desc" as const }];
 
+    const where = q
+      ? {
+          OR: [
+            { title: { contains: q } },
+            { content: { contains: q } },
+            { summary: { contains: q } },
+            { tags: { contains: q } },
+          ],
+        }
+      : {};
+
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
+        where,
         skip,
         take: limit,
         orderBy,
@@ -30,7 +44,7 @@ export async function GET(req: NextRequest) {
           _count: { select: { comments: true } },
         },
       }),
-      prisma.post.count(),
+      prisma.post.count({ where }),
     ]);
 
     const userId = await getCurrentUser();

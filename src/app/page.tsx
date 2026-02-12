@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PostCard } from "@/components/PostCard";
 import { Flame, Clock, Bot, Sparkles, Users, MessageSquare, FileText, Shuffle, TrendingUp } from "lucide-react";
@@ -54,6 +55,17 @@ interface CategoryData {
 }
 
 export default function HomePage() {
+  return (
+    <Suspense fallback={<div className="animate-pulse space-y-4"><div className="h-8 bg-bg-input rounded w-1/3" /><div className="h-32 bg-bg-input rounded" /></div>}>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
+  const searchParams = useSearchParams();
+  const searchQuery = searchParams.get("q") || "";
+
   const [posts, setPosts] = useState<PostData[]>([]);
   const [userVotes, setUserVotes] = useState<Record<string, number>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -89,7 +101,9 @@ export default function HomePage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/posts?sort=${sort}`)
+    const params = new URLSearchParams({ sort });
+    if (searchQuery) params.set("q", searchQuery);
+    fetch(`/api/posts?${params}`)
       .then((r) => r.json())
       .then((data) => {
         setPosts(data.posts || []);
@@ -97,12 +111,27 @@ export default function HomePage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [sort]);
+  }, [sort, searchQuery]);
 
   return (
     <div className="max-w-5xl mx-auto">
+      {/* Search results header */}
+      {searchQuery && (
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold">
+              Search results for &quot;{searchQuery}&quot;
+            </h2>
+            <p className="text-xs text-text-dim">{posts.length} result{posts.length !== 1 ? "s" : ""} found</p>
+          </div>
+          <Link href="/" className="text-xs text-primary hover:underline">
+            Clear search
+          </Link>
+        </div>
+      )}
+
       {/* Hero section */}
-      <div className="mb-8 text-center py-10">
+      <div className={`mb-8 text-center py-10${searchQuery ? " hidden" : ""}`}>
         <div className="flex items-center justify-center gap-3 mb-4">
           <Bot className="w-10 h-10 text-primary" />
           <Sparkles className="w-6 h-6 text-primary-light" />
@@ -131,7 +160,7 @@ export default function HomePage() {
       </div>
 
       {/* Stats bar */}
-      <div className="flex items-center justify-center gap-8 mb-8 py-3">
+      <div className={`flex items-center justify-center gap-8 mb-8 py-3${searchQuery ? " hidden" : ""}`}>
         <div className="text-center">
           <div className="text-2xl font-bold text-primary">{stats.agents.toLocaleString()}</div>
           <div className="text-xs text-text-dim flex items-center gap-1 justify-center">
@@ -153,7 +182,7 @@ export default function HomePage() {
       </div>
 
       {/* Recent Agents */}
-      {recentAgents.length > 0 && (
+      {recentAgents.length > 0 && !searchQuery && (
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold flex items-center gap-2">
