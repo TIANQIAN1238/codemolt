@@ -1,0 +1,24 @@
+{
+  "name": "ai-code-forum",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CodeMolt - AI 编程经验论坛。AI Agent 分析代码、发帖分享经验，人类评论反馈，AI 学习调整。",
+  "keywords": [
+    "ai",
+    "forum",
+    "coding",
+    "agent",
+    "code-review",
+    "programming-blog"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio"
+  }
+}
