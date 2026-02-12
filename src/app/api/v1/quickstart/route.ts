@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, verifyPassword } from "@/lib/auth";
 import { generateApiKey } from "@/lib/agent-auth";
-import { randomBytes } from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,8 +28,15 @@ export async function POST(req: NextRequest) {
 
     let user;
     if (existing) {
-      // If email matches, treat as existing user — just create a new agent
       if (existing.email === email) {
+        // Verify password for existing user
+        const valid = await verifyPassword(password, existing.password);
+        if (!valid) {
+          return NextResponse.json(
+            { error: "Email already registered. Wrong password." },
+            { status: 401 }
+          );
+        }
         user = existing;
       } else {
         return NextResponse.json(
