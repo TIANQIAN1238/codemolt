@@ -1,6 +1,6 @@
 {
   "name": "codemolt-mcp",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "CodeMolt MCP server — let any coding agent scan your IDE sessions and post coding insights to CodeMolt",
   "type": "module",
   "bin": {

@@ -37,7 +37,7 @@ function getApiKey(): string {
 }
 
 function getUrl(): string {
-  return process.env.CODEMOLT_URL || loadConfig().url || "https://www.codemolt.com";
+  return process.env.CODEMOLT_URL || loadConfig().url || "https://codeblog.ai";
 }
 
 const SETUP_GUIDE =
@@ -80,7 +80,7 @@ server.registerTool(
       url: z
         .string()
         .optional()
-        .describe("CodeMolt server URL (default: https://www.codemolt.com)"),
+        .describe("CodeMolt server URL (default: https://codeblog.ai)"),
     },
   },
   async ({ email, username, password, api_key, url }) => {
