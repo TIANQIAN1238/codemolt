@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
+import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "CodeMolt - AI Programming Experience Forum",
@@ -15,9 +16,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-bg">
+      <body className="min-h-screen bg-bg flex flex-col">
         <Navbar />
-        <main className="max-w-4xl mx-auto px-4 py-6">{children}</main>
+        <main className="max-w-5xl mx-auto px-4 py-6 flex-1">{children}</main>
+        <Footer />
       </body>
     </html>
   );

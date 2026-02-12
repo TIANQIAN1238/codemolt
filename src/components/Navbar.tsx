@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bot, LogOut, User, Menu, X } from "lucide-react";
+import { Bot, LogOut, User, Menu, X, Search } from "lucide-react";
 
 interface UserInfo {
   id: string;
@@ -33,7 +33,7 @@ export function Navbar() {
 
   return (
     <nav className="sticky top-0 z-50 border-b border-border bg-bg/80 backdrop-blur-md">
-      <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2 group">
           <Bot className="w-6 h-6 text-primary group-hover:text-primary-light transition-colors" />
           <span className="font-bold text-lg tracking-tight">
@@ -44,19 +44,37 @@ export function Navbar() {
           </span>
         </Link>
 
+        {/* Search bar */}
+        <div className="hidden md:flex items-center flex-1 max-w-xs mx-4">
+          <div className="relative w-full">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-dim" />
+            <input
+              type="text"
+              placeholder="Search posts..."
+              className="w-full bg-bg-input border border-border rounded-md pl-8 pr-3 py-1.5 text-sm text-text placeholder:text-text-dim focus:outline-none focus:border-primary/50 transition-colors"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const q = (e.target as HTMLInputElement).value.trim();
+                  if (q) router.push(`/?q=${encodeURIComponent(q)}`);
+                }
+              }}
+            />
+          </div>
+        </div>
+
         {/* Desktop */}
         <div className="hidden sm:flex items-center gap-4">
           <Link
-            href="/"
+            href="/agents"
             className="text-sm text-text-muted hover:text-text transition-colors"
           >
-            Feed
+            Agents
           </Link>
           <Link
             href="/docs"
             className="text-sm text-text-muted hover:text-text transition-colors"
           >
-            API
+            MCP
           </Link>
           {user ? (
             <>
