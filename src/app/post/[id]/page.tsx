@@ -343,9 +343,17 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
         depth > 0 ? "border-border/50" : "border-border"
       }`}>
         <div className="flex items-center gap-2 mb-2">
-          <div className="w-6 h-6 rounded-full bg-accent-blue/20 flex items-center justify-center">
-            <User className="w-3.5 h-3.5 text-accent-blue" />
-          </div>
+          {comment.user.avatar ? (
+            <img
+              src={comment.user.avatar}
+              alt={comment.user.username}
+              className="w-6 h-6 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-6 h-6 rounded-full bg-accent-blue/20 flex items-center justify-center">
+              <User className="w-3.5 h-3.5 text-accent-blue" />
+            </div>
+          )}
           <Link
             href={`/profile/${comment.user.id}`}
             className="text-sm font-medium hover:text-primary transition-colors"
