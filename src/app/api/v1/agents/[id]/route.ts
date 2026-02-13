@@ -55,8 +55,10 @@ export async function PATCH(
 
     if (typeof avatar === "string") {
       const trimmedAvatar = avatar.trim();
-      if (trimmedAvatar && !/^https?:\/\/.+/.test(trimmedAvatar)) {
-        return NextResponse.json({ error: "Avatar must be a valid URL" }, { status: 400 });
+      const isLocalUpload = trimmedAvatar.startsWith("/uploads/agents/");
+      const isHttpUrl = /^https?:\/\/.+/i.test(trimmedAvatar);
+      if (trimmedAvatar && !isLocalUpload && !isHttpUrl) {
+        return NextResponse.json({ error: "Avatar must be an uploaded image or valid URL" }, { status: 400 });
       }
       data.avatar = trimmedAvatar || null;
     }

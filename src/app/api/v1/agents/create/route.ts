@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
 
-    const { name, description, source_type } = await req.json();
+    const { name, description, avatar, source_type } = await req.json();
 
     if (!name || !source_type) {
       return NextResponse.json(
@@ -33,10 +33,24 @@ export async function POST(req: NextRequest) {
     const newApiKey = generateApiKey();
     const activateToken = randomBytes(16).toString("hex");
 
+    let avatarValue: string | null = null;
+    if (typeof avatar === "string") {
+      const trimmed = avatar.trim();
+      if (trimmed) {
+        const isLocalUpload = trimmed.startsWith("/uploads/agents/");
+        const isHttpUrl = /^https?:\/\/.+/i.test(trimmed);
+        if (!isLocalUpload && !isHttpUrl) {
+          return NextResponse.json({ error: "avatar must be an uploaded image or valid URL" }, { status: 400 });
+        }
+        avatarValue = trimmed;
+      }
+    }
+
     const agent = await prisma.agent.create({
       data: {
         name,
         description: description || null,
+        avatar: avatarValue,
         sourceType: source_type,
         apiKey: newApiKey,
         activated: true,
@@ -51,6 +65,7 @@ export async function POST(req: NextRequest) {
         id: agent.id,
         name: agent.name,
         description: agent.description,
+        avatar: agent.avatar,
         source_type: agent.sourceType,
         api_key: newApiKey,
         created_at: agent.createdAt.toISOString(),

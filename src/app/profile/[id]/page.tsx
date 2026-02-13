@@ -12,7 +12,6 @@ import {
   Copy,
   Check,
   Key,
-  Download,
   Eye,
   ArrowBigUp,
   MessageSquare,
@@ -81,6 +80,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   // Agent form
   const [agentName, setAgentName] = useState("");
   const [agentDesc, setAgentDesc] = useState("");
+  const [agentAvatar, setAgentAvatar] = useState("");
+  const [agentAvatarUploading, setAgentAvatarUploading] = useState(false);
+  const [agentCreateError, setAgentCreateError] = useState("");
   const [agentCreating, setAgentCreating] = useState(false);
   const [newAgentKey, setNewAgentKey] = useState<{ name: string; apiKey: string; sourceType: string; activateToken?: string } | null>(null);
   const [copiedKey, setCopiedKey] = useState(false);
@@ -108,6 +110,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [editAgentName, setEditAgentName] = useState("");
   const [editAgentDesc, setEditAgentDesc] = useState("");
   const [editAgentAvatar, setEditAgentAvatar] = useState("");
+  const [editAgentAvatarUploading, setEditAgentAvatarUploading] = useState(false);
   const [editAgentSaving, setEditAgentSaving] = useState(false);
   const [editAgentError, setEditAgentError] = useState("");
 
@@ -194,8 +197,25 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     finally { setDeletingAgentId(null); }
   };
 
+  const uploadAgentAvatar = async (file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+
+    const res = await fetch("/api/uploads/agent-avatar", {
+      method: "POST",
+      body: form,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data?.error || "Failed to upload image");
+    }
+    return data.url as string;
+  };
+
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAgentCreateError("");
     setAgentCreating(true);
     try {
       const res = await fetch("/api/agents", {
@@ -204,6 +224,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         body: JSON.stringify({
           name: agentName,
           description: agentDesc || null,
+          avatar: agentAvatar || null,
           sourceType: "multi",
         }),
       });
@@ -214,9 +235,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         setNewAgentKey({ name: data.agent.name, apiKey: data.apiKey, sourceType: "multi", activateToken: data.activateToken });
         setAgentName("");
         setAgentDesc("");
+        setAgentAvatar("");
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setAgentCreateError(data?.error || "Failed to create agent");
       }
     } catch {
-      // ignore
+      setAgentCreateError("Network error");
     } finally {
       setAgentCreating(false);
     }
@@ -686,12 +711,46 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   placeholder="Analyzes my daily coding sessions"
                 />
               </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Avatar Image (optional)</label>
+                <div className="flex items-center gap-3">
+                  {agentAvatar ? (
+                    <img src={agentAvatar} alt="Avatar preview" className="w-10 h-10 rounded-full object-cover border border-border" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-bg-input border border-border flex items-center justify-center text-sm">
+                      🤖
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setAgentCreateError("");
+                      setAgentAvatarUploading(true);
+                      try {
+                        const url = await uploadAgentAvatar(file);
+                        setAgentAvatar(url);
+                      } catch (err) {
+                        setAgentCreateError(err instanceof Error ? err.message : "Failed to upload image");
+                      } finally {
+                        setAgentAvatarUploading(false);
+                        e.currentTarget.value = "";
+                      }
+                    }}
+                    className="block w-full text-xs text-text-muted file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-bg-input file:text-text file:cursor-pointer"
+                  />
+                </div>
+                <p className="text-xs text-text-dim mt-1">Supports jpg/png/webp/gif, max 3MB.</p>
+              </div>
+              {agentCreateError && <p className="text-xs text-accent-red">{agentCreateError}</p>}
               <button
                 type="submit"
-                disabled={agentCreating}
+                disabled={agentCreating || agentAvatarUploading}
                 className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm font-medium px-4 py-1.5 rounded-md transition-colors"
               >
-                {agentCreating ? "Creating..." : "Create Agent"}
+                {agentCreating ? "Creating..." : agentAvatarUploading ? "Uploading image..." : "Create Agent"}
               </button>
             </form>
           </div>
@@ -819,23 +878,55 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-text-muted mb-1">Avatar URL</label>
-                    <input
-                      type="url"
-                      value={editAgentAvatar}
-                      onChange={(e) => setEditAgentAvatar(e.target.value)}
-                      className="w-full bg-bg-input border border-border rounded-md px-3 py-1.5 text-sm text-text focus:outline-none focus:border-primary"
-                      placeholder="https://example.com/agent-avatar.png"
-                    />
+                    <label className="block text-xs text-text-muted mb-1">Avatar Image</label>
+                    <div className="flex items-center gap-3">
+                      {editAgentAvatar ? (
+                        <img src={editAgentAvatar} alt="Agent avatar" className="w-10 h-10 rounded-full object-cover border border-border" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-bg-input border border-border flex items-center justify-center text-sm">
+                          {getAgentEmoji("multi")}
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setEditAgentError("");
+                          setEditAgentAvatarUploading(true);
+                          try {
+                            const url = await uploadAgentAvatar(file);
+                            setEditAgentAvatar(url);
+                          } catch (err) {
+                            setEditAgentError(err instanceof Error ? err.message : "Failed to upload image");
+                          } finally {
+                            setEditAgentAvatarUploading(false);
+                            e.currentTarget.value = "";
+                          }
+                        }}
+                        className="block w-full text-xs text-text-muted file:mr-3 file:px-3 file:py-1.5 file:rounded-md file:border-0 file:bg-bg-input file:text-text file:cursor-pointer"
+                      />
+                    </div>
+                    {editAgentAvatar && (
+                      <button
+                        type="button"
+                        onClick={() => setEditAgentAvatar("")}
+                        className="text-xs text-text-dim hover:text-accent-red mt-1 transition-colors"
+                      >
+                        Remove avatar
+                      </button>
+                    )}
+                    <p className="text-xs text-text-dim mt-1">Supports jpg/png/webp/gif, max 3MB.</p>
                   </div>
                   {editAgentError && <p className="text-xs text-accent-red">{editAgentError}</p>}
                   <div className="flex gap-2">
                     <button
                       type="submit"
-                      disabled={editAgentSaving}
+                      disabled={editAgentSaving || editAgentAvatarUploading}
                       className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors"
                     >
-                      {editAgentSaving ? "Saving..." : "Save"}
+                      {editAgentSaving ? "Saving..." : editAgentAvatarUploading ? "Uploading..." : "Save"}
                     </button>
                     <button
                       type="button"
