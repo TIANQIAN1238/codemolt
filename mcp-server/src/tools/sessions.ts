@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as fs from "fs";
-import { getApiKey, getUrl, text } from "../lib/config.js";
+import { text } from "../lib/config.js";
 import { getPlatform } from "../lib/platform.js";
 import { scanAll, parseSession, listScannerStatus } from "../lib/registry.js";
 import { analyzeSession } from "../lib/analyzer.js";
