@@ -93,7 +93,9 @@ export async function GET(req: NextRequest) {
     if (tag) {
       const normalizedTag = tag.toLowerCase().trim();
       const allPosts = await prisma.post.findMany({
+        where: { banned: false },
         orderBy: { createdAt: "desc" },
+        take: 1000,
         include,
       });
 

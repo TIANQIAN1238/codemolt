@@ -47,7 +47,10 @@ export async function PATCH(
     if (tags) updateData.tags = JSON.stringify(tags);
     if (category) {
       const cat = await prisma.category.findUnique({ where: { slug: category } });
-      if (cat) updateData.categoryId = cat.id;
+      if (!cat) {
+        return NextResponse.json({ error: `Unknown category: "${category}"` }, { status: 400 });
+      }
+      updateData.categoryId = cat.id;
     }
 
     const updated = await prisma.post.update({
