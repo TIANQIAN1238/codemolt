@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -14,6 +14,12 @@ import {
 import { formatDate } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
 
+interface FromUser {
+  id: string;
+  username: string;
+  avatar: string | null;
+}
+
 interface NotificationData {
   id: string;
   type: string;
@@ -22,6 +28,7 @@ interface NotificationData {
   post_id: string | null;
   comment_id: string | null;
   from_user_id: string | null;
+  from_user: FromUser | null;
   created_at: string;
 }
 
@@ -40,12 +47,115 @@ function getNotificationIcon(type: string) {
   }
 }
 
+/** Render notification message with clickable @username links */
+function NotificationMessage({
+  message,
+  fromUser,
+  isRead,
+}: {
+  message: string;
+  fromUser: FromUser | null;
+  isRead: boolean;
+}) {
+  if (!fromUser) {
+    return (
+      <span className={isRead ? "text-text-muted" : "text-text"}>
+        {message}
+      </span>
+    );
+  }
+
+  const mention = `@${fromUser.username}`;
+  const idx = message.indexOf(mention);
+
+  if (idx === -1) {
+    return (
+      <span className={isRead ? "text-text-muted" : "text-text"}>
+        {message}
+      </span>
+    );
+  }
+
+  const before = message.slice(0, idx);
+  const after = message.slice(idx + mention.length);
+
+  return (
+    <span className={isRead ? "text-text-muted" : "text-text"}>
+      {before}
+      <Link
+        href={`/profile/${fromUser.id}`}
+        onClick={(e) => e.stopPropagation()}
+        className="font-medium text-primary hover:underline"
+      >
+        {mention}
+      </Link>
+      {after}
+    </span>
+  );
+}
+
+/** Follow-back button for follow notifications */
+function FollowBackButton({
+  fromUserId,
+  label,
+  followingLabel,
+}: {
+  fromUserId: string;
+  label: string;
+  followingLabel: string;
+}) {
+  const [status, setStatus] = useState<"idle" | "loading" | "followed">("idle");
+
+  const handleFollowBack = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (status !== "idle") return;
+    setStatus("loading");
+    try {
+      const res = await fetch(`/api/v1/users/${fromUserId}/follow`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "follow" }),
+      });
+      if (res.ok) {
+        // Both "now following" and "already following" are success
+        setStatus("followed");
+      } else {
+        setStatus("idle");
+      }
+    } catch {
+      setStatus("idle");
+    }
+  };
+
+  if (status === "followed") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-primary/10 text-primary font-medium">
+        <UserPlus className="w-3 h-3" />
+        {followingLabel}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleFollowBack}
+      disabled={status === "loading"}
+      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 font-medium"
+    >
+      <UserPlus className="w-3 h-3" />
+      {status === "loading" ? "..." : label}
+    </button>
+  );
+}
+
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
   const { t } = useLang();
 
@@ -56,7 +166,10 @@ export default function NotificationsPage() {
         return r.json();
       })
       .then((data) => {
-        if (data?.user) setLoggedIn(true);
+        if (data?.user) {
+          setLoggedIn(true);
+          setCurrentUserId(data.user.id);
+        }
       })
       .catch(() => { setLoggedIn(false); setLoading(false); });
   }, []);
@@ -92,7 +205,7 @@ export default function NotificationsPage() {
     finally { setMarkingAll(false); }
   };
 
-  const handleMarkRead = async (ids: string[]) => {
+  const handleMarkRead = useCallback(async (ids: string[]) => {
     try {
       const res = await fetch("/api/v1/notifications/read", {
         method: "POST",
@@ -106,7 +219,7 @@ export default function NotificationsPage() {
         setUnreadCount((prev) => Math.max(0, prev - ids.length));
       }
     } catch { /* ignore */ }
-  };
+  }, []);
 
   if (loggedIn === false) {
     return (
@@ -208,63 +321,77 @@ export default function NotificationsPage() {
       ) : (
         <div className="space-y-1.5">
           {notifications.map((n) => {
-            const wrapper = n.post_id ? (
-              <Link
-                key={n.id}
-                href={`/post/${n.post_id}`}
-                onClick={() => {
-                  if (!n.read) handleMarkRead([n.id]);
-                }}
-                className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
-                  n.read
-                    ? "bg-bg-card border border-border hover:border-primary/30"
-                    : "bg-primary/5 border border-primary/20 hover:border-primary/40"
-                }`}
-              >
+            const isFollow = n.type === "follow";
+            const href = n.post_id
+              ? `/post/${n.post_id}`
+              : isFollow && n.from_user
+                ? `/profile/${n.from_user.id}`
+                : null;
+
+            const cardClass = `flex items-start gap-3 p-3 rounded-lg transition-colors ${
+              n.read
+                ? "bg-bg-card border border-border hover:border-primary/30"
+                : "bg-primary/5 border border-primary/20 hover:border-primary/40"
+            }`;
+
+            const content = (
+              <>
                 <div className="w-8 h-8 rounded-full bg-bg-input flex items-center justify-center flex-shrink-0 mt-0.5">
                   {getNotificationIcon(n.type)}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={`text-sm leading-relaxed ${n.read ? "text-text-muted" : "text-text"}`}>
-                    {n.message}
+                  <p className="text-sm leading-relaxed">
+                    <NotificationMessage
+                      message={n.message}
+                      fromUser={n.from_user}
+                      isRead={n.read}
+                    />
                   </p>
-                  <p className="text-xs text-text-dim mt-1">
-                    {formatDate(n.created_at)}
-                  </p>
+                  <div className="flex items-center gap-3 mt-1.5">
+                    <span className="text-xs text-text-dim">
+                      {formatDate(n.created_at)}
+                    </span>
+                    {isFollow && n.from_user && n.from_user.id !== currentUserId && (
+                      <FollowBackButton
+                        fromUserId={n.from_user.id}
+                        label={t("notifications.followBack")}
+                        followingLabel={t("notifications.following")}
+                      />
+                    )}
+                  </div>
                 </div>
                 {!n.read && (
                   <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
                 )}
-              </Link>
-            ) : (
+              </>
+            );
+
+            if (href) {
+              return (
+                <Link
+                  key={n.id}
+                  href={href}
+                  onClick={() => {
+                    if (!n.read) handleMarkRead([n.id]);
+                  }}
+                  className={cardClass}
+                >
+                  {content}
+                </Link>
+              );
+            }
+
+            return (
               <div
                 key={n.id}
                 onClick={() => {
                   if (!n.read) handleMarkRead([n.id]);
                 }}
-                className={`flex items-start gap-3 p-3 rounded-lg transition-colors cursor-pointer ${
-                  n.read
-                    ? "bg-bg-card border border-border hover:border-primary/30"
-                    : "bg-primary/5 border border-primary/20 hover:border-primary/40"
-                }`}
+                className={`${cardClass} cursor-pointer`}
               >
-                <div className="w-8 h-8 rounded-full bg-bg-input flex items-center justify-center flex-shrink-0 mt-0.5">
-                  {getNotificationIcon(n.type)}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm leading-relaxed ${n.read ? "text-text-muted" : "text-text"}`}>
-                    {n.message}
-                  </p>
-                  <p className="text-xs text-text-dim mt-1">
-                    {formatDate(n.created_at)}
-                  </p>
-                </div>
-                {!n.read && (
-                  <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-2" />
-                )}
+                {content}
               </div>
             );
-            return wrapper;
           })}
         </div>
       )}

@@ -32,17 +32,46 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
+    // Batch-fetch fromUser info for notifications that have fromUserId
+    const fromUserIds = [
+      ...new Set(
+        notifications
+          .map((n) => n.fromUserId)
+          .filter((id): id is string => id !== null)
+      ),
+    ];
+    const fromUsers =
+      fromUserIds.length > 0
+        ? await prisma.user.findMany({
+            where: { id: { in: fromUserIds } },
+            select: { id: true, username: true, avatar: true },
+          })
+        : [];
+    const fromUserMap = new Map(fromUsers.map((u) => [u.id, u]));
+
     return NextResponse.json({
-      notifications: notifications.map((n) => ({
-        id: n.id,
-        type: n.type,
-        message: n.message,
-        read: n.read,
-        post_id: n.postId,
-        comment_id: n.commentId,
-        from_user_id: n.fromUserId,
-        created_at: n.createdAt.toISOString(),
-      })),
+      notifications: notifications.map((n) => {
+        const fromUser = n.fromUserId
+          ? fromUserMap.get(n.fromUserId) ?? null
+          : null;
+        return {
+          id: n.id,
+          type: n.type,
+          message: n.message,
+          read: n.read,
+          post_id: n.postId,
+          comment_id: n.commentId,
+          from_user_id: n.fromUserId,
+          from_user: fromUser
+            ? {
+                id: fromUser.id,
+                username: fromUser.username,
+                avatar: fromUser.avatar,
+              }
+            : null,
+          created_at: n.createdAt.toISOString(),
+        };
+      }),
       unread_count: unreadCount,
     });
   } catch (error) {

@@ -145,6 +145,8 @@ const en: Record<string, string> = {
   "notifications.empty": "No notifications yet.",
   "notifications.loginRequired": "Please log in to view your notifications.",
   "notifications.backToFeed": "Back to feed",
+  "notifications.followBack": "Follow back",
+  "notifications.following": "Following",
 
   // Feed
   "feed.title": "Following Feed",
@@ -314,6 +316,8 @@ const zh: Record<string, string> = {
   "notifications.empty": "还没有通知。",
   "notifications.loginRequired": "请登录以查看通知。",
   "notifications.backToFeed": "返回首页",
+  "notifications.followBack": "回关",
+  "notifications.following": "已关注",
 
   // Feed
   "feed.title": "关注动态",
