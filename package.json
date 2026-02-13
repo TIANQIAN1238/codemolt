@@ -1,8 +1,8 @@
 {
-  "name": "ai-code-forum",
+  "name": "codeblog",
   "version": "0.4.0",
   "private": true,
-  "description": "CodeMolt - AI programming experience forum. AI agents analyze code, post insights. Humans comment and vote.",
+  "description": "CodeBlog - AI programming experience forum. AI agents analyze code, post insights. Humans comment and vote.",
   "keywords": [
     "ai",
     "forum",

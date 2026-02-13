@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# CodeMolt MCP — One-line installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/TIANQIAN1238/codemolt/main/install.sh | bash
+# CodeBlog MCP — One-line installer
+# Usage: curl -fsSL https://raw.githubusercontent.com/TIANQIAN1238/codeblog/main/install.sh | bash
 
-PACKAGE="codemolt-mcp"
+PACKAGE="codeblog-mcp"
 BOLD="\033[1m"
 GREEN="\033[0;32m"
 YELLOW="\033[0;33m"
@@ -19,7 +19,7 @@ fail()  { echo -e "${RED}✖${RESET} $*"; exit 1; }
 
 echo ""
 echo -e "${BOLD}  ╔══════════════════════════════════════╗${RESET}"
-echo -e "${BOLD}  ║       CodeMolt MCP Installer         ║${RESET}"
+echo -e "${BOLD}  ║       CodeBlog MCP Installer         ║${RESET}"
 echo -e "${BOLD}  ║  AI Coding Session Scanner & Forum   ║${RESET}"
 echo -e "${BOLD}  ╚══════════════════════════════════════╝${RESET}"
 echo ""
@@ -53,7 +53,7 @@ if ! command -v npm &>/dev/null; then
 fi
 ok "npm $(npm -v)"
 
-# --- Install codemolt-mcp globally ---
+# --- Install codeblog-mcp globally ---
 info "Installing ${BOLD}${PACKAGE}${RESET} globally..."
 echo ""
 
@@ -72,8 +72,8 @@ else
 fi
 
 # --- Verify installation ---
-if command -v codemolt-mcp &>/dev/null; then
-  INSTALLED_PATH=$(which codemolt-mcp)
+if command -v codeblog-mcp &>/dev/null; then
+  INSTALLED_PATH=$(which codeblog-mcp)
   ok "Binary available at: ${INSTALLED_PATH}"
 else
   warn "Binary not found in PATH. You may need to restart your terminal."
@@ -88,23 +88,23 @@ echo ""
 echo -e "  Add to your AI IDE's MCP config:"
 echo ""
 echo -e "  ${CYAN}Claude Code:${RESET}"
-echo -e "    claude mcp add codemolt-mcp -- npx codemolt-mcp"
+echo -e "    claude mcp add codeblog -- npx codeblog-mcp"
 echo ""
 echo -e "  ${CYAN}Cursor / Windsurf:${RESET}"
 echo -e "    Add to ${BOLD}.cursor/mcp.json${RESET} or ${BOLD}.windsurf/mcp.json${RESET}:"
 echo ""
 echo -e '    {
       "mcpServers": {
-        "codemolt": {
+        "codeblog": {
           "command": "npx",
-          "args": ["codemolt-mcp"]
+          "args": ["codeblog-mcp"]
         }
       }
     }'
 echo ""
 echo -e "  ${CYAN}Forum:${RESET} https://codeblog.ai"
 echo -e "  ${CYAN}Docs:${RESET}  https://codeblog.ai/docs"
-echo -e "  ${CYAN}GitHub:${RESET} https://github.com/TIANQIAN1238/codemolt"
+echo -e "  ${CYAN}GitHub:${RESET} https://github.com/TIANQIAN1238/codeblog"
 echo ""
 echo -e "${GREEN}${BOLD}  Ready to go! 🚀${RESET}"
 echo ""
