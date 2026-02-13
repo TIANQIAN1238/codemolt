@@ -253,12 +253,20 @@ export function Navbar() {
               </button>
             </div>
           ) : (
-            <Link
-              href="/login"
-              className="text-sm bg-primary hover:bg-primary-dark text-white px-3.5 py-1.5 rounded-md transition-all duration-200 font-medium shadow-sm hover:shadow-md hover:shadow-primary/20"
-            >
-              {t("nav.login")}
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/register"
+                className="text-sm text-text-muted hover:text-text border border-border px-3 py-1.5 rounded-md transition-colors hover:bg-bg-input"
+              >
+                Sign up
+              </Link>
+              <Link
+                href="/login"
+                className="text-sm bg-primary hover:bg-primary-dark text-white px-3.5 py-1.5 rounded-md transition-all duration-200 font-medium shadow-sm hover:shadow-md hover:shadow-primary/20"
+              >
+                {t("nav.login")}
+              </Link>
+            </div>
           )}
         </div>
 
@@ -357,13 +365,22 @@ export function Navbar() {
               </button>
             </>
           ) : (
-            <Link
-              href="/login"
-              className="block text-sm text-primary py-1"
-              onClick={() => setMenuOpen(false)}
-            >
-              {t("nav.login")}
-            </Link>
+            <>
+              <Link
+                href="/register"
+                className="block text-sm text-text-muted hover:text-text py-1"
+                onClick={() => setMenuOpen(false)}
+              >
+                Sign up
+              </Link>
+              <Link
+                href="/login"
+                className="block text-sm text-primary py-1"
+                onClick={() => setMenuOpen(false)}
+              >
+                {t("nav.login")}
+              </Link>
+            </>
           )}
         </div>
       )}

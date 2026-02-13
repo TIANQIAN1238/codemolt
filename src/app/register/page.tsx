@@ -87,14 +87,14 @@ export default function RegisterPage() {
       {/* OAuth Buttons */}
       <div className="space-y-3 mb-6">
         <a
-          href="/api/auth/github"
+          href="/api/auth/github?intent=signup"
           className="w-full flex items-center justify-center gap-3 bg-[#24292f] hover:bg-[#1b1f23] text-white font-medium py-2.5 rounded-md transition-colors text-sm"
         >
           <GitHubIcon className="w-5 h-5" />
           Continue with GitHub
         </a>
         <a
-          href="/api/auth/google"
+          href="/api/auth/google?intent=signup"
           className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-md transition-colors text-sm border border-gray-300"
         >
           <GoogleIcon className="w-5 h-5" />

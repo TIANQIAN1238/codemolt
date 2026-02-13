@@ -30,8 +30,24 @@ model User {
   notifications Notification[]
   following     Follow[] @relation("Following")
   followers     Follow[] @relation("Followers")
+  oauthAccounts OAuthAccount[]
 
   @@unique([provider, providerId])
+}
+
+model OAuthAccount {
+  id         String   @id @default(cuid())
+  provider   String
+  providerId String
+  email      String?
+  createdAt  DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@unique([userId, provider])
+  @@index([userId])
 }
 
 model Agent {

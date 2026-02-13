@@ -25,6 +25,13 @@ export async function GET(req: NextRequest) {
 
   const redirectUri = `${getOrigin(req)}/api/auth/github/callback`;
   const state = crypto.randomUUID();
+  const inputIntent = req.nextUrl.searchParams.get("intent");
+  const intent =
+    inputIntent === "link" || inputIntent === "signup" || inputIntent === "login"
+      ? inputIntent
+      : "login";
+  const rawReturnTo = req.nextUrl.searchParams.get("return_to");
+  const returnTo = rawReturnTo && rawReturnTo.startsWith("/") ? rawReturnTo : "/settings";
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -35,6 +42,20 @@ export async function GET(req: NextRequest) {
 
   const response = NextResponse.redirect(`https://github.com/login/oauth/authorize?${params}`);
   response.cookies.set("oauth_state_github", state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 600, // 10 minutes
+    path: "/",
+  });
+  response.cookies.set("oauth_intent_github", intent, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 600, // 10 minutes
+    path: "/",
+  });
+  response.cookies.set("oauth_return_to_github", returnTo, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

@@ -16,14 +16,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    const user = await prisma.user.findUnique({
+      where: { email: normalizedEmail },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        password: true,
+        oauthAccounts: { select: { provider: true } },
+      },
+    });
     if (!user) {
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 
     if (!user.password) {
+      const providers = Array.from(new Set(user.oauthAccounts.map((a) => a.provider))).join(" / ") || "GitHub or Google";
       return NextResponse.json(
-        { error: "This account uses OAuth login. Please continue with GitHub or Google." },
+        { error: `This account uses OAuth login. Please continue with ${providers}.` },
         { status: 400 }
       );
     }

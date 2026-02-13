@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { createToken } from "@/lib/auth";
+import { createToken, verifyToken } from "@/lib/auth";
 
 function getFirstHeaderValue(value: string | null): string | null {
   return value?.split(",")[0]?.trim() || null;
@@ -18,27 +18,40 @@ function getOrigin(req: NextRequest): string {
   return `${proto}://${host}`;
 }
 
-// GitHub OAuth Step 2: Handle callback, exchange code for token, create/login user
+function cleanupOAuthCookies(response: NextResponse) {
+  response.cookies.delete("oauth_state_github");
+  response.cookies.delete("oauth_intent_github");
+  response.cookies.delete("oauth_return_to_github");
+}
+
+// GitHub OAuth Step 2: Handle callback, exchange code for token, create/login or link user
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
   const savedState = req.cookies.get("oauth_state_github")?.value;
+  const cookieIntent = req.cookies.get("oauth_intent_github")?.value;
+  const intent = cookieIntent === "link" || cookieIntent === "signup" ? cookieIntent : "login";
+  const rawReturnTo = req.cookies.get("oauth_return_to_github")?.value;
+  const returnTo = rawReturnTo && rawReturnTo.startsWith("/") ? rawReturnTo : "/settings";
   const origin = getOrigin(req);
 
+  const invalidStateResponse = NextResponse.redirect(`${origin}/login?error=invalid_state`);
+  cleanupOAuthCookies(invalidStateResponse);
   if (!code || !state || state !== savedState) {
-    return NextResponse.redirect(`${origin}/login?error=invalid_state`);
+    return invalidStateResponse;
   }
 
   const clientId = process.env.GITHUB_CLIENT_ID;
   const clientSecret = process.env.GITHUB_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(`${origin}/login?error=oauth_not_configured`);
+    const response = NextResponse.redirect(`${origin}/login?error=oauth_not_configured`);
+    cleanupOAuthCookies(response);
+    return response;
   }
 
   try {
-    // Exchange code for access token
     const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
       headers: {
@@ -54,16 +67,16 @@ export async function GET(req: NextRequest) {
 
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
-      return NextResponse.redirect(`${origin}/login?error=token_exchange_failed`);
+      const response = NextResponse.redirect(`${origin}/login?error=token_exchange_failed`);
+      cleanupOAuthCookies(response);
+      return response;
     }
 
-    // Fetch user profile
     const userRes = await fetch("https://api.github.com/user", {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
     });
     const githubUser = await userRes.json();
 
-    // Fetch user email (may be private)
     let email = githubUser.email;
     if (!email) {
       const emailsRes = await fetch("https://api.github.com/user/emails", {
@@ -75,35 +88,131 @@ export async function GET(req: NextRequest) {
     }
 
     if (!email) {
-      return NextResponse.redirect(`${origin}/login?error=no_email`);
+      const response = NextResponse.redirect(`${origin}/login?error=no_email`);
+      cleanupOAuthCookies(response);
+      return response;
     }
 
     email = String(email).trim().toLowerCase();
 
+    const provider = "github";
     const providerId = String(githubUser.id);
     const username = githubUser.login;
     const avatar = githubUser.avatar_url;
 
-    // Find or create user
+    const currentToken = req.cookies.get("token")?.value;
+    const currentPayload = currentToken ? await verifyToken(currentToken) : null;
+    const currentUserId = currentPayload?.userId || null;
+
     let user = await prisma.user.findFirst({
       where: {
-        OR: [
-          { provider: "github", providerId },
-          { email },
-        ],
+        oauthAccounts: {
+          some: { provider, providerId },
+        },
       },
     });
 
-    if (user) {
-      // Update provider info if user exists but logged in via email before
-      if (!user.provider) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { provider: "github", providerId, avatar: avatar || user.avatar },
+    let isNewUser = false;
+
+    if (intent === "link") {
+      if (!currentUserId) {
+        const response = NextResponse.redirect(`${origin}/login?error=link_requires_login`);
+        cleanupOAuthCookies(response);
+        return response;
+      }
+
+      if (user && user.id !== currentUserId) {
+        const response = NextResponse.redirect(`${origin}${returnTo}?error=github_already_linked`);
+        cleanupOAuthCookies(response);
+        return response;
+      }
+
+      if (!user) {
+        user = await prisma.user.findUnique({ where: { id: currentUserId } });
+      }
+
+      if (!user) {
+        const response = NextResponse.redirect(`${origin}/login?error=user_not_found`);
+        cleanupOAuthCookies(response);
+        return response;
+      }
+
+      const existingProvider = await prisma.oAuthAccount.findUnique({
+        where: { userId_provider: { userId: user.id, provider } },
+      });
+
+      if (existingProvider && existingProvider.providerId !== providerId) {
+        const response = NextResponse.redirect(`${origin}${returnTo}?error=github_conflict`);
+        cleanupOAuthCookies(response);
+        return response;
+      }
+
+      if (!existingProvider) {
+        await prisma.oAuthAccount.create({
+          data: {
+            userId: user.id,
+            provider,
+            providerId,
+            email,
+          },
         });
       }
-    } else {
-      // Create new user — ensure unique username
+
+      const updates: Record<string, string> = {};
+      if (!user.provider) {
+        updates.provider = provider;
+        updates.providerId = providerId;
+      }
+      if (avatar && !user.avatar) {
+        updates.avatar = avatar;
+      }
+      if (Object.keys(updates).length > 0) {
+        await prisma.user.update({ where: { id: user.id }, data: updates });
+      }
+
+      const response = NextResponse.redirect(`${origin}${returnTo}?linked=github`);
+      cleanupOAuthCookies(response);
+      return response;
+    }
+
+    if (!user) {
+      user = await prisma.user.findUnique({ where: { email } });
+    }
+
+    if (user) {
+      const existingProvider = await prisma.oAuthAccount.findUnique({
+        where: { userId_provider: { userId: user.id, provider } },
+      });
+
+      if (existingProvider && existingProvider.providerId !== providerId) {
+        const response = NextResponse.redirect(`${origin}/login?error=oauth_mismatch`);
+        cleanupOAuthCookies(response);
+        return response;
+      }
+
+      if (!existingProvider) {
+        await prisma.oAuthAccount.create({
+          data: {
+            userId: user.id,
+            provider,
+            providerId,
+            email,
+          },
+        });
+      }
+
+      const updates: Record<string, string> = {};
+      if (!user.provider) {
+        updates.provider = provider;
+        updates.providerId = providerId;
+      }
+      if (avatar && !user.avatar) {
+        updates.avatar = avatar;
+      }
+      if (Object.keys(updates).length > 0) {
+        user = await prisma.user.update({ where: { id: user.id }, data: updates });
+      }
+    } else if (intent === "signup") {
       let finalUsername = username;
       const existingUsername = await prisma.user.findUnique({ where: { username } });
       if (existingUsername) {
@@ -114,30 +223,42 @@ export async function GET(req: NextRequest) {
         data: {
           email,
           username: finalUsername,
-          password: "", // OAuth users don't have a password
+          password: "",
           avatar,
-          provider: "github",
+          provider,
           providerId,
+          oauthAccounts: {
+            create: {
+              provider,
+              providerId,
+              email,
+            },
+          },
         },
       });
+      isNewUser = true;
+    } else {
+      const response = NextResponse.redirect(`${origin}/login?error=no_account`);
+      cleanupOAuthCookies(response);
+      return response;
     }
 
-    // Create JWT and set cookie — new users go to welcome page
-    const isNewUser = !user.provider || user.createdAt.getTime() > Date.now() - 10000;
     const token = await createToken(user.id);
     const response = NextResponse.redirect(`${origin}${isNewUser ? "/welcome" : "/"}`);
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+      maxAge: 60 * 60 * 24 * 7,
       path: "/",
     });
-    response.cookies.delete("oauth_state_github");
+    cleanupOAuthCookies(response);
 
     return response;
   } catch (error) {
     console.error("GitHub OAuth error:", error);
-    return NextResponse.redirect(`${origin}/login?error=oauth_failed`);
+    const response = NextResponse.redirect(`${origin}/login?error=oauth_failed`);
+    cleanupOAuthCookies(response);
+    return response;
   }
 }

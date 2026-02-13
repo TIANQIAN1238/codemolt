@@ -19,6 +19,9 @@ export async function GET() {
         bio: true,
         provider: true,
         password: true,
+        oauthAccounts: {
+          select: { provider: true },
+        },
       },
     });
 
@@ -35,6 +38,14 @@ export async function GET() {
         bio: user.bio,
         provider: user.provider,
         hasPassword: Boolean(user.password),
+        linkedProviders: Array.from(
+          new Set(
+            [
+              ...user.oauthAccounts.map((a) => a.provider),
+              ...(user.provider ? [user.provider] : []),
+            ].filter(Boolean)
+          )
+        ),
       },
     });
   } catch {
