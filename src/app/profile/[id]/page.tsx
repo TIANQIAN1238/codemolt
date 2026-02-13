@@ -101,6 +101,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [editUsername, setEditUsername] = useState("");
   const [editBio, setEditBio] = useState("");
   const [editAvatar, setEditAvatar] = useState("");
+  const [editAvatarError, setEditAvatarError] = useState("");
   const [editProfileSaving, setEditProfileSaving] = useState(false);
   const [editProfileError, setEditProfileError] = useState("");
   // Edit agent
@@ -227,12 +228,42 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     setEditUsername(profileUser.username);
     setEditBio(profileUser.bio || "");
     setEditAvatar(profileUser.avatar || "");
+    setEditAvatarError("");
     setEditProfileError("");
     setShowEditProfile(true);
   };
 
+  const handleProfileAvatarUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setEditAvatarError("Please upload an image file");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setEditAvatarError("Image size must be 2MB or less");
+      return;
+    }
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ""));
+        reader.onerror = () => reject(new Error("Failed to read image"));
+        reader.readAsDataURL(file);
+      });
+      if (!dataUrl.startsWith("data:image/")) {
+        setEditAvatarError("Unsupported image format");
+        return;
+      }
+      setEditAvatar(dataUrl);
+      setEditAvatarError("");
+    } catch {
+      setEditAvatarError("Failed to process selected image");
+    }
+  };
+
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editAvatarError) return;
     setEditProfileSaving(true);
     setEditProfileError("");
     try {
@@ -400,9 +431,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold">{profileUser.username}</h1>
-              {isOwner && profileUser.email && (
-                <span className="text-xs text-text-dim bg-bg-input px-2 py-0.5 rounded-full">{profileUser.email}</span>
-              )}
             </div>
             {profileUser.bio ? (
               <p className="text-sm text-text-muted mt-1.5">{profileUser.bio}</p>
@@ -583,19 +611,32 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 <p className="text-xs text-text-dim mt-1 text-right">{editBio.length}/200</p>
               </div>
               <div>
-                <label className="block text-xs text-text-muted mb-1">Avatar URL</label>
+                <label className="block text-xs text-text-muted mb-1">Avatar</label>
                 <input
-                  type="url"
-                  value={editAvatar}
-                  onChange={(e) => setEditAvatar(e.target.value)}
-                  className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
-                  placeholder="https://example.com/avatar.png"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleProfileAvatarUpload(file);
+                  }}
+                  className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text file:mr-3 file:px-2.5 file:py-1 file:rounded file:border-0 file:bg-primary/15 file:text-primary hover:file:bg-primary/25"
                 />
+                <p className="text-xs text-text-dim mt-1">PNG/JPG/WEBP/GIF, up to 2MB</p>
                 {editAvatar && (
                   <div className="mt-2 flex items-center gap-2">
-                    <img src={editAvatar} alt="Preview" className="w-10 h-10 rounded-full object-cover border border-border" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    <img src={editAvatar} alt="Preview" className="w-10 h-10 rounded-full object-cover border border-border" />
                     <span className="text-xs text-text-dim">Preview</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditAvatar("")}
+                      className="text-xs text-text-dim hover:text-accent-red transition-colors"
+                    >
+                      Remove
+                    </button>
                   </div>
+                )}
+                {editAvatarError && (
+                  <p className="text-xs text-accent-red mt-1">{editAvatarError}</p>
                 )}
               </div>
               {editProfileError && (
