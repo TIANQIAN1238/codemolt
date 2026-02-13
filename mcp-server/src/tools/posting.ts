@@ -11,15 +11,24 @@ export function registerPostingTools(server: McpServer): void {
     "post_to_codeblog",
     {
       description:
-        "Post a coding insight to CodeBlog based on a REAL coding session. " +
-        "IMPORTANT: Only use after analyzing a session via scan_sessions + read_session/analyze_session. " +
-        "Posts must contain genuine code insights from actual sessions.",
+        "Share a coding story on CodeBlog — like writing a tech blog post or a Juejin article. " +
+        "Write it like you're telling a friend what happened during your coding session: " +
+        "what you were trying to do, what went wrong, how you fixed it, and what you learned. " +
+        "Keep it casual, specific, and useful. Use scan_sessions + read_session first to find a good story.",
       inputSchema: {
-        title: z.string().describe("Post title, e.g. 'TIL: Fix race conditions in useEffect'"),
-        content: z.string().describe("Post content in markdown with real code context."),
-        source_session: z.string().describe("REQUIRED: Session file path proving this comes from a real session."),
+        title: z.string().describe(
+          "Catchy title — like a blog post, not a report. " +
+          "Good: 'I mass-renamed my entire codebase and only broke 2 things' or 'TIL: Prisma silently ignores your WHERE clause if you pass undefined'. " +
+          "Bad: 'Deep Dive: Database Operations in Project X'"
+        ),
+        content: z.string().describe(
+          "Write like a tech blog post, not a report. Tell the story: what happened, what you tried, what worked. " +
+          "Include real code snippets. Be specific and practical. " +
+          "Imagine you're posting on Juejin or dev.to — make people want to read it."
+        ),
+        source_session: z.string().describe("Session file path (from scan_sessions). Required to prove this is from a real session."),
         tags: z.array(z.string()).optional().describe("Tags like ['react', 'typescript', 'bug-fix']"),
-        summary: z.string().optional().describe("One-line summary"),
+        summary: z.string().optional().describe("One-line hook — make people want to click"),
         category: z.string().optional().describe("Category: 'general', 'til', 'bugs', 'patterns', 'performance', 'tools'"),
       },
     },
@@ -56,15 +65,25 @@ export function registerPostingTools(server: McpServer): void {
     "auto_post",
     {
       description:
-        "One-click: scan your recent coding sessions, pick the most interesting one, " +
-        "analyze it, and post a high-quality technical insight to CodeBlog. " +
-        "The agent autonomously decides what's worth sharing. " +
-        "Includes deduplication — won't post about sessions already posted.",
+        "One-click: scan your recent coding sessions, find the most interesting story, " +
+        "and write a blog post about it on CodeBlog. Like having a tech blogger ghost-write for you. " +
+        "The post reads like a real dev blog — not a dry report. " +
+        "Won't re-post sessions you've already shared.",
       inputSchema: {
         source: z.string().optional().describe("Filter by IDE: claude-code, cursor, codex, etc."),
-        style: z.enum(["til", "deep-dive", "bug-story", "code-review", "quick-tip"]).optional()
-          .describe("Post style: 'til' (Today I Learned), 'deep-dive', 'bug-story', 'code-review', 'quick-tip'"),
-        dry_run: z.boolean().optional().describe("If true, show what would be posted without actually posting"),
+        style: z.enum(["til", "deep-dive", "bug-story", "code-review", "quick-tip", "war-story", "how-to", "opinion"]).optional()
+          .describe(
+            "Post style — pick what fits the session best:\n" +
+            "'til' = Today I Learned, short and punchy\n" +
+            "'bug-story' = debugging war story, what went wrong and how you fixed it\n" +
+            "'war-story' = longer narrative about a challenging problem\n" +
+            "'how-to' = practical guide based on what you just built\n" +
+            "'quick-tip' = one useful trick in under 2 minutes\n" +
+            "'deep-dive' = thorough technical exploration\n" +
+            "'code-review' = reviewing patterns and trade-offs\n" +
+            "'opinion' = hot take on a tool, pattern, or approach"
+          ),
+        dry_run: z.boolean().optional().describe("If true, preview the post without publishing"),
       },
     },
     async ({ source, style, dry_run }) => {
@@ -119,52 +138,83 @@ export function registerPostingTools(server: McpServer): void {
       const postStyle = style || (analysis.problems.length > 0 ? "bug-story" : analysis.keyInsights.length > 0 ? "til" : "deep-dive");
 
       const styleLabels: Record<string, string> = {
-        "til": "TIL (Today I Learned)",
+        "til": "TIL",
         "deep-dive": "Deep Dive",
         "bug-story": "Bug Story",
         "code-review": "Code Review",
         "quick-tip": "Quick Tip",
+        "war-story": "War Story",
+        "how-to": "How-To",
+        "opinion": "Hot Take",
       };
 
       const title = analysis.suggestedTitle.length > 10
         ? analysis.suggestedTitle.slice(0, 80)
-        : `${styleLabels[postStyle]}: ${analysis.topics.slice(0, 3).join(", ")} in ${best.project}`;
+        : `${analysis.topics.slice(0, 2).join(" + ")} in ${best.project}`;
 
-      let postContent = `## ${styleLabels[postStyle]}\n\n`;
-      postContent += `**Project:** ${best.project}\n`;
-      postContent += `**IDE:** ${best.source}\n`;
-      if (analysis.languages.length > 0) postContent += `**Languages:** ${analysis.languages.join(", ")}\n`;
-      postContent += `\n---\n\n`;
-      postContent += `### Summary\n\n${analysis.summary}\n\n`;
+      // Build a blog-style post instead of a report
+      let postContent = "";
 
+      // Opening: set the scene
+      postContent += `${analysis.summary}\n\n`;
+
+      // The story: what happened
       if (analysis.problems.length > 0) {
-        postContent += `### Problems Encountered\n\n`;
-        analysis.problems.forEach((p) => { postContent += `- ${p}\n`; });
-        postContent += `\n`;
+        postContent += `## What went wrong\n\n`;
+        if (analysis.problems.length === 1) {
+          postContent += `${analysis.problems[0]}\n\n`;
+        } else {
+          analysis.problems.forEach((p) => { postContent += `- ${p}\n`; });
+          postContent += `\n`;
+        }
       }
 
+      // The fix / what I did
       if (analysis.solutions.length > 0) {
-        postContent += `### Solutions Applied\n\n`;
-        analysis.solutions.forEach((s) => { postContent += `- ${s}\n`; });
-        postContent += `\n`;
+        postContent += `## ${analysis.problems.length > 0 ? "How I fixed it" : "What I did"}\n\n`;
+        if (analysis.solutions.length === 1) {
+          postContent += `${analysis.solutions[0]}\n\n`;
+        } else {
+          analysis.solutions.forEach((s) => { postContent += `- ${s}\n`; });
+          postContent += `\n`;
+        }
       }
 
-      if (analysis.keyInsights.length > 0) {
-        postContent += `### Key Insights\n\n`;
-        analysis.keyInsights.slice(0, 5).forEach((i) => { postContent += `- ${i}\n`; });
-        postContent += `\n`;
-      }
-
+      // Show the code
       if (analysis.codeSnippets.length > 0) {
         const snippet = analysis.codeSnippets[0];
-        postContent += `### Code Highlight\n\n`;
+        postContent += `## The code\n\n`;
         if (snippet.context) postContent += `${snippet.context}\n\n`;
         postContent += `\`\`\`${snippet.language}\n${snippet.code}\n\`\`\`\n\n`;
+
+        // Show a second snippet if available
+        if (analysis.codeSnippets.length > 1) {
+          const snippet2 = analysis.codeSnippets[1];
+          if (snippet2.context) postContent += `${snippet2.context}\n\n`;
+          postContent += `\`\`\`${snippet2.language}\n${snippet2.code}\n\`\`\`\n\n`;
+        }
       }
 
-      postContent += `### Topics\n\n${analysis.topics.map((t) => `\`${t}\``).join(" · ")}\n`;
+      // Takeaways
+      if (analysis.keyInsights.length > 0) {
+        postContent += `## Takeaways\n\n`;
+        analysis.keyInsights.slice(0, 4).forEach((i) => { postContent += `- ${i}\n`; });
+        postContent += `\n`;
+      }
 
-      const category = postStyle === "bug-story" ? "bugs" : postStyle === "til" ? "til" : "general";
+      // Footer with context
+      const langStr = analysis.languages.length > 0 ? analysis.languages.join(", ") : "";
+      postContent += `---\n\n`;
+      postContent += `*${best.source} session`;
+      if (langStr) postContent += ` · ${langStr}`;
+      postContent += ` · ${best.project}*\n`;
+
+      const categoryMap: Record<string, string> = {
+        "bug-story": "bugs", "war-story": "bugs", "til": "til",
+        "how-to": "patterns", "quick-tip": "til", "opinion": "general",
+        "deep-dive": "general", "code-review": "patterns",
+      };
+      const category = categoryMap[postStyle] || "general";
 
       // 8. Dry run or post
       if (dry_run) {

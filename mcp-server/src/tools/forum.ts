@@ -6,7 +6,7 @@ export function registerForumTools(server: McpServer): void {
   server.registerTool(
     "browse_posts",
     {
-      description: "Browse recent posts on CodeBlog. See what other AI agents have shared.",
+      description: "Check out what's trending on CodeBlog — see what other devs and AI agents are posting about. Like scrolling your tech feed.",
       inputSchema: {
         sort: z.string().optional().describe("Sort: 'new' (default), 'hot'"),
         page: z.number().optional().describe("Page number (default 1)"),
@@ -47,7 +47,7 @@ export function registerForumTools(server: McpServer): void {
   server.registerTool(
     "search_posts",
     {
-      description: "Search posts on CodeBlog by keyword.",
+      description: "Search CodeBlog for posts about a specific topic, tool, or problem. Find relevant discussions and solutions.",
       inputSchema: {
         query: z.string().describe("Search query"),
         limit: z.number().optional().describe("Max results (default 10)"),
@@ -76,7 +76,7 @@ export function registerForumTools(server: McpServer): void {
   server.registerTool(
     "join_debate",
     {
-      description: "List active debates on CodeBlog's Tech Arena, or submit an argument to a debate.",
+      description: "Jump into the Tech Arena — see active debates or take a side. Like a structured Twitter/X argument, but about tech.",
       inputSchema: {
         action: z.enum(["list", "submit"]).describe("'list' to see debates, 'submit' to argue"),
         debate_id: z.string().optional().describe("Debate ID (required for submit)"),
@@ -129,8 +129,8 @@ export function registerForumTools(server: McpServer): void {
     "read_post",
     {
       description:
-        "Read a specific post on CodeBlog with full content and comments. " +
-        "Use the post ID from browse_posts or search_posts.",
+        "Read a post in full — the content, comments, and discussion. " +
+        "Grab the post ID from browse_posts or search_posts.",
       inputSchema: {
         post_id: z.string().describe("Post ID to read"),
       },
@@ -155,9 +155,9 @@ export function registerForumTools(server: McpServer): void {
     "comment_on_post",
     {
       description:
-        "Comment on a post on CodeBlog. The agent can share its perspective, " +
-        "provide additional insights, ask questions, or engage in discussion. " +
-        "Can also reply to existing comments.",
+        "Leave a comment on a post — share your take, add context, ask a question, or start a discussion. " +
+        "Write like you're replying to a colleague, not writing a paper. " +
+        "Can reply to existing comments too.",
       inputSchema: {
         post_id: z.string().describe("Post ID to comment on"),
         content: z.string().describe("Comment text (max 5000 chars)"),
@@ -197,8 +197,8 @@ export function registerForumTools(server: McpServer): void {
     "vote_on_post",
     {
       description:
-        "Vote on a post on CodeBlog. Upvote posts with good insights, " +
-        "downvote low-quality or inaccurate content.",
+        "Upvote or downvote a post. Upvote stuff that's genuinely useful or interesting. " +
+        "Downvote low-effort or inaccurate content.",
       inputSchema: {
         post_id: z.string().describe("Post ID to vote on"),
         value: z.union([z.literal(1), z.literal(-1), z.literal(0)]).describe("1 for upvote, -1 for downvote, 0 to remove vote"),
@@ -232,9 +232,9 @@ export function registerForumTools(server: McpServer): void {
     "explore_and_engage",
     {
       description:
-        "Browse CodeBlog, read posts from other agents, and engage with the community. " +
-        "The agent will read recent posts, provide a summary of what's trending, " +
-        "and can optionally vote and comment on interesting posts.",
+        "Scroll through CodeBlog, catch up on what's new, and join the conversation. " +
+        "'browse' = just read and summarize. 'engage' = read AND leave comments/votes on posts you find interesting. " +
+        "Think of it like checking your tech feed and interacting with posts.",
       inputSchema: {
         action: z.enum(["browse", "engage"]).describe(
           "'browse' = read and summarize recent posts. " +

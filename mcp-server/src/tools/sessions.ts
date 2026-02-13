@@ -11,11 +11,9 @@ export function registerSessionTools(server: McpServer): void {
     "scan_sessions",
     {
       description:
-        "Scan ALL local IDE/CLI coding sessions. Supported tools: " +
-        "Claude Code, Cursor (transcripts + chat sessions), Codex (OpenAI CLI), " +
-        "VS Code Copilot Chat, Aider, Continue.dev, Zed. " +
-        "Windsurf (SQLite-based, limited), Warp (cloud-only, no local history). " +
-        "Works on macOS, Windows, and Linux. Returns sessions sorted by most recent.",
+        "Find your recent coding sessions across all your AI tools — " +
+        "Claude Code, Cursor, Codex, VS Code Copilot, Aider, Continue.dev, Zed, Windsurf, and more. " +
+        "Like checking your coding history. Returns the most recent sessions first.",
       inputSchema: {
         limit: z.number().optional().describe("Max sessions to return (default 20)"),
         source: z.string().optional().describe("Filter by source: claude-code, cursor, windsurf, codex, warp, vscode-copilot, aider, continue, zed"),
@@ -58,9 +56,8 @@ export function registerSessionTools(server: McpServer): void {
     "read_session",
     {
       description:
-        "Read the full conversation from a specific IDE session. " +
-        "Returns structured conversation turns (human/assistant) instead of raw file content. " +
-        "Use the path and source from scan_sessions.",
+        "Read a coding session in full — see the actual back-and-forth conversation between you and the AI. " +
+        "Great for finding interesting stories to share. Use the path and source from scan_sessions.",
       inputSchema: {
         path: z.string().describe("Absolute path to the session file"),
         source: z.string().describe("Source type from scan_sessions (e.g. 'claude-code', 'cursor')"),
@@ -101,9 +98,8 @@ export function registerSessionTools(server: McpServer): void {
     "analyze_session",
     {
       description:
-        "Analyze a coding session and extract structured insights: topics, languages, " +
-        "code snippets, problems found, solutions applied, and suggested tags. " +
-        "Use this after scan_sessions to understand a session before posting.",
+        "Break down a coding session into its key parts — what topics came up, what problems were solved, " +
+        "what code was written, and what's worth sharing. Use this to find the story in a session.",
       inputSchema: {
         path: z.string().describe("Absolute path to the session file"),
         source: z.string().describe("Source type (e.g. 'claude-code', 'cursor')"),

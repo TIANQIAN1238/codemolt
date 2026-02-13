@@ -27,16 +27,30 @@ export function analyzeSession(session: ParsedSession): SessionAnalysis {
 
 function generateSummary(session: ParsedSession): string {
   const humanMsgs = session.turns.filter((t) => t.role === "human");
-  const topics = humanMsgs
-    .slice(0, 5)
-    .map((m) => m.content.slice(0, 100))
-    .join("; ");
+  const problems = extractProblems(humanMsgs.map((t) => t.content).join("\n"));
+  const langs = detectLanguages(session.turns.map((t) => t.content).join("\n"));
 
-  return (
-    `${session.source} session in project "${session.project}" with ` +
-    `${session.humanMessages} user messages and ${session.aiMessages} AI responses. ` +
-    `Topics discussed: ${topics}`
-  );
+  // Build a narrative summary instead of a mechanical one
+  const parts: string[] = [];
+
+  if (problems.length > 0) {
+    parts.push(`Ran into ${problems.length > 1 ? "a few issues" : "an issue"} while working on ${session.project}`);
+  } else {
+    parts.push(`Worked on ${session.project}`);
+  }
+
+  if (langs.length > 0) {
+    parts.push(`using ${langs.slice(0, 3).join(", ")}`);
+  }
+
+  // Extract the core task from the first meaningful human message
+  const firstTask = humanMsgs.find((m) => m.content.trim().length > 20);
+  if (firstTask) {
+    const task = firstTask.content.split("\n")[0].trim().slice(0, 120);
+    parts.push(`— started with: "${task}"`);
+  }
+
+  return parts.join(" ") + ".";
 }
 
 function extractTopics(content: string): string[] {
@@ -205,15 +219,45 @@ function extractSolutions(aiContent: string): string[] {
 }
 
 function suggestTitle(session: ParsedSession): string {
-  const firstHuman = session.turns.find((t) => t.role === "human");
-  if (!firstHuman) return `${session.source} coding session`;
+  const allContent = session.turns.map((t) => t.content).join("\n");
+  const humanContent = session.turns.filter((t) => t.role === "human").map((t) => t.content).join("\n");
+  const problems = extractProblems(humanContent);
+  const solutions = extractSolutions(
+    session.turns.filter((t) => t.role === "assistant").map((t) => t.content).join("\n")
+  );
+  const langs = detectLanguages(allContent);
+  const topics = extractTopics(allContent);
 
-  const content = firstHuman.content.slice(0, 100);
-  // Clean up for title
-  return content
-    .replace(/\n/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  // Try to generate a catchy title like Juejin/HN style
+  const langStr = langs.slice(0, 2).join("/") || "code";
+  const project = session.project || "my project";
+
+  // Bug story: "踩坑记" style
+  if (problems.length > 0) {
+    const problem = problems[0].slice(0, 60).replace(/\n/g, " ");
+    return `Debugging ${langStr}: ${problem}`;
+  }
+
+  // If there are solutions, frame it as a how-to
+  if (solutions.length > 0) {
+    const solution = solutions[0].slice(0, 60).replace(/\n/g, " ");
+    return `How I ${solution.toLowerCase().replace(/^(you |we |i )?(should |need to |can )?/i, "")}`;
+  }
+
+  // Topic-based title
+  if (topics.length > 0) {
+    const topicStr = topics.slice(0, 2).join(" + ");
+    return `Working with ${topicStr} in ${project}`;
+  }
+
+  // Fallback: use first human message but clean it up
+  const firstHuman = session.turns.find((t) => t.role === "human");
+  if (firstHuman) {
+    const cleaned = firstHuman.content.split("\n")[0].trim().slice(0, 80);
+    if (cleaned.length > 15) return cleaned;
+  }
+
+  return `${langStr} session: things I learned in ${project}`;
 }
 
 function suggestTags(content: string): string[] {

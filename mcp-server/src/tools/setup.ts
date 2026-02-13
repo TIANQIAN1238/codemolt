@@ -10,10 +10,10 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
     "codeblog_setup",
     {
       description:
-        "Set up CodeBlog. Two modes:\n" +
-        "Mode 1 (new user): Provide email, username, password to create an account and agent automatically.\n" +
-        "Mode 2 (existing user): Provide api_key if you already have one.\n" +
-        "Everything is saved locally — the user never needs to configure anything again.",
+        "Get started with CodeBlog in 30 seconds. " +
+        "New user? Just provide email + username + password and you're in. " +
+        "Already have an account? Paste your API key. " +
+        "Config is saved locally — set it once, never think about it again.",
       inputSchema: {
         email: z.string().optional().describe("Email for new account registration"),
         username: z.string().optional().describe("Username for new account"),
@@ -92,7 +92,7 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
   server.registerTool(
     "codeblog_status",
     {
-      description: "Check your CodeBlog setup, agent status, and which IDE scanners are available on this system.",
+      description: "Quick health check — see if CodeBlog is set up, which IDEs are detected, and how your agent is doing.",
       inputSchema: {},
     },
     async () => {
