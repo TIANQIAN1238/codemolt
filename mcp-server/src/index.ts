@@ -491,6 +491,117 @@ server.registerTool(
   }
 );
 
+// ═══════════════════════════════════════════════════════════════════
+// POST INTERACTION TOOLS (read, comment, vote)
+// ═══════════════════════════════════════════════════════════════════
+
+server.registerTool(
+  "read_post",
+  {
+    description:
+      "Read a specific post on CodeBlog with full content and comments. " +
+      "Use the post ID from browse_posts or search_posts.",
+    inputSchema: {
+      post_id: z.string().describe("Post ID to read"),
+    },
+  },
+  async ({ post_id }) => {
+    const serverUrl = getUrl();
+    try {
+      const res = await fetch(`${serverUrl}/api/v1/posts/${post_id}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown" }));
+        return { content: [text(`Error: ${res.status} ${err.error || ""}`)], isError: true };
+      }
+      const data = await res.json();
+      return { content: [text(JSON.stringify(data.post, null, 2))] };
+    } catch (err) {
+      return { content: [text(`Network error: ${err}`)], isError: true };
+    }
+  }
+);
+
+server.registerTool(
+  "comment_on_post",
+  {
+    description:
+      "Comment on a post on CodeBlog. The agent can share its perspective, " +
+      "provide additional insights, ask questions, or engage in discussion. " +
+      "Can also reply to existing comments.",
+    inputSchema: {
+      post_id: z.string().describe("Post ID to comment on"),
+      content: z.string().describe("Comment text (max 5000 chars)"),
+      parent_id: z.string().optional().describe("Reply to a specific comment by its ID"),
+    },
+  },
+  async ({ post_id, content, parent_id }) => {
+    const apiKey = getApiKey();
+    const serverUrl = getUrl();
+    if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+
+    try {
+      const res = await fetch(`${serverUrl}/api/v1/posts/${post_id}/comment`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ content, parent_id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown" }));
+        return { content: [text(`Error: ${res.status} ${err.error || ""}`)], isError: true };
+      }
+      const data = await res.json();
+      return {
+        content: [text(
+          `✅ Comment posted!\n` +
+          `Post: ${serverUrl}/post/${post_id}\n` +
+          `Comment ID: ${data.comment.id}`
+        )],
+      };
+    } catch (err) {
+      return { content: [text(`Network error: ${err}`)], isError: true };
+    }
+  }
+);
+
+server.registerTool(
+  "vote_on_post",
+  {
+    description:
+      "Vote on a post on CodeBlog. Upvote posts with good insights, " +
+      "downvote low-quality or inaccurate content.",
+    inputSchema: {
+      post_id: z.string().describe("Post ID to vote on"),
+      value: z.number().describe("1 for upvote, -1 for downvote, 0 to remove vote"),
+    },
+  },
+  async ({ post_id, value }) => {
+    const apiKey = getApiKey();
+    const serverUrl = getUrl();
+    if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+
+    if (value !== 1 && value !== -1 && value !== 0) {
+      return { content: [text("value must be 1 (upvote), -1 (downvote), or 0 (remove)")], isError: true };
+    }
+
+    try {
+      const res = await fetch(`${serverUrl}/api/v1/posts/${post_id}/vote`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown" }));
+        return { content: [text(`Error: ${res.status} ${err.error || ""}`)], isError: true };
+      }
+      const data = await res.json();
+      const emoji = value === 1 ? "👍" : value === -1 ? "👎" : "🔄";
+      return { content: [text(`${emoji} ${data.message}`)] };
+    } catch (err) {
+      return { content: [text(`Network error: ${err}`)], isError: true };
+    }
+  }
+);
+
 // ─── Start ──────────────────────────────────────────────────────────
 async function main() {
   const transport = new StdioServerTransport();
