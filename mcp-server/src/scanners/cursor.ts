@@ -1,35 +1,71 @@
 import * as path from "path";
 import * as fs from "fs";
+import BetterSqlite3 from "better-sqlite3";
 import type { Scanner, Session, ParsedSession, ConversationTurn } from "../lib/types.js";
 import { getHome, getPlatform } from "../lib/platform.js";
 import { listFiles, listDirs, safeReadFile, safeReadJson, safeStats, extractProjectDescription } from "../lib/fs-utils.js";
 
-// Cursor stores conversations in two places:
+// Cursor stores conversations in THREE places (all supported for version compatibility):
 //
-// 1. Agent transcripts (plain text, XML-like tags):
-//    ~/.cursor/projects/<project>/agent-transcripts/*.txt
-//    Format: user: <user_query>...</user_query> \n A: <response>
+// FORMAT 1 — Agent transcripts (plain text, XML-like tags):
+//   ~/.cursor/projects/<project>/agent-transcripts/*.txt
+//   Format: user: <user_query>...</user_query> \n A: <response>
 //
-// 2. Chat sessions (JSON):
-//    macOS:   ~/Library/Application Support/Cursor/User/workspaceStorage/<hash>/chatSessions/*.json
-//    Windows: %APPDATA%/Cursor/User/workspaceStorage/<hash>/chatSessions/*.json
-//    Linux:   ~/.config/Cursor/User/workspaceStorage/<hash>/chatSessions/*.json
-//    Format:  { requests: [{ message: "...", response: [...] }], sessionId, creationDate }
+// FORMAT 2 — Chat sessions (JSON, older Cursor versions):
+//   ~/Library/Application Support/Cursor/User/workspaceStorage/<hash>/chatSessions/*.json
+//   Format: { requests: [{ message: "...", response: [...] }], sessionId, creationDate }
+//
+// FORMAT 3 — Global SQLite (newer Cursor versions, 2025+):
+//   ~/Library/Application Support/Cursor/User/globalStorage/state.vscdb
+//   Table: cursorDiskKV
+//   Keys:  composerData:<composerId> — session metadata (name, timestamps, bubble headers)
+//          bubbleId:<composerId>:<bubbleId> — individual message content (type 1=user, 2=ai)
+
+// Safe SQLite query helper — returns empty array on any error
+function safeQuery<T>(dbPath: string, sql: string): T[] {
+  try {
+    const db = new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true });
+    try {
+      const rows = db.prepare(sql).all() as T[];
+      return rows;
+    } finally {
+      db.close();
+    }
+  } catch (err) {
+    console.error(`[codemolt] Cursor safeQuery error:`, err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
+function getGlobalStoragePath(): string | null {
+  const home = getHome();
+  const platform = getPlatform();
+  let p: string;
+  if (platform === "macos") {
+    p = path.join(home, "Library", "Application Support", "Cursor", "User", "globalStorage", "state.vscdb");
+  } else if (platform === "windows") {
+    const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+    p = path.join(appData, "Cursor", "User", "globalStorage", "state.vscdb");
+  } else {
+    p = path.join(home, ".config", "Cursor", "User", "globalStorage", "state.vscdb");
+  }
+  try { return fs.existsSync(p) ? p : null; } catch { return null; }
+}
 
 export const cursorScanner: Scanner = {
   name: "Cursor",
   sourceType: "cursor",
-  description: "Cursor AI IDE sessions (agent transcripts + chat sessions)",
+  description: "Cursor AI IDE sessions (agent transcripts + chat sessions + composer)",
 
   getSessionDirs(): string[] {
     const home = getHome();
     const platform = getPlatform();
     const candidates: string[] = [];
 
-    // Agent transcripts (all platforms)
+    // Format 1: Agent transcripts
     candidates.push(path.join(home, ".cursor", "projects"));
 
-    // Chat sessions in workspaceStorage
+    // Format 2 & workspace-level Format 3: workspaceStorage
     if (platform === "macos") {
       candidates.push(
         path.join(home, "Library", "Application Support", "Cursor", "User", "workspaceStorage")
@@ -41,6 +77,12 @@ export const cursorScanner: Scanner = {
       candidates.push(path.join(home, ".config", "Cursor", "User", "workspaceStorage"));
     }
 
+    // Format 3: globalStorage (just check existence for status reporting)
+    const globalDb = getGlobalStoragePath();
+    if (globalDb) {
+      candidates.push(path.dirname(globalDb));
+    }
+
     return candidates.filter((d) => {
       try { return fs.existsSync(d); } catch { return false; }
     });
@@ -49,38 +91,31 @@ export const cursorScanner: Scanner = {
   scan(limit: number): Session[] {
     const sessions: Session[] = [];
     const dirs = this.getSessionDirs();
+    const seenIds = new Set<string>();
 
     for (const baseDir of dirs) {
+      // Skip globalStorage dir — handled separately via Format 3
+      if (baseDir.endsWith("globalStorage")) continue;
+
       const projectDirs = listDirs(baseDir);
       for (const projectDir of projectDirs) {
         const dirName = path.basename(projectDir);
 
-        // Resolve project path:
-        // - agent-transcripts dirs: "Users-zhaoyifei-SimenDevelop-Simen" → "/Users/zhaoyifei/SimenDevelop/Simen"
-        // - workspaceStorage dirs: read workspace.json for folder URI
         let projectPath: string | undefined;
-        const workspaceJsonPath = path.join(projectDir, "workspace.json");
-        const workspaceJson = safeReadJson<{ folder?: string }>(workspaceJsonPath);
+        const workspaceJson = safeReadJson<{ folder?: string }>(path.join(projectDir, "workspace.json"));
         if (workspaceJson?.folder) {
-          try {
-            projectPath = decodeURIComponent(new URL(workspaceJson.folder).pathname);
-          } catch { /* ignore */ }
+          try { projectPath = decodeURIComponent(new URL(workspaceJson.folder).pathname); } catch { /* */ }
         }
         if (!projectPath && dirName.startsWith("Users-")) {
-          // Decode hyphenated path: "Users-zhaoyifei-Foo" → "/Users/zhaoyifei/Foo"
           projectPath = "/" + dirName.replace(/-/g, "/");
         }
 
         const project = projectPath ? path.basename(projectPath) : dirName;
-        const projectDescription = projectPath
-          ? extractProjectDescription(projectPath) || undefined
-          : undefined;
+        const projectDescription = projectPath ? extractProjectDescription(projectPath) || undefined : undefined;
 
-        // --- Path 1: agent-transcripts/*.txt ---
+        // --- FORMAT 1: agent-transcripts/*.txt ---
         const transcriptsDir = path.join(projectDir, "agent-transcripts");
-        const txtFiles = listFiles(transcriptsDir, [".txt"]);
-
-        for (const filePath of txtFiles) {
+        for (const filePath of listFiles(transcriptsDir, [".txt"])) {
           const stats = safeStats(filePath);
           if (!stats) continue;
 
@@ -88,22 +123,23 @@ export const cursorScanner: Scanner = {
           if (!content || content.length < 100) continue;
 
           const userQueries = content.match(/<user_query>\n?([\s\S]*?)\n?<\/user_query>/g) || [];
-          const humanCount = userQueries.length;
-          if (humanCount === 0) continue;
+          if (userQueries.length === 0) continue;
 
           const firstQuery = content.match(/<user_query>\n?([\s\S]*?)\n?<\/user_query>/);
           const preview = firstQuery ? firstQuery[1].trim().slice(0, 200) : content.slice(0, 200);
+          const id = path.basename(filePath, ".txt");
+          seenIds.add(id);
 
           sessions.push({
-            id: path.basename(filePath, ".txt"),
+            id,
             source: "cursor",
             project,
             projectPath,
             projectDescription,
             title: preview.slice(0, 80) || `Cursor session in ${project}`,
-            messageCount: humanCount * 2,
-            humanMessages: humanCount,
-            aiMessages: humanCount,
+            messageCount: userQueries.length * 2,
+            humanMessages: userQueries.length,
+            aiMessages: userQueries.length,
             preview,
             filePath,
             modifiedAt: stats.mtime,
@@ -111,11 +147,8 @@ export const cursorScanner: Scanner = {
           });
         }
 
-        // --- Path 2: chatSessions/*.json (inside workspaceStorage/<hash>/) ---
-        const chatSessionsDir = path.join(projectDir, "chatSessions");
-        const jsonFiles = listFiles(chatSessionsDir, [".json"]);
-
-        for (const filePath of jsonFiles) {
+        // --- FORMAT 2: chatSessions/*.json ---
+        for (const filePath of listFiles(path.join(projectDir, "chatSessions"), [".json"])) {
           const stats = safeStats(filePath);
           if (!stats || stats.size < 100) continue;
 
@@ -125,9 +158,11 @@ export const cursorScanner: Scanner = {
           const humanCount = data.requests.length;
           const firstMsg = data.requests[0]?.message || "";
           const preview = (typeof firstMsg === "string" ? firstMsg : "").slice(0, 200);
+          const id = data.sessionId || path.basename(filePath, ".json");
+          seenIds.add(id);
 
           sessions.push({
-            id: data.sessionId || path.basename(filePath, ".json"),
+            id,
             source: "cursor",
             project,
             projectPath,
@@ -145,17 +180,85 @@ export const cursorScanner: Scanner = {
       }
     }
 
+    // --- FORMAT 3: globalStorage state.vscdb (newer Cursor) ---
+    // This supplements Formats 1 & 2 — adds any sessions not already found
+    try {
+      const globalDb = getGlobalStoragePath();
+      if (globalDb) {
+        const rows = safeQuery<{ key: string; value: string }>(
+          globalDb,
+          "SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%'"
+        );
+
+        for (const row of rows) {
+          try {
+            const data = JSON.parse(row.value) as CursorComposerData;
+            const composerId = data.composerId || row.key.replace("composerData:", "");
+            if (seenIds.has(composerId)) continue; // skip duplicates
+
+            const bubbleHeaders = data.fullConversationHeadersOnly || [];
+            if (bubbleHeaders.length === 0) continue;
+
+            const humanCount = bubbleHeaders.filter((b: { type: number }) => b.type === 1).length;
+            const aiCount = bubbleHeaders.filter((b: { type: number }) => b.type === 2).length;
+            const name = data.name || "";
+
+            // Get first user message as preview
+            let preview = name;
+            if (!preview) {
+              const firstUserBubble = bubbleHeaders.find((b: { type: number }) => b.type === 1);
+              if (firstUserBubble) {
+                const bubbleRow = safeQuery<{ value: string }>(
+                  globalDb,
+                  `SELECT value FROM cursorDiskKV WHERE key='bubbleId:${composerId}:${firstUserBubble.bubbleId}'`
+                );
+                if (bubbleRow.length > 0) {
+                  try {
+                    const bubble = JSON.parse(bubbleRow[0].value);
+                    preview = (bubble.text || bubble.message || "").slice(0, 200);
+                  } catch { /* */ }
+                }
+              }
+            }
+
+            const createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
+            const updatedAt = data.lastUpdatedAt ? new Date(data.lastUpdatedAt) : createdAt;
+
+            sessions.push({
+              id: composerId,
+              source: "cursor",
+              project: "Cursor Composer",
+              title: (name || preview || "Cursor composer session").slice(0, 80),
+              messageCount: humanCount + aiCount,
+              humanMessages: humanCount,
+              aiMessages: aiCount,
+              preview: preview || "(composer session)",
+              filePath: `vscdb:${globalDb}:${composerId}`,
+              modifiedAt: updatedAt,
+              sizeBytes: row.value.length,
+            });
+          } catch { /* skip malformed entries */ }
+        }
+      }
+    } catch (err) {
+      console.error(`[codemolt] Cursor Format 3 error:`, err instanceof Error ? err.message : err);
+    }
+
     sessions.sort((a, b) => b.modifiedAt.getTime() - a.modifiedAt.getTime());
     return sessions.slice(0, limit);
   },
 
   parse(filePath: string, maxTurns?: number): ParsedSession | null {
+    // FORMAT 3: vscdb virtual path
+    if (filePath.startsWith("vscdb:")) {
+      return parseVscdbSession(filePath, maxTurns);
+    }
+
     const stats = safeStats(filePath);
     const turns: ConversationTurn[] = [];
 
     if (filePath.endsWith(".txt")) {
-      // Parse agent transcript format:
-      // user:\n<user_query>\n...\n</user_query>\n\nA:\n...
+      // FORMAT 1: agent transcript
       const content = safeReadFile(filePath);
       if (!content) return null;
 
@@ -169,7 +272,6 @@ export const cursorScanner: Scanner = {
           turns.push({ role: "human", content: queryMatch[1].trim() });
         }
 
-        // Everything after </user_query> and after "A:" is the assistant response
         const afterQuery = block.split(/<\/user_query>/)[1];
         if (afterQuery) {
           const aiContent = afterQuery.replace(/^\s*\n\s*A:\s*\n?/, "").trim();
@@ -179,7 +281,7 @@ export const cursorScanner: Scanner = {
         }
       }
     } else {
-      // Parse chatSessions JSON: { requests: [{ message, response }] }
+      // FORMAT 2: chatSessions JSON
       const data = safeReadJson<CursorChatSession>(filePath);
       if (!data || !Array.isArray(data.requests)) return null;
 
@@ -195,7 +297,6 @@ export const cursorScanner: Scanner = {
 
         if (maxTurns && turns.length >= maxTurns) break;
 
-        // Response can be array of text chunks or a string
         if (req.response) {
           let respText = "";
           if (typeof req.response === "string") {
@@ -234,7 +335,77 @@ export const cursorScanner: Scanner = {
   },
 };
 
-// Cursor chatSessions JSON format (verified from local files)
+// Parse a session stored in globalStorage state.vscdb (Format 3)
+function parseVscdbSession(virtualPath: string, maxTurns?: number): ParsedSession | null {
+  // virtualPath = "vscdb:/path/to/state.vscdb:composerId"
+  const parts = virtualPath.split(":");
+  if (parts.length < 3) return null;
+  const dbPath = parts[1];
+  const composerId = parts.slice(2).join(":");
+
+  // Get composer metadata
+  const metaRows = safeQuery<{ value: string }>(
+    dbPath,
+    `SELECT value FROM cursorDiskKV WHERE key='composerData:${composerId}'`
+  );
+  if (metaRows.length === 0) return null;
+
+  let composerData: CursorComposerData;
+  try { composerData = JSON.parse(metaRows[0].value); } catch { return null; }
+
+  const bubbleHeaders = composerData.fullConversationHeadersOnly || [];
+  if (bubbleHeaders.length === 0) return null;
+
+  // Fetch bubble contents
+  const turns: ConversationTurn[] = [];
+  for (const header of bubbleHeaders) {
+    if (maxTurns && turns.length >= maxTurns) break;
+
+    const bubbleRows = safeQuery<{ value: string }>(
+      dbPath,
+      `SELECT value FROM cursorDiskKV WHERE key='bubbleId:${composerId}:${header.bubbleId}'`
+    );
+    if (bubbleRows.length === 0) continue;
+
+    try {
+      const bubble = JSON.parse(bubbleRows[0].value);
+      const text = bubble.text || bubble.message || bubble.rawText || "";
+      if (!text && header.type === 2) {
+        // AI response text might be empty in newer versions — skip
+        turns.push({ role: "assistant", content: "(AI response)" });
+        continue;
+      }
+      turns.push({
+        role: header.type === 1 ? "human" : "assistant",
+        content: text || "(empty)",
+      });
+    } catch { /* skip */ }
+  }
+
+  if (turns.length === 0) return null;
+
+  const humanMsgs = turns.filter((t) => t.role === "human");
+  const aiMsgs = turns.filter((t) => t.role === "assistant");
+
+  return {
+    id: composerId,
+    source: "cursor",
+    project: "Cursor Composer",
+    title: composerData.name || humanMsgs[0]?.content.slice(0, 80) || "Cursor session",
+    messageCount: turns.length,
+    humanMessages: humanMsgs.length,
+    aiMessages: aiMsgs.length,
+    preview: humanMsgs[0]?.content.slice(0, 200) || "",
+    filePath: virtualPath,
+    modifiedAt: composerData.lastUpdatedAt ? new Date(composerData.lastUpdatedAt) : new Date(),
+    sizeBytes: 0,
+    turns,
+  };
+}
+
+// --- Type definitions ---
+
+// Old chatSessions JSON format
 interface CursorChatSession {
   version?: number;
   requests: Array<{
@@ -244,4 +415,18 @@ interface CursorChatSession {
   sessionId?: string;
   creationDate?: string;
   lastMessageDate?: string;
+}
+
+// New composerData format (globalStorage state.vscdb)
+interface CursorComposerData {
+  composerId?: string;
+  name?: string;
+  createdAt?: number;
+  lastUpdatedAt?: number;
+  fullConversationHeadersOnly?: Array<{
+    bubbleId: string;
+    type: number; // 1 = user, 2 = AI
+  }>;
+  text?: string;
+  conversationState?: string;
 }

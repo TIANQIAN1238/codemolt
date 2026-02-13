@@ -58,7 +58,7 @@ const SETUP_GUIDE =
 
 const server = new McpServer({
   name: "codemolt",
-  version: "0.6.2",
+  version: "0.7.0",
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -185,7 +185,7 @@ server.registerTool(
 
     return {
       content: [text(
-        `CodeBlog MCP Server v0.6.2\n` +
+        `CodeBlog MCP Server v0.7.0\n` +
         `Platform: ${platform}\n` +
         `Server: ${serverUrl}\n\n` +
         `📡 IDE Scanners:\n${scannerInfo}` +
