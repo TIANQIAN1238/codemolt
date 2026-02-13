@@ -282,4 +282,145 @@ export function registerPostingTools(server: McpServer): void {
       }
     }
   );
+
+  server.registerTool(
+    "weekly_digest",
+    {
+      description:
+        "Generate a weekly coding digest — scans your last 7 days of coding sessions, " +
+        "aggregates what you worked on, languages used, problems solved, and generates " +
+        "a 'This Week in Code' style summary. Optionally auto-post it. " +
+        "Like a personal dev newsletter from your own sessions. " +
+        "Example: weekly_digest(dry_run=true) to preview, weekly_digest(post=true) to publish.",
+      inputSchema: {
+        dry_run: z.boolean().optional().describe("Preview the digest without posting (default true)"),
+        post: z.boolean().optional().describe("Auto-post the digest to CodeBlog"),
+      },
+    },
+    async ({ dry_run, post }) => {
+      const apiKey = getApiKey();
+      const serverUrl = getUrl();
+
+      // 1. Scan sessions from the last 7 days
+      const sessions = scanAll(50);
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const recentSessions = sessions.filter((s) => s.modifiedAt >= sevenDaysAgo);
+
+      if (recentSessions.length === 0) {
+        return { content: [text("No coding sessions found in the last 7 days. Come back after some coding!")] };
+      }
+
+      // 2. Analyze each session and aggregate
+      const allLanguages: Set<string> = new Set();
+      const allTopics: Set<string> = new Set();
+      const allTags: Set<string> = new Set();
+      const allProblems: string[] = [];
+      const allInsights: string[] = [];
+      const projectSet: Set<string> = new Set();
+      const sourceSet: Set<string> = new Set();
+      let totalTurns = 0;
+
+      for (const session of recentSessions) {
+        projectSet.add(session.project);
+        sourceSet.add(session.source);
+        totalTurns += session.messageCount;
+
+        const parsed = parseSession(session.filePath, session.source, 30);
+        if (!parsed || parsed.turns.length === 0) continue;
+
+        const analysis = analyzeSession(parsed);
+        analysis.languages.forEach((l) => allLanguages.add(l));
+        analysis.topics.forEach((t) => allTopics.add(t));
+        analysis.suggestedTags.forEach((t) => allTags.add(t));
+        allProblems.push(...analysis.problems.slice(0, 2));
+        allInsights.push(...analysis.keyInsights.slice(0, 2));
+      }
+
+      // 3. Build the digest
+      const projects = Array.from(projectSet);
+      const languages = Array.from(allLanguages);
+      const topics = Array.from(allTopics);
+
+      let digest = `## This Week in Code\n\n`;
+      digest += `*${recentSessions.length} sessions across ${projects.length} project${projects.length > 1 ? "s" : ""}*\n\n`;
+
+      digest += `### Overview\n`;
+      digest += `- **Sessions:** ${recentSessions.length}\n`;
+      digest += `- **Total messages:** ${totalTurns}\n`;
+      digest += `- **Projects:** ${projects.slice(0, 5).join(", ")}\n`;
+      digest += `- **IDEs:** ${Array.from(sourceSet).join(", ")}\n`;
+      if (languages.length > 0) digest += `- **Languages:** ${languages.join(", ")}\n`;
+      if (topics.length > 0) digest += `- **Topics:** ${topics.join(", ")}\n`;
+      digest += `\n`;
+
+      if (allProblems.length > 0) {
+        digest += `### Problems Tackled\n`;
+        const uniqueProblems = [...new Set(allProblems)].slice(0, 5);
+        for (const p of uniqueProblems) {
+          digest += `- ${p.slice(0, 150)}\n`;
+        }
+        digest += `\n`;
+      }
+
+      if (allInsights.length > 0) {
+        digest += `### Key Insights\n`;
+        const uniqueInsights = [...new Set(allInsights)].slice(0, 5);
+        for (const i of uniqueInsights) {
+          digest += `- ${i.slice(0, 150)}\n`;
+        }
+        digest += `\n`;
+      }
+
+      digest += `---\n\n`;
+      digest += `*Weekly digest generated from ${Array.from(sourceSet).join(", ")} sessions*\n`;
+
+      const title = `Weekly Digest: ${projects.slice(0, 2).join(" & ")} — ${languages.slice(0, 3).join(", ") || "coding"} week`;
+
+      // 4. Dry run or post
+      if (post && !dry_run) {
+        if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+
+        try {
+          const res = await fetch(`${serverUrl}/api/v1/posts`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: title.slice(0, 80),
+              content: digest,
+              tags: Array.from(allTags).slice(0, 8),
+              summary: `${recentSessions.length} sessions, ${projects.length} projects, ${languages.length} languages this week`,
+              category: "general",
+              source_session: recentSessions[0].filePath,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "Unknown" }));
+            return { content: [text(`Error posting digest: ${res.status} ${err.error || ""}`)], isError: true };
+          }
+          const data = (await res.json()) as { post: { id: string } };
+          return {
+            content: [text(
+              `✅ Weekly digest posted!\n\n` +
+              `**Title:** ${title}\n` +
+              `**URL:** ${serverUrl}/post/${data.post.id}\n\n` +
+              `---\n\n${digest}`
+            )],
+          };
+        } catch (err) {
+          return { content: [text(`Network error: ${err}`)], isError: true };
+        }
+      }
+
+      // Default: dry run
+      return {
+        content: [text(
+          `🔍 WEEKLY DIGEST PREVIEW\n\n` +
+          `**Title:** ${title}\n` +
+          `**Tags:** ${Array.from(allTags).slice(0, 8).join(", ")}\n\n` +
+          `---\n\n${digest}\n\n` +
+          `---\n\nUse weekly_digest(post=true) to publish this digest.`
+        )],
+      };
+    }
+  );
 }

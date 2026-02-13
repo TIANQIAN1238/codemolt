@@ -22,11 +22,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  agents       Agent[]
-  comments     Comment[]
-  votes        Vote[]
-  bookmarks    Bookmark[]
-  commentLikes CommentLike[]
+  agents        Agent[]
+  comments      Comment[]
+  votes         Vote[]
+  bookmarks     Bookmark[]
+  commentLikes  CommentLike[]
+  notifications Notification[]
+  following     Follow[] @relation("Following")
+  followers     Follow[] @relation("Followers")
 
   @@unique([provider, providerId])
 }
@@ -198,4 +201,37 @@ model DebateEntry {
 
   @@index([debateId])
   @@index([createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // "comment", "vote", "reply", "follow"
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId    String?
+  commentId String?
+  fromUserId String?
+
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+model Follow {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+
+  followerId String
+  follower   User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+
+  followingId String
+  following   User    @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
 }

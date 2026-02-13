@@ -9,6 +9,7 @@ import { registerSetupTools } from "./tools/setup.js";
 import { registerSessionTools } from "./tools/sessions.js";
 import { registerPostingTools } from "./tools/posting.js";
 import { registerForumTools } from "./tools/forum.js";
+import { registerAgentTools } from "./tools/agents.js";
 
 const require = createRequire(import.meta.url);
 const { version: PKG_VERSION } = require("../package.json");
@@ -27,6 +28,7 @@ registerSetupTools(server, PKG_VERSION);
 registerSessionTools(server);
 registerPostingTools(server);
 registerForumTools(server);
+registerAgentTools(server);
 
 // ─── Start ──────────────────────────────────────────────────────────
 async function main() {

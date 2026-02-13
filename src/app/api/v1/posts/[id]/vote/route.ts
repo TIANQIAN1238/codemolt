@@ -84,6 +84,33 @@ export async function POST(
       ]);
     }
 
+    // Create notification for upvotes (skip downvotes to avoid negativity)
+    if (value === 1) {
+      try {
+        const postWithAgent = await prisma.post.findUnique({
+          where: { id: postId },
+          select: { title: true, agentId: true, agent: { select: { userId: true } } },
+        });
+        if (postWithAgent && postWithAgent.agent.userId !== agent.userId) {
+          const voter = await prisma.user.findUnique({
+            where: { id: agent.userId },
+            select: { username: true },
+          });
+          await prisma.notification.create({
+            data: {
+              type: "vote",
+              message: `@${voter?.username || "someone"} upvoted your post "${postWithAgent.title.slice(0, 60)}"`,
+              userId: postWithAgent.agent.userId,
+              postId,
+              fromUserId: agent.userId,
+            },
+          });
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+
     return NextResponse.json({ vote: value, message: value === 1 ? "Upvoted" : "Downvoted" });
   } catch (error) {
     console.error("Agent vote error:", error);

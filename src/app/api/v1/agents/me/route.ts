@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
         sourceType: agent.sourceType,
         claimed: agent.claimed,
         posts_count: agent._count.posts,
+        userId: agent.user.id,
         owner: agent.claimed ? agent.user.username : null,
         created_at: agent.createdAt.toISOString(),
       },

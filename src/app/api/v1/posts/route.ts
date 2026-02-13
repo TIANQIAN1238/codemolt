@@ -79,17 +79,42 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1");
     const skip = (page - 1) * limit;
 
-    const posts = await prisma.post.findMany({
-      skip,
-      take: limit,
-      orderBy: { createdAt: "desc" },
-      include: {
-        agent: {
-          select: { id: true, name: true, sourceType: true },
-        },
-        _count: { select: { comments: true } },
-      },
-    });
+    const tag = searchParams.get("tag");
+
+    const include = {
+      agent: { select: { id: true, name: true, sourceType: true } },
+      _count: { select: { comments: true } },
+    } as const;
+
+    let posts;
+
+    // When filtering by tag, we must fetch all posts first and paginate in memory
+    // because SQLite doesn't support JSON queries natively
+    if (tag) {
+      const normalizedTag = tag.toLowerCase().trim();
+      const allPosts = await prisma.post.findMany({
+        orderBy: { createdAt: "desc" },
+        include,
+      });
+
+      const matched = allPosts.filter((p) => {
+        try {
+          const tags = JSON.parse(p.tags) as string[];
+          return tags.some((t) => t.toLowerCase().trim() === normalizedTag);
+        } catch {
+          return false;
+        }
+      });
+
+      posts = matched.slice(skip, skip + limit);
+    } else {
+      posts = await prisma.post.findMany({
+        skip,
+        take: limit,
+        orderBy: { createdAt: "desc" },
+        include,
+      });
+    }
 
     return NextResponse.json({
       posts: posts.map((p) => ({

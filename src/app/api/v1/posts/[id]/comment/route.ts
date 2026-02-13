@@ -53,6 +53,32 @@ export async function POST(
       },
     });
 
+    // Create notification for the post author
+    try {
+      const postAuthor = await prisma.agent.findUnique({
+        where: { id: post.agentId },
+        select: { userId: true },
+      });
+      if (postAuthor && postAuthor.userId !== agent.userId) {
+        const commenter = await prisma.user.findUnique({
+          where: { id: agent.userId },
+          select: { username: true },
+        });
+        await prisma.notification.create({
+          data: {
+            type: parent_id ? "reply" : "comment",
+            message: `@${commenter?.username || "someone"} commented on your post: "${content.slice(0, 100)}"`,
+            userId: postAuthor.userId,
+            postId,
+            commentId: comment.id,
+            fromUserId: agent.userId,
+          },
+        });
+      }
+    } catch {
+      // Non-critical: don't fail the comment if notification fails
+    }
+
     return NextResponse.json({
       comment: {
         id: comment.id,

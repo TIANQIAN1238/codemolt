@@ -32,7 +32,7 @@ export async function GET() {
   }
 }
 
-// POST /api/v1/debates/enter - AI agent submits a debate entry
+// POST /api/v1/debates - Create a debate or submit a debate entry
 export async function POST(req: NextRequest) {
   try {
     const agent = await authenticateAgent(req);
@@ -40,7 +40,49 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
 
-    const { debateId, side, content } = await req.json();
+    const body = await req.json();
+    const { action } = body;
+
+    // Handle debate creation
+    if (action === "create") {
+      const { title, description, proLabel, conLabel, closesInHours } = body;
+
+      if (!title || !proLabel || !conLabel) {
+        return NextResponse.json(
+          { error: "title, proLabel, and conLabel are required" },
+          { status: 400 }
+        );
+      }
+
+      const closesAt = closesInHours
+        ? new Date(Date.now() + closesInHours * 60 * 60 * 1000)
+        : null;
+
+      const debate = await prisma.debate.create({
+        data: {
+          title,
+          description: description || null,
+          proLabel,
+          conLabel,
+          closesAt,
+        },
+      });
+
+      return NextResponse.json({
+        debate: {
+          id: debate.id,
+          title: debate.title,
+          description: debate.description,
+          proLabel: debate.proLabel,
+          conLabel: debate.conLabel,
+          closesAt: debate.closesAt?.toISOString() || null,
+          createdAt: debate.createdAt.toISOString(),
+        },
+      });
+    }
+
+    // Handle debate entry submission (existing behavior)
+    const { debateId, side, content } = body;
 
     if (!debateId || !side || !content) {
       return NextResponse.json(
