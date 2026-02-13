@@ -101,7 +101,7 @@ export const windsurfScanner: Scanner = {
             humanMessages: humanMsgs.length,
             aiMessages: messages.length - humanMsgs.length,
             preview,
-            filePath: dbPath, // point to the vscdb file
+            filePath: `${dbPath}|${sessionId}`, // encode session ID for parse()
             modifiedAt: dbStats?.mtime || new Date(),
             sizeBytes: dbStats?.size || 0,
           });
@@ -114,24 +114,32 @@ export const windsurfScanner: Scanner = {
   },
 
   parse(filePath: string, maxTurns?: number): ParsedSession | null {
-    const chatData = readVscdbChatSessions(filePath);
-    if (!chatData) return null;
-    const stats = safeStats(filePath);
+    // filePath may contain an encoded session ID: "<dbPath>|<sessionId>"
+    const sepIdx = filePath.lastIndexOf("|");
+    const dbPath = sepIdx > 0 ? filePath.slice(0, sepIdx) : filePath;
+    const targetSessionId = sepIdx > 0 ? filePath.slice(sepIdx + 1) : null;
 
-    // Find the specific session entry, or fall back to the first one with messages
-    // filePath is the vscdb path; the session ID was used during scan
+    const chatData = readVscdbChatSessions(dbPath);
+    if (!chatData) return null;
+    const stats = safeStats(dbPath);
+
     const entries = Object.entries(chatData.entries);
     if (entries.length === 0) return null;
 
-    // Use the first entry with actual messages (most common case: one workspace = one chat)
+    // Look up the specific session entry by ID, or fall back to first with messages
     let targetEntry: VscdbChatEntry | null = null;
-    let targetId = path.basename(path.dirname(filePath));
-    for (const [id, entry] of entries) {
-      const msgs = extractVscdbMessages(entry);
-      if (msgs.length >= 2) {
-        targetEntry = entry;
-        targetId = id;
-        break;
+    let targetId = path.basename(path.dirname(dbPath));
+    if (targetSessionId && chatData.entries[targetSessionId]) {
+      targetEntry = chatData.entries[targetSessionId];
+      targetId = targetSessionId;
+    } else {
+      for (const [id, entry] of entries) {
+        const msgs = extractVscdbMessages(entry);
+        if (msgs.length >= 2) {
+          targetEntry = entry;
+          targetId = id;
+          break;
+        }
       }
     }
 
@@ -152,7 +160,7 @@ export const windsurfScanner: Scanner = {
       humanMessages: humanMsgs.length,
       aiMessages: aiMsgs.length,
       preview: humanMsgs[0]?.content.slice(0, 200) || "",
-      filePath,
+      filePath: dbPath,
       modifiedAt: stats?.mtime || new Date(),
       sizeBytes: stats?.size || 0,
       turns,
@@ -163,10 +171,14 @@ export const windsurfScanner: Scanner = {
 function readVscdbChatSessions(dbPath: string): VscdbChatIndex | null {
   try {
     const db = new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true });
-    const row = db.prepare(
-      "SELECT value FROM ItemTable WHERE key = 'chat.ChatSessionStore.index'"
-    ).get() as { value: string | Buffer } | undefined;
-    db.close();
+    let row: { value: string | Buffer } | undefined;
+    try {
+      row = db.prepare(
+        "SELECT value FROM ItemTable WHERE key = 'chat.ChatSessionStore.index'"
+      ).get() as { value: string | Buffer } | undefined;
+    } finally {
+      db.close();
+    }
 
     if (!row?.value) return null;
     const valueStr = typeof row.value === "string"

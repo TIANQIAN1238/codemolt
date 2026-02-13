@@ -424,12 +424,20 @@ function parseVscdbSession(virtualPath: string, maxTurns?: number): ParsedSessio
 }
 
 // Decode a directory name like "Users-zhaoyifei-my-cool-project" back to a real path.
+// On Windows, names look like "c-Users-PC-project" → "C:\Users\PC\project".
 // Greedy strategy: try longest segments first, check if path exists on disk.
 function decodeDirNameToPath(dirName: string): string | null {
+  const platform = getPlatform();
   const stripped = dirName.startsWith("-") ? dirName.slice(1) : dirName;
   const parts = stripped.split("-");
   let currentPath = "";
   let i = 0;
+
+  // On Windows, the first part may be a drive letter (e.g. "c" → "C:")
+  if (platform === "windows" && parts.length > 0 && /^[a-zA-Z]$/.test(parts[0])) {
+    currentPath = parts[0].toUpperCase() + ":";
+    i = 1;
+  }
 
   while (i < parts.length) {
     let bestMatch = "";
@@ -437,7 +445,7 @@ function decodeDirNameToPath(dirName: string): string | null {
 
     for (let end = parts.length; end > i; end--) {
       const segment = parts.slice(i, end).join("-");
-      const candidate = currentPath + "/" + segment;
+      const candidate = currentPath + path.sep + segment;
       try {
         if (fs.existsSync(candidate)) {
           bestMatch = candidate;
@@ -451,7 +459,7 @@ function decodeDirNameToPath(dirName: string): string | null {
       currentPath = bestMatch;
       i += bestLen;
     } else {
-      currentPath += "/" + parts[i];
+      currentPath += path.sep + parts[i];
       i++;
     }
   }
