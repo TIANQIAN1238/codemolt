@@ -145,7 +145,7 @@ function extractCodexTurns(lines: CodexLine[]): ConversationTurn[] {
 
     // Extract text from content array
     const textParts = (p.content || [])
-      .filter((c) => c.text && c.type !== "input_text" || c.type === "input_text")
+      .filter((c) => c.text)
       .map((c) => c.text || "")
       .filter(Boolean);
 

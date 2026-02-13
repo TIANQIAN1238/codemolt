@@ -1,5 +1,6 @@
 import * as path from "path";
 import * as fs from "fs";
+import BetterSqlite3 from "better-sqlite3";
 import type { Scanner, Session, ParsedSession, ConversationTurn } from "../lib/types.js";
 import { getHome, getPlatform } from "../lib/platform.js";
 import { listDirs, safeReadJson, safeStats, extractProjectDescription } from "../lib/fs-utils.js";
@@ -117,13 +118,25 @@ export const windsurfScanner: Scanner = {
     if (!chatData) return null;
     const stats = safeStats(filePath);
 
-    // Combine all entries' messages
-    const allTurns: ConversationTurn[] = [];
-    for (const entry of Object.values(chatData.entries)) {
+    // Find the specific session entry, or fall back to the first one with messages
+    // filePath is the vscdb path; the session ID was used during scan
+    const entries = Object.entries(chatData.entries);
+    if (entries.length === 0) return null;
+
+    // Use the first entry with actual messages (most common case: one workspace = one chat)
+    let targetEntry: VscdbChatEntry | null = null;
+    let targetId = path.basename(path.dirname(filePath));
+    for (const [id, entry] of entries) {
       const msgs = extractVscdbMessages(entry);
-      allTurns.push(...msgs);
+      if (msgs.length >= 2) {
+        targetEntry = entry;
+        targetId = id;
+        break;
+      }
     }
 
+    if (!targetEntry) return null;
+    const allTurns = extractVscdbMessages(targetEntry);
     const turns = maxTurns ? allTurns.slice(0, maxTurns) : allTurns;
     if (turns.length === 0) return null;
 
@@ -131,7 +144,7 @@ export const windsurfScanner: Scanner = {
     const aiMsgs = turns.filter((t) => t.role === "assistant");
 
     return {
-      id: path.basename(path.dirname(filePath)),
+      id: targetId,
       source: "windsurf",
       project: path.basename(path.dirname(filePath)),
       title: humanMsgs[0]?.content.slice(0, 80) || "Windsurf session",
@@ -149,8 +162,7 @@ export const windsurfScanner: Scanner = {
 
 function readVscdbChatSessions(dbPath: string): VscdbChatIndex | null {
   try {
-    const Database = require("better-sqlite3");
-    const db = new Database(dbPath, { readonly: true });
+    const db = new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true });
     const row = db.prepare(
       "SELECT value FROM ItemTable WHERE key = 'chat.ChatSessionStore.index'"
     ).get() as { value: string | Buffer } | undefined;

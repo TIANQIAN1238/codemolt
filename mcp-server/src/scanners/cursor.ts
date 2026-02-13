@@ -21,20 +21,44 @@ import { listFiles, listDirs, safeReadFile, safeReadJson, safeStats, extractProj
 //   Keys:  composerData:<composerId> — session metadata (name, timestamps, bubble headers)
 //          bubbleId:<composerId>:<bubbleId> — individual message content (type 1=user, 2=ai)
 
-// Safe SQLite query helper — returns empty array on any error
-function safeQuery<T>(dbPath: string, sql: string): T[] {
+// Run a callback with a shared DB connection, safely closing on completion
+function withDb<T>(dbPath: string, fn: (db: BetterSqlite3.Database) => T, fallback: T): T {
   try {
     const db = new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true });
     try {
-      const rows = db.prepare(sql).all() as T[];
-      return rows;
+      return fn(db);
     } finally {
       db.close();
     }
   } catch (err) {
-    console.error(`[codemolt] Cursor safeQuery error:`, err instanceof Error ? err.message : err);
+    console.error(`[codemolt] Cursor DB error:`, err instanceof Error ? err.message : err);
+    return fallback;
+  }
+}
+
+// Safe parameterized query helper
+function safeQueryDb<T>(db: BetterSqlite3.Database, sql: string, params: unknown[] = []): T[] {
+  try {
+    return db.prepare(sql).all(...params) as T[];
+  } catch (err) {
+    console.error(`[codemolt] Cursor query error:`, err instanceof Error ? err.message : err);
     return [];
   }
+}
+
+// Parse vscdb virtual path: "vscdb:<dbPath>|<composerId>"
+// Uses '|' as separator to avoid conflicts with ':' in Windows paths (C:\...)
+const VSCDB_SEP = "|";
+function makeVscdbPath(dbPath: string, composerId: string): string {
+  return `vscdb:${dbPath}${VSCDB_SEP}${composerId}`;
+}
+function parseVscdbVirtualPath(virtualPath: string): { dbPath: string; composerId: string } | null {
+  const prefix = "vscdb:";
+  if (!virtualPath.startsWith(prefix)) return null;
+  const rest = virtualPath.slice(prefix.length);
+  const sepIdx = rest.lastIndexOf(VSCDB_SEP);
+  if (sepIdx <= 0) return null;
+  return { dbPath: rest.slice(0, sepIdx), composerId: rest.slice(sepIdx + 1) };
 }
 
 function getGlobalStoragePath(): string | null {
@@ -107,7 +131,7 @@ export const cursorScanner: Scanner = {
           try { projectPath = decodeURIComponent(new URL(workspaceJson.folder).pathname); } catch { /* */ }
         }
         if (!projectPath && dirName.startsWith("Users-")) {
-          projectPath = "/" + dirName.replace(/-/g, "/");
+          projectPath = decodeDirNameToPath(dirName) || undefined;
         }
 
         const project = projectPath ? path.basename(projectPath) : dirName;
@@ -182,19 +206,18 @@ export const cursorScanner: Scanner = {
 
     // --- FORMAT 3: globalStorage state.vscdb (newer Cursor) ---
     // This supplements Formats 1 & 2 — adds any sessions not already found
-    try {
-      const globalDb = getGlobalStoragePath();
-      if (globalDb) {
-        const rows = safeQuery<{ key: string; value: string }>(
-          globalDb,
-          "SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%'"
+    const globalDb = getGlobalStoragePath();
+    if (globalDb) {
+      withDb(globalDb, (db) => {
+        const rows = safeQueryDb<{ key: string; value: string }>(
+          db, "SELECT key, value FROM cursorDiskKV WHERE key LIKE 'composerData:%'"
         );
 
         for (const row of rows) {
           try {
             const data = JSON.parse(row.value) as CursorComposerData;
             const composerId = data.composerId || row.key.replace("composerData:", "");
-            if (seenIds.has(composerId)) continue; // skip duplicates
+            if (seenIds.has(composerId)) continue;
 
             const bubbleHeaders = data.fullConversationHeadersOnly || [];
             if (bubbleHeaders.length === 0) continue;
@@ -208,9 +231,9 @@ export const cursorScanner: Scanner = {
             if (!preview) {
               const firstUserBubble = bubbleHeaders.find((b: { type: number }) => b.type === 1);
               if (firstUserBubble) {
-                const bubbleRow = safeQuery<{ value: string }>(
-                  globalDb,
-                  `SELECT value FROM cursorDiskKV WHERE key='bubbleId:${composerId}:${firstUserBubble.bubbleId}'`
+                const bubbleRow = safeQueryDb<{ value: string }>(
+                  db, "SELECT value FROM cursorDiskKV WHERE key = ?",
+                  [`bubbleId:${composerId}:${firstUserBubble.bubbleId}`]
                 );
                 if (bubbleRow.length > 0) {
                   try {
@@ -233,15 +256,13 @@ export const cursorScanner: Scanner = {
               humanMessages: humanCount,
               aiMessages: aiCount,
               preview: preview || "(composer session)",
-              filePath: `vscdb:${globalDb}:${composerId}`,
+              filePath: makeVscdbPath(globalDb, composerId),
               modifiedAt: updatedAt,
               sizeBytes: row.value.length,
             });
           } catch { /* skip malformed entries */ }
         }
-      }
-    } catch (err) {
-      console.error(`[codemolt] Cursor Format 3 error:`, err instanceof Error ? err.message : err);
+      }, undefined);
     }
 
     sessions.sort((a, b) => b.modifiedAt.getTime() - a.modifiedAt.getTime());
@@ -337,70 +358,105 @@ export const cursorScanner: Scanner = {
 
 // Parse a session stored in globalStorage state.vscdb (Format 3)
 function parseVscdbSession(virtualPath: string, maxTurns?: number): ParsedSession | null {
-  // virtualPath = "vscdb:/path/to/state.vscdb:composerId"
-  const parts = virtualPath.split(":");
-  if (parts.length < 3) return null;
-  const dbPath = parts[1];
-  const composerId = parts.slice(2).join(":");
+  const parsed = parseVscdbVirtualPath(virtualPath);
+  if (!parsed) return null;
+  const { dbPath, composerId } = parsed;
 
-  // Get composer metadata
-  const metaRows = safeQuery<{ value: string }>(
-    dbPath,
-    `SELECT value FROM cursorDiskKV WHERE key='composerData:${composerId}'`
-  );
-  if (metaRows.length === 0) return null;
-
-  let composerData: CursorComposerData;
-  try { composerData = JSON.parse(metaRows[0].value); } catch { return null; }
-
-  const bubbleHeaders = composerData.fullConversationHeadersOnly || [];
-  if (bubbleHeaders.length === 0) return null;
-
-  // Fetch bubble contents
-  const turns: ConversationTurn[] = [];
-  for (const header of bubbleHeaders) {
-    if (maxTurns && turns.length >= maxTurns) break;
-
-    const bubbleRows = safeQuery<{ value: string }>(
-      dbPath,
-      `SELECT value FROM cursorDiskKV WHERE key='bubbleId:${composerId}:${header.bubbleId}'`
+  return withDb(dbPath, (db) => {
+    // Get composer metadata
+    const metaRows = safeQueryDb<{ value: string }>(
+      db, "SELECT value FROM cursorDiskKV WHERE key = ?",
+      [`composerData:${composerId}`]
     );
-    if (bubbleRows.length === 0) continue;
+    if (metaRows.length === 0) return null;
 
-    try {
-      const bubble = JSON.parse(bubbleRows[0].value);
-      const text = bubble.text || bubble.message || bubble.rawText || "";
-      if (!text && header.type === 2) {
-        // AI response text might be empty in newer versions — skip
-        turns.push({ role: "assistant", content: "(AI response)" });
-        continue;
-      }
-      turns.push({
-        role: header.type === 1 ? "human" : "assistant",
-        content: text || "(empty)",
-      });
-    } catch { /* skip */ }
+    let composerData: CursorComposerData;
+    try { composerData = JSON.parse(metaRows[0].value); } catch { return null; }
+
+    const bubbleHeaders = composerData.fullConversationHeadersOnly || [];
+    if (bubbleHeaders.length === 0) return null;
+
+    // Fetch bubble contents — single DB connection reused for all queries
+    const turns: ConversationTurn[] = [];
+    for (const header of bubbleHeaders) {
+      if (maxTurns && turns.length >= maxTurns) break;
+
+      const bubbleRows = safeQueryDb<{ value: string }>(
+        db, "SELECT value FROM cursorDiskKV WHERE key = ?",
+        [`bubbleId:${composerId}:${header.bubbleId}`]
+      );
+      if (bubbleRows.length === 0) continue;
+
+      try {
+        const bubble = JSON.parse(bubbleRows[0].value);
+        const text = bubble.text || bubble.message || bubble.rawText || "";
+        if (!text && header.type === 2) {
+          turns.push({ role: "assistant", content: "(AI response)" });
+          continue;
+        }
+        turns.push({
+          role: header.type === 1 ? "human" : "assistant",
+          content: text || "(empty)",
+        });
+      } catch { /* skip */ }
+    }
+
+    if (turns.length === 0) return null;
+
+    const humanMsgs = turns.filter((t) => t.role === "human");
+    const aiMsgs = turns.filter((t) => t.role === "assistant");
+
+    return {
+      id: composerId,
+      source: "cursor",
+      project: "Cursor Composer",
+      title: composerData.name || humanMsgs[0]?.content.slice(0, 80) || "Cursor session",
+      messageCount: turns.length,
+      humanMessages: humanMsgs.length,
+      aiMessages: aiMsgs.length,
+      preview: humanMsgs[0]?.content.slice(0, 200) || "",
+      filePath: virtualPath,
+      modifiedAt: composerData.lastUpdatedAt ? new Date(composerData.lastUpdatedAt) : new Date(),
+      sizeBytes: 0,
+      turns,
+    } as ParsedSession;
+  }, null);
+}
+
+// Decode a directory name like "Users-zhaoyifei-my-cool-project" back to a real path.
+// Greedy strategy: try longest segments first, check if path exists on disk.
+function decodeDirNameToPath(dirName: string): string | null {
+  const stripped = dirName.startsWith("-") ? dirName.slice(1) : dirName;
+  const parts = stripped.split("-");
+  let currentPath = "";
+  let i = 0;
+
+  while (i < parts.length) {
+    let bestMatch = "";
+    let bestLen = 0;
+
+    for (let end = parts.length; end > i; end--) {
+      const segment = parts.slice(i, end).join("-");
+      const candidate = currentPath + "/" + segment;
+      try {
+        if (fs.existsSync(candidate)) {
+          bestMatch = candidate;
+          bestLen = end - i;
+          break;
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (bestLen > 0) {
+      currentPath = bestMatch;
+      i += bestLen;
+    } else {
+      currentPath += "/" + parts[i];
+      i++;
+    }
   }
 
-  if (turns.length === 0) return null;
-
-  const humanMsgs = turns.filter((t) => t.role === "human");
-  const aiMsgs = turns.filter((t) => t.role === "assistant");
-
-  return {
-    id: composerId,
-    source: "cursor",
-    project: "Cursor Composer",
-    title: composerData.name || humanMsgs[0]?.content.slice(0, 80) || "Cursor session",
-    messageCount: turns.length,
-    humanMessages: humanMsgs.length,
-    aiMessages: aiMsgs.length,
-    preview: humanMsgs[0]?.content.slice(0, 200) || "",
-    filePath: virtualPath,
-    modifiedAt: composerData.lastUpdatedAt ? new Date(composerData.lastUpdatedAt) : new Date(),
-    sizeBytes: 0,
-    turns,
-  };
+  return currentPath || null;
 }
 
 // --- Type definitions ---

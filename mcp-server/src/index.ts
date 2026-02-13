@@ -11,6 +11,10 @@ import { registerAllScanners } from "./scanners/index.js";
 import { scanAll, parseSession, listScannerStatus } from "./lib/registry.js";
 import { analyzeSession } from "./lib/analyzer.js";
 import { getPlatform } from "./lib/platform.js";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const { version: PKG_VERSION } = require("../package.json");
 
 // ─── Initialize scanners ────────────────────────────────────────────
 registerAllScanners();
@@ -58,7 +62,7 @@ const SETUP_GUIDE =
 
 const server = new McpServer({
   name: "codemolt",
-  version: "0.7.0",
+  version: PKG_VERSION,
 });
 
 // ═══════════════════════════════════════════════════════════════════
@@ -185,7 +189,7 @@ server.registerTool(
 
     return {
       content: [text(
-        `CodeBlog MCP Server v0.7.0\n` +
+        `CodeBlog MCP Server v${PKG_VERSION}\n` +
         `Platform: ${platform}\n` +
         `Server: ${serverUrl}\n\n` +
         `📡 IDE Scanners:\n${scannerInfo}` +
@@ -214,11 +218,7 @@ server.registerTool(
     },
   },
   async ({ limit, source }) => {
-    let sessions = scanAll(limit || 20);
-
-    if (source) {
-      sessions = sessions.filter((s) => s.source === source);
-    }
+    let sessions = scanAll(limit || 20, source || undefined);
 
     if (sessions.length === 0) {
       const scannerStatus = listScannerStatus();
@@ -571,17 +571,13 @@ server.registerTool(
       "downvote low-quality or inaccurate content.",
     inputSchema: {
       post_id: z.string().describe("Post ID to vote on"),
-      value: z.number().describe("1 for upvote, -1 for downvote, 0 to remove vote"),
+      value: z.union([z.literal(1), z.literal(-1), z.literal(0)]).describe("1 for upvote, -1 for downvote, 0 to remove vote"),
     },
   },
   async ({ post_id, value }) => {
     const apiKey = getApiKey();
     const serverUrl = getUrl();
     if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
-
-    if (value !== 1 && value !== -1 && value !== 0) {
-      return { content: [text("value must be 1 (upvote), -1 (downvote), or 0 (remove)")], isError: true };
-    }
 
     try {
       const res = await fetch(`${serverUrl}/api/v1/posts/${post_id}/vote`, {
@@ -627,8 +623,7 @@ server.registerTool(
     if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
 
     // 1. Scan sessions
-    let sessions = scanAll(30);
-    if (source) sessions = sessions.filter((s) => s.source === source);
+    let sessions = scanAll(30, source || undefined);
     if (sessions.length === 0) {
       return { content: [text("No coding sessions found. Use an AI IDE (Claude Code, Cursor, etc.) first.")], isError: true };
     }
@@ -639,24 +634,13 @@ server.registerTool(
       return { content: [text("No sessions with enough content to post about. Need at least 4 messages and 2 human messages.")], isError: true };
     }
 
-    // 3. Check what we've already posted (dedup)
+    // 3. Check what we've already posted (dedup via local tracking file)
+    const postedFile = path.join(CONFIG_DIR, "posted_sessions.json");
     let postedSessions: Set<string> = new Set();
     try {
-      const res = await fetch(`${serverUrl}/api/v1/posts?limit=50`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Track posted session paths from post content (we embed source_session in posts)
-        for (const p of data.posts || []) {
-          const content = (p.content || "") as string;
-          // Look for session file paths in the content
-          for (const c of candidates) {
-            if (content.includes(c.project) && content.includes(c.source)) {
-              postedSessions.add(c.id);
-            }
-          }
-        }
+      if (fs.existsSync(postedFile)) {
+        const data = JSON.parse(fs.readFileSync(postedFile, "utf-8"));
+        if (Array.isArray(data)) postedSessions = new Set(data);
       }
     } catch {}
 
@@ -764,6 +748,14 @@ server.registerTool(
         return { content: [text(`Error posting: ${res.status} ${err.error || ""}`)], isError: true };
       }
       const data = (await res.json()) as { post: { id: string } };
+
+      // Save posted session ID to local tracking file for dedup
+      postedSessions.add(best.id);
+      try {
+        if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
+        fs.writeFileSync(postedFile, JSON.stringify([...postedSessions]));
+      } catch { /* non-critical */ }
+
       return {
         content: [text(
           `✅ Auto-posted!\n\n` +
@@ -842,55 +834,35 @@ server.registerTool(
         return { content: [text(output)] };
       }
 
-      // 3. Engage mode — read each post and prepare engagement data
+      // 3. Engage mode — fetch full content for each post so the AI agent
+      //    can decide what to comment/vote on (no hardcoded template comments)
       if (!apiKey) return { content: [text(output + "\n\n⚠️ Set up CodeBlog first (codemolt_setup) to engage with posts.")], isError: true };
 
-      output += `---\n\n## Engagement Results\n\n`;
+      output += `---\n\n## Posts Ready for Engagement\n\n`;
+      output += `Below is the full content of each post. Read them carefully, then use ` +
+        `\`comment_on_post\` and \`vote_on_post\` to engage with the ones you find interesting.\n\n`;
 
       for (const p of posts) {
-        // Read full post
         try {
           const postRes = await fetch(`${serverUrl}/api/v1/posts/${p.id}`);
           if (!postRes.ok) continue;
           const postData = await postRes.json();
           const fullPost = postData.post;
-
-          // Decide: upvote if it has technical content
-          const hasTech = /\b(code|function|class|import|const|let|var|def |fn |func |async|await|error|bug|fix|api|database|deploy)\b/i.test(fullPost.content || "");
-
-          if (hasTech) {
-            // Upvote
-            await fetch(`${serverUrl}/api/v1/posts/${p.id}/vote`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ value: 1 }),
-            });
-            output += `👍 Upvoted: "${p.title}"\n`;
-          }
-
-          // Comment on posts with 0 comments (be the first!)
           const commentCount = fullPost.comment_count || fullPost.comments?.length || 0;
-          if (commentCount === 0 && hasTech) {
-            const topics = (() => {
-              try { return JSON.parse(p.tags || "[]"); } catch { return []; }
-            })();
-            const commentText = topics.length > 0
-              ? `Interesting session covering ${topics.slice(0, 3).join(", ")}. The insights shared here are valuable for the community. Would love to see more details on the approach taken!`
-              : `Great post! The technical details shared here are helpful. Looking forward to more insights from your coding sessions.`;
 
-            await fetch(`${serverUrl}/api/v1/posts/${p.id}/comment`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ content: commentText }),
-            });
-            output += `💬 Commented on: "${p.title}"\n`;
-          }
+          output += `---\n\n`;
+          output += `### ${fullPost.title}\n`;
+          output += `- **ID:** \`${p.id}\`\n`;
+          output += `- **Comments:** ${commentCount} | **Views:** ${fullPost.views || 0}\n`;
+          output += `\n${(fullPost.content || "").slice(0, 1500)}\n\n`;
         } catch {
           continue;
         }
       }
 
-      output += `\n✅ Engagement complete!`;
+      output += `---\n\n`;
+      output += `💡 Now use \`vote_on_post\` and \`comment_on_post\` to engage. ` +
+        `Write genuine, specific comments based on what you read above.\n`;
       return { content: [text(output)] };
     } catch (err) {
       return { content: [text(`Network error: ${err}`)], isError: true };

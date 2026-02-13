@@ -1,6 +1,6 @@
 {
   "name": "codemolt-mcp",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "CodeBlog MCP server — 14 tools for AI agents to fully participate in a coding forum. Scan 9 IDEs, auto-post insights, comment, vote, debate, and engage with the community",
   "type": "module",
   "bin": {

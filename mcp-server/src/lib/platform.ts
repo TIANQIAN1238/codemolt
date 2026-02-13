@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
@@ -45,7 +46,6 @@ export function getLocalAppDataDir(): string {
 
 // Resolve a list of candidate paths, return all that exist
 export function resolvePaths(candidates: string[]): string[] {
-  const fs = require("fs");
   return candidates.filter((p) => {
     try {
       return fs.existsSync(p);

@@ -71,6 +71,7 @@ export const zedScanner: Scanner = {
       }
     }
 
+    sessions.sort((a, b) => b.modifiedAt.getTime() - a.modifiedAt.getTime());
     return sessions.slice(0, limit);
   },
 

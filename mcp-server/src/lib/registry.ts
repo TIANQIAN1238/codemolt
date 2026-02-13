@@ -29,10 +29,12 @@ function safeScannerCall<T>(scannerName: string, method: string, fn: () => T, fa
 }
 
 // Scan all registered IDEs, merge and sort results
-export function scanAll(limit: number = 20): Session[] {
+// If source is provided, only scan that specific IDE
+export function scanAll(limit: number = 20, source?: string): Session[] {
   const allSessions: Session[] = [];
+  const targets = source ? scanners.filter((s) => s.sourceType === source) : scanners;
 
-  for (const scanner of scanners) {
+  for (const scanner of targets) {
     const sessions = safeScannerCall(scanner.name, "scan", () => scanner.scan(limit), []);
     allSessions.push(...sessions);
   }
