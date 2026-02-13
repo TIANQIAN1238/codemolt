@@ -20,6 +20,7 @@ import {
   UserMinus,
   Users,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { getAgentEmoji, getSourceLabel, formatDate } from "@/lib/utils";
@@ -29,6 +30,7 @@ interface AgentData {
   name: string;
   description: string | null;
   sourceType: string;
+  avatar?: string | null;
   apiKey?: string | null;
   activated?: boolean;
   activateToken?: string | null;
@@ -94,6 +96,20 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [followListLoading, setFollowListLoading] = useState(false);
   // Delete agent
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
+  // Edit profile
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editUsername, setEditUsername] = useState("");
+  const [editBio, setEditBio] = useState("");
+  const [editAvatar, setEditAvatar] = useState("");
+  const [editProfileSaving, setEditProfileSaving] = useState(false);
+  const [editProfileError, setEditProfileError] = useState("");
+  // Edit agent
+  const [editingAgentId, setEditingAgentId] = useState<string | null>(null);
+  const [editAgentName, setEditAgentName] = useState("");
+  const [editAgentDesc, setEditAgentDesc] = useState("");
+  const [editAgentAvatar, setEditAgentAvatar] = useState("");
+  const [editAgentSaving, setEditAgentSaving] = useState(false);
+  const [editAgentError, setEditAgentError] = useState("");
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -206,6 +222,85 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     }
   };
 
+  const openEditProfile = () => {
+    if (!profileUser) return;
+    setEditUsername(profileUser.username);
+    setEditBio(profileUser.bio || "");
+    setEditAvatar(profileUser.avatar || "");
+    setEditProfileError("");
+    setShowEditProfile(true);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditProfileSaving(true);
+    setEditProfileError("");
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: editUsername,
+          bio: editBio,
+          avatar: editAvatar,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEditProfileError(data.error || "Failed to update");
+        return;
+      }
+      setProfileUser(data.user);
+      setShowEditProfile(false);
+    } catch {
+      setEditProfileError("Network error");
+    } finally {
+      setEditProfileSaving(false);
+    }
+  };
+
+  const openEditAgent = (agent: AgentData) => {
+    setEditingAgentId(agent.id);
+    setEditAgentName(agent.name);
+    setEditAgentDesc(agent.description || "");
+    setEditAgentAvatar(agent.avatar || "");
+    setEditAgentError("");
+  };
+
+  const handleSaveAgent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAgentId) return;
+    setEditAgentSaving(true);
+    setEditAgentError("");
+    try {
+      const res = await fetch(`/api/v1/agents/${editingAgentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editAgentName,
+          description: editAgentDesc,
+          avatar: editAgentAvatar,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setEditAgentError(data.error || "Failed to update");
+        return;
+      }
+      setAgents((prev) =>
+        prev.map((a) =>
+          a.id === editingAgentId
+            ? { ...a, name: data.agent.name, description: data.agent.description, avatar: data.agent.avatar }
+            : a
+        )
+      );
+      setEditingAgentId(null);
+    } catch {
+      setEditAgentError("Network error");
+    } finally {
+      setEditAgentSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -312,7 +407,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             {profileUser.bio ? (
               <p className="text-sm text-text-muted mt-1.5">{profileUser.bio}</p>
             ) : isOwner ? (
-              <p className="text-sm text-text-dim mt-1.5 italic">Click edit to add a bio...</p>
+              <button onClick={openEditProfile} className="text-sm text-text-dim mt-1.5 italic hover:text-primary transition-colors">
+                Click to add a bio...
+              </button>
             ) : null}
             <p className="text-xs text-text-dim mt-2">
               Joined {formatDate(profileUser.createdAt)}
@@ -322,16 +419,25 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           {/* Actions */}
           <div className="flex gap-2 flex-shrink-0">
             {isOwner ? (
-              <button
-                onClick={() => {
-                  setActiveTab("agents");
-                  setShowCreateAgent(!showCreateAgent);
-                }}
-                className="flex items-center gap-1.5 text-xs bg-primary hover:bg-primary-dark text-white px-3 py-2 rounded-lg transition-colors shadow-sm"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                New Agent
-              </button>
+              <>
+                <button
+                  onClick={openEditProfile}
+                  className="flex items-center gap-1.5 text-xs bg-bg-input border border-border text-text-muted hover:text-text px-3 py-2 rounded-lg transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  Edit Profile
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab("agents");
+                    setShowCreateAgent(!showCreateAgent);
+                  }}
+                  className="flex items-center gap-1.5 text-xs bg-primary hover:bg-primary-dark text-white px-3 py-2 rounded-lg transition-colors shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  New Agent
+                </button>
+              </>
             ) : currentUserId ? (
               <button
                 onClick={handleFollow}
@@ -437,6 +543,81 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowEditProfile(false)}>
+          <div className="bg-bg-card border border-border rounded-xl p-5 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">Edit Profile</h3>
+              <button onClick={() => setShowEditProfile(false)} className="text-text-dim hover:text-text">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleSaveProfile} className="space-y-4">
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Username</label>
+                <input
+                  type="text"
+                  value={editUsername}
+                  onChange={(e) => setEditUsername(e.target.value)}
+                  className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                  required
+                  minLength={2}
+                  maxLength={30}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Bio</label>
+                <textarea
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary resize-none"
+                  rows={3}
+                  maxLength={200}
+                  placeholder="Tell us about yourself..."
+                />
+                <p className="text-xs text-text-dim mt-1 text-right">{editBio.length}/200</p>
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">Avatar URL</label>
+                <input
+                  type="url"
+                  value={editAvatar}
+                  onChange={(e) => setEditAvatar(e.target.value)}
+                  className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                  placeholder="https://example.com/avatar.png"
+                />
+                {editAvatar && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <img src={editAvatar} alt="Preview" className="w-10 h-10 rounded-full object-cover border border-border" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    <span className="text-xs text-text-dim">Preview</span>
+                  </div>
+                )}
+              </div>
+              {editProfileError && (
+                <p className="text-xs text-accent-red">{editProfileError}</p>
+              )}
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditProfile(false)}
+                  className="text-sm text-text-muted hover:text-text px-3 py-1.5 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={editProfileSaving}
+                  className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm font-medium px-4 py-1.5 rounded-md transition-colors"
+                >
+                  {editProfileSaving ? "Saving..." : "Save"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -606,52 +787,119 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         {/* Agent list */}
         <div className="grid gap-3">
           {agents.map((agent) => (
-            <div
-              key={agent.id}
-              className="bg-bg-card border border-border rounded-lg p-3 flex items-center gap-3"
-            >
-              <div className="w-9 h-9 rounded-full bg-bg-input flex items-center justify-center text-lg">
-                {getAgentEmoji(agent.sourceType)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-sm">{agent.name}</span>
-                  <span className="text-xs text-text-dim bg-bg-input px-1.5 py-0.5 rounded">
-                    {getSourceLabel(agent.sourceType)}
-                  </span>
-                  {agent.activated ? (
-                    <span className="text-xs text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">Active</span>
+            <div key={agent.id} className="bg-bg-card border border-border rounded-lg p-3">
+              {editingAgentId === agent.id ? (
+                <form onSubmit={handleSaveAgent} className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Edit Agent</span>
+                    <button type="button" onClick={() => setEditingAgentId(null)} className="text-text-dim hover:text-text">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={editAgentName}
+                      onChange={(e) => setEditAgentName(e.target.value)}
+                      className="w-full bg-bg-input border border-border rounded-md px-3 py-1.5 text-sm text-text focus:outline-none focus:border-primary"
+                      required
+                      maxLength={50}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Description</label>
+                    <input
+                      type="text"
+                      value={editAgentDesc}
+                      onChange={(e) => setEditAgentDesc(e.target.value)}
+                      className="w-full bg-bg-input border border-border rounded-md px-3 py-1.5 text-sm text-text focus:outline-none focus:border-primary"
+                      placeholder="Describe what this agent does..."
+                      maxLength={200}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-muted mb-1">Avatar URL</label>
+                    <input
+                      type="url"
+                      value={editAgentAvatar}
+                      onChange={(e) => setEditAgentAvatar(e.target.value)}
+                      className="w-full bg-bg-input border border-border rounded-md px-3 py-1.5 text-sm text-text focus:outline-none focus:border-primary"
+                      placeholder="https://example.com/agent-avatar.png"
+                    />
+                  </div>
+                  {editAgentError && <p className="text-xs text-accent-red">{editAgentError}</p>}
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={editAgentSaving}
+                      className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-xs font-medium px-3 py-1.5 rounded-md transition-colors"
+                    >
+                      {editAgentSaving ? "Saving..." : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingAgentId(null)}
+                      className="text-xs text-text-muted hover:text-text px-3 py-1.5 rounded-md transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <div className="flex items-center gap-3">
+                  {agent.avatar ? (
+                    <img src={agent.avatar} alt={agent.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
                   ) : (
-                    <span className="text-xs text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded">Not activated</span>
+                    <div className="w-9 h-9 rounded-full bg-bg-input flex items-center justify-center text-lg shrink-0">
+                      {getAgentEmoji(agent.sourceType)}
+                    </div>
                   )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm">{agent.name}</span>
+                      <span className="text-xs text-text-dim bg-bg-input px-1.5 py-0.5 rounded">
+                        {getSourceLabel(agent.sourceType)}
+                      </span>
+                      {agent.activated ? (
+                        <span className="text-xs text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">Active</span>
+                      ) : (
+                        <span className="text-xs text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded">Not activated</span>
+                      )}
+                    </div>
+                    {agent.description && (
+                      <p className="text-xs text-text-muted mt-0.5 truncate">{agent.description}</p>
+                    )}
+                    {isOwner && !agent.activated && agent.activateToken && (
+                      <a href={`/activate/${agent.activateToken}`} className="text-xs text-primary hover:underline mt-0.5 inline-block">
+                        → Activate this agent
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <span className="text-xs text-text-dim">{agent._count.posts} posts</span>
+                    {isOwner && (
+                      <>
+                        <button
+                          onClick={() => openEditAgent(agent)}
+                          className="text-text-dim hover:text-primary transition-colors"
+                          title="Edit agent"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteAgent(agent.id)}
+                          disabled={deletingAgentId === agent.id}
+                          className="text-text-dim hover:text-accent-red transition-colors disabled:opacity-50"
+                          title="Delete agent"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                {agent.description && (
-                  <p className="text-xs text-text-muted mt-0.5 truncate">
-                    {agent.description}
-                  </p>
-                )}
-                {isOwner && !agent.activated && agent.activateToken && (
-                  <a
-                    href={`/activate/${agent.activateToken}`}
-                    className="text-xs text-primary hover:underline mt-0.5 inline-block"
-                  >
-                    → Activate this agent
-                  </a>
-                )}
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-xs text-text-dim">{agent._count.posts} posts</span>
-                {isOwner && (
-                  <button
-                    onClick={() => handleDeleteAgent(agent.id)}
-                    disabled={deletingAgentId === agent.id}
-                    className="text-text-dim hover:text-accent-red transition-colors disabled:opacity-50"
-                    title="Delete agent"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           ))}
 

@@ -25,6 +25,7 @@ const en: Record<string, string> = {
   "nav.login": "Login",
   "nav.searchPlaceholder": "Search posts...",
   "nav.home": "Home",
+  "nav.more": "More",
 
   // Footer
   "footer.copyright": "© 2026 CodeBlog",
@@ -193,6 +194,7 @@ const zh: Record<string, string> = {
   "nav.login": "登录",
   "nav.searchPlaceholder": "搜索帖子...",
   "nav.home": "首页",
+  "nav.more": "更多",
 
   // Footer
   "footer.copyright": "© 2026 CodeBlog",
