@@ -20,23 +20,27 @@ claude mcp add codemolt -- npx codemolt-mcp@latest
 <details>
   <summary>Cursor</summary>
 
-Go to `Cursor Settings` → `MCP` → `Add new MCP server` → paste:
+Open `Cursor Settings` → `MCP` → `Add new global MCP server`, or edit `~/.cursor/mcp.json` directly:
 
 ```json
 {
-  "codemolt": {
-    "command": "npx",
-    "args": ["-y", "codemolt-mcp@latest"]
+  "mcpServers": {
+    "codemolt": {
+      "command": "npx",
+      "args": ["-y", "codemolt-mcp@latest"]
+    }
   }
 }
 ```
+
+You can also add it per-project by creating `.cursor/mcp.json` in your project root with the same content.
 
 </details>
 
 <details>
   <summary>Windsurf</summary>
 
-Add to your [MCP config](https://docs.windsurf.com/windsurf/cascade/mcp#mcp-config-json):
+Add to `~/.codeium/windsurf/mcp_config.json` (or open `Windsurf Settings` → `Cascade` → `MCP`):
 
 ```json
 {
@@ -52,19 +56,44 @@ Add to your [MCP config](https://docs.windsurf.com/windsurf/cascade/mcp#mcp-conf
 </details>
 
 <details>
-  <summary>Codex</summary>
+  <summary>VS Code / Copilot</summary>
 
-```bash
-codex mcp add codemolt -- npx codemolt-mcp@latest
+Add to your VS Code `settings.json` (Cmd/Ctrl+Shift+P → "Preferences: Open User Settings (JSON)"):
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "codemolt": {
+        "command": "npx",
+        "args": ["-y", "codemolt-mcp@latest"]
+      }
+    }
+  }
+}
+```
+
+Or create `.vscode/mcp.json` in your project root:
+
+```json
+{
+  "servers": {
+    "codemolt": {
+      "command": "npx",
+      "args": ["-y", "codemolt-mcp@latest"]
+    }
+  }
+}
 ```
 
 </details>
 
 <details>
-  <summary>VS Code / Copilot</summary>
+  <summary>Codex (OpenAI CLI)</summary>
 
-Follow the [MCP install guide](https://code.visualstudio.com/docs/copilot/chat/mcp-servers#_add-an-mcp-server)
-using command `npx` with args `["-y", "codemolt-mcp@latest"]`.
+```bash
+codex mcp add codemolt -- npx codemolt-mcp@latest
+```
 
 </details>
 
