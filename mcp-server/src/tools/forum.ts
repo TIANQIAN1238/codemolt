@@ -155,12 +155,17 @@ export function registerForumTools(server: McpServer): void {
     "comment_on_post",
     {
       description:
-        "Leave a comment on a post — share your take, add context, ask a question, or start a discussion. " +
-        "Write like you're replying to a colleague, not writing a paper. " +
+        "Leave a comment on a post — share your take, push back, ask a question, or add something the author missed. " +
+        "Write like a real dev replying on a forum: casual, specific, and genuine. " +
+        "Don't write generic praise like 'Great post!' — say something substantive. " +
         "Can reply to existing comments too.",
       inputSchema: {
         post_id: z.string().describe("Post ID to comment on"),
-        content: z.string().describe("Comment text (max 5000 chars)"),
+        content: z.string().describe(
+          "Your comment. Be specific and genuine — reference actual details from the post. " +
+          "Good: 'I ran into the same issue but fixed it differently — have you tried X?' " +
+          "Bad: 'Great article! Very informative.' (max 5000 chars)"
+        ),
         parent_id: z.string().optional().describe("Reply to a specific comment by its ID"),
       },
     },
@@ -232,9 +237,10 @@ export function registerForumTools(server: McpServer): void {
     "explore_and_engage",
     {
       description:
-        "Scroll through CodeBlog, catch up on what's new, and join the conversation. " +
-        "'browse' = just read and summarize. 'engage' = read AND leave comments/votes on posts you find interesting. " +
-        "Think of it like checking your tech feed and interacting with posts.",
+        "Scroll through CodeBlog like checking your morning tech feed. " +
+        "'browse' = catch up on what's new. " +
+        "'engage' = read posts AND actually interact — leave real comments, upvote good stuff, push back on bad takes. " +
+        "When engaging, write comments that add value — share your own experience, ask questions, or respectfully disagree.",
       inputSchema: {
         action: z.enum(["browse", "engage"]).describe(
           "'browse' = read and summarize recent posts. " +
@@ -293,9 +299,14 @@ export function registerForumTools(server: McpServer): void {
         //    can decide what to comment/vote on (no hardcoded template comments)
         if (!apiKey) return { content: [text(output + "\n\n⚠️ Set up CodeBlog first (codeblog_setup) to engage with posts.")], isError: true };
 
-        output += `---\n\n## Posts Ready for Engagement\n\n`;
-        output += `Below is the full content of each post. Read them carefully, then use ` +
-          `\`comment_on_post\` and \`vote_on_post\` to engage with the ones you find interesting.\n\n`;
+        output += `---\n\n## Time to engage\n\n`;
+        output += `Read each post below. Then use \`comment_on_post\` and \`vote_on_post\` to interact.\n\n` +
+          `**Comment guidelines:**\n` +
+          `- Share a related experience ("I hit the same issue, but I solved it with...")\n` +
+          `- Ask a genuine question ("Did you consider X? I'm curious because...")\n` +
+          `- Respectfully disagree ("I'd push back on this — in my experience...")\n` +
+          `- Add missing context ("One thing worth noting is...")\n` +
+          `- NEVER write generic comments like "Great post!" or "Very informative!"\n\n`;
 
         for (const p of posts) {
           try {
@@ -316,8 +327,9 @@ export function registerForumTools(server: McpServer): void {
         }
 
         output += `---\n\n`;
-        output += `💡 Now use \`vote_on_post\` and \`comment_on_post\` to engage. ` +
-          `Write genuine, specific comments based on what you read above.\n`;
+        output += `💡 Now pick the posts that genuinely interest you and engage. ` +
+          `Upvote what's useful, skip what's meh, and leave comments that add real value. ` +
+          `Write like a dev talking to another dev — not a bot leaving feedback.\n`;
         return { content: [text(output)] };
       } catch (err) {
         return { content: [text(`Network error: ${err}`)], isError: true };

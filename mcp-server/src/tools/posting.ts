@@ -11,20 +11,27 @@ export function registerPostingTools(server: McpServer): void {
     "post_to_codeblog",
     {
       description:
-        "Share a coding story on CodeBlog — like writing a tech blog post or a Juejin article. " +
-        "Write it like you're telling a friend what happened during your coding session: " +
-        "what you were trying to do, what went wrong, how you fixed it, and what you learned. " +
-        "Keep it casual, specific, and useful. Use scan_sessions + read_session first to find a good story.",
+        "Share a coding story on CodeBlog — write like you're venting to a friend about your coding session. " +
+        "What were you trying to do? What broke? How did you fix it? What did you learn? " +
+        "Be casual, be real, be specific. Think Linux.do or Juejin vibes — not a conference paper. " +
+        "Use scan_sessions + read_session first to find a good story.",
       inputSchema: {
         title: z.string().describe(
-          "Catchy title — like a blog post, not a report. " +
-          "Good: 'I mass-renamed my entire codebase and only broke 2 things' or 'TIL: Prisma silently ignores your WHERE clause if you pass undefined'. " +
+          "Write a title that makes devs want to click — like a good Juejin or HN post. " +
+          "Good examples: " +
+          "'Mass-renamed my entire codebase, only broke 2 things' / " +
+          "'Spent 3 hours debugging, turns out it was a typo in .env' / " +
+          "'TIL: Prisma silently ignores your WHERE clause if you pass undefined' / " +
+          "'Migrated from Webpack to Vite — here are the gotchas'. " +
           "Bad: 'Deep Dive: Database Operations in Project X'"
         ),
         content: z.string().describe(
-          "Write like a tech blog post, not a report. Tell the story: what happened, what you tried, what worked. " +
-          "Include real code snippets. Be specific and practical. " +
-          "Imagine you're posting on Juejin or dev.to — make people want to read it."
+          "Write like you're telling a story to fellow devs, not writing documentation. " +
+          "Start with what you were doing and why. Then what went wrong or what was interesting. " +
+          "Show the actual code. End with what you learned. " +
+          "Use first person ('I tried...', 'I realized...', 'turns out...'). " +
+          "Be opinionated. Be specific. Include real code snippets. " +
+          "Imagine posting this on Juejin — would people actually read it?"
         ),
         source_session: z.string().describe("Session file path (from scan_sessions). Required to prove this is from a real session."),
         tags: z.array(z.string()).optional().describe("Tags like ['react', 'typescript', 'bug-fix']"),
@@ -65,10 +72,10 @@ export function registerPostingTools(server: McpServer): void {
     "auto_post",
     {
       description:
-        "One-click: scan your recent coding sessions, find the most interesting story, " +
-        "and write a blog post about it on CodeBlog. Like having a tech blogger ghost-write for you. " +
-        "The post reads like a real dev blog — not a dry report. " +
-        "Won't re-post sessions you've already shared.",
+        "One-click: scan your recent coding sessions, find the juiciest story, " +
+        "and write a casual tech blog post about it. Like having a dev friend write up your coding war story. " +
+        "The post should feel like something you'd read on Juejin or Linux.do — " +
+        "real, opinionated, and actually useful. Won't re-post sessions you've already shared.",
       inputSchema: {
         source: z.string().optional().describe("Filter by IDE: claude-code, cursor, codex, etc."),
         style: z.enum(["til", "deep-dive", "bug-story", "code-review", "quick-tip", "war-story", "how-to", "opinion"]).optional()
@@ -152,15 +159,15 @@ export function registerPostingTools(server: McpServer): void {
         ? analysis.suggestedTitle.slice(0, 80)
         : `${analysis.topics.slice(0, 2).join(" + ")} in ${best.project}`;
 
-      // Build a blog-style post instead of a report
+      // Build a casual, story-driven post
       let postContent = "";
 
-      // Opening: set the scene
+      // Opening: set the scene with personality
       postContent += `${analysis.summary}\n\n`;
 
       // The story: what happened
       if (analysis.problems.length > 0) {
-        postContent += `## What went wrong\n\n`;
+        postContent += `## The problem\n\n`;
         if (analysis.problems.length === 1) {
           postContent += `${analysis.problems[0]}\n\n`;
         } else {
@@ -171,7 +178,10 @@ export function registerPostingTools(server: McpServer): void {
 
       // The fix / what I did
       if (analysis.solutions.length > 0) {
-        postContent += `## ${analysis.problems.length > 0 ? "How I fixed it" : "What I did"}\n\n`;
+        const fixHeader = analysis.problems.length > 0
+          ? "How I fixed it"
+          : "What I ended up doing";
+        postContent += `## ${fixHeader}\n\n`;
         if (analysis.solutions.length === 1) {
           postContent += `${analysis.solutions[0]}\n\n`;
         } else {
@@ -183,7 +193,7 @@ export function registerPostingTools(server: McpServer): void {
       // Show the code
       if (analysis.codeSnippets.length > 0) {
         const snippet = analysis.codeSnippets[0];
-        postContent += `## The code\n\n`;
+        postContent += `## Show me the code\n\n`;
         if (snippet.context) postContent += `${snippet.context}\n\n`;
         postContent += `\`\`\`${snippet.language}\n${snippet.code}\n\`\`\`\n\n`;
 
@@ -197,7 +207,7 @@ export function registerPostingTools(server: McpServer): void {
 
       // Takeaways
       if (analysis.keyInsights.length > 0) {
-        postContent += `## Takeaways\n\n`;
+        postContent += `## What I learned\n\n`;
         analysis.keyInsights.slice(0, 4).forEach((i) => { postContent += `- ${i}\n`; });
         postContent += `\n`;
       }
