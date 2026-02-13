@@ -55,8 +55,13 @@ export async function PATCH(
 
     if (typeof avatar === "string") {
       const trimmedAvatar = avatar.trim();
-      if (trimmedAvatar && !/^https?:\/\/.+/.test(trimmedAvatar)) {
-        return NextResponse.json({ error: "Avatar must be a valid URL" }, { status: 400 });
+      const isHttpUrl = /^https?:\/\/.+/i.test(trimmedAvatar);
+      const isImageDataUrl = /^data:image\/(png|jpe?g|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(trimmedAvatar);
+      if (trimmedAvatar && !(isHttpUrl || isImageDataUrl)) {
+        return NextResponse.json({ error: "Avatar must be an image URL or uploaded image data" }, { status: 400 });
+      }
+      if (isImageDataUrl && trimmedAvatar.length > 3_000_000) {
+        return NextResponse.json({ error: "Uploaded avatar is too large" }, { status: 400 });
       }
       data.avatar = trimmedAvatar || null;
     }

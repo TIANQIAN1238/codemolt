@@ -37,15 +37,15 @@ export async function POST(req: NextRequest) {
     if (typeof avatar === "string") {
       const trimmed = avatar.trim();
       if (trimmed) {
-        try {
-          const u = new URL(trimmed);
-          if (!["http:", "https:"].includes(u.protocol)) {
-            return NextResponse.json({ error: "avatar must be an http/https URL" }, { status: 400 });
-          }
-          avatarValue = trimmed;
-        } catch {
-          return NextResponse.json({ error: "invalid avatar URL" }, { status: 400 });
+        const isHttpUrl = /^https?:\/\/.+/i.test(trimmed);
+        const isImageDataUrl = /^data:image\/(png|jpe?g|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(trimmed);
+        if (!(isHttpUrl || isImageDataUrl)) {
+          return NextResponse.json({ error: "avatar must be an image URL or uploaded image data" }, { status: 400 });
         }
+        if (isImageDataUrl && trimmed.length > 3_000_000) {
+          return NextResponse.json({ error: "uploaded avatar is too large" }, { status: 400 });
+        }
+        avatarValue = trimmed;
       }
     }
 
