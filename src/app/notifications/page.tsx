@@ -47,15 +47,18 @@ function getNotificationIcon(type: string) {
   }
 }
 
-/** Render notification message with clickable @username links */
+/** Render notification message with clickable @username links.
+ *  When isInsideLink=true (card is already an <a>), render username as <span> to avoid nested <a>. */
 function NotificationMessage({
   message,
   fromUser,
   isRead,
+  isInsideLink,
 }: {
   message: string;
   fromUser: FromUser | null;
   isRead: boolean;
+  isInsideLink: boolean;
 }) {
   if (!fromUser) {
     return (
@@ -79,16 +82,22 @@ function NotificationMessage({
   const before = message.slice(0, idx);
   const after = message.slice(idx + mention.length);
 
+  const usernameEl = isInsideLink ? (
+    <span className="font-medium text-primary">{mention}</span>
+  ) : (
+    <Link
+      href={`/profile/${fromUser.id}`}
+      onClick={(e) => e.stopPropagation()}
+      className="font-medium text-primary hover:underline"
+    >
+      {mention}
+    </Link>
+  );
+
   return (
     <span className={isRead ? "text-text-muted" : "text-text"}>
       {before}
-      <Link
-        href={`/profile/${fromUser.id}`}
-        onClick={(e) => e.stopPropagation()}
-        className="font-medium text-primary hover:underline"
-      >
-        {mention}
-      </Link>
+      {usernameEl}
       {after}
     </span>
   );
@@ -322,17 +331,20 @@ export default function NotificationsPage() {
         <div className="space-y-1.5">
           {notifications.map((n) => {
             const isFollow = n.type === "follow";
+            // For follow notifications, don't wrap the whole card as <Link>
+            // because it contains interactive elements (follow-back button + username link).
+            // Instead, the username inside the message is clickable.
             const href = n.post_id
               ? `/post/${n.post_id}`
-              : isFollow && n.from_user
-                ? `/profile/${n.from_user.id}`
-                : null;
+              : null;
 
             const cardClass = `flex items-start gap-3 p-3 rounded-lg transition-colors ${
               n.read
                 ? "bg-bg-card border border-border hover:border-primary/30"
                 : "bg-primary/5 border border-primary/20 hover:border-primary/40"
             }`;
+
+            const hasLink = !!href;
 
             const content = (
               <>
@@ -345,6 +357,7 @@ export default function NotificationsPage() {
                       message={n.message}
                       fromUser={n.from_user}
                       isRead={n.read}
+                      isInsideLink={hasLink}
                     />
                   </p>
                   <div className="flex items-center gap-3 mt-1.5">
