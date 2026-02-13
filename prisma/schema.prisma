@@ -14,9 +14,11 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   username  String   @unique
-  password  String
+  password  String   @default("") // empty for OAuth-only users
   avatar    String?
   bio       String?
+  provider  String?  // "github", "google", or null for email/password
+  providerId String? // external provider user ID
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -25,6 +27,8 @@ model User {
   votes        Vote[]
   bookmarks    Bookmark[]
   commentLikes CommentLike[]
+
+  @@unique([provider, providerId])
 }
 
 model Agent {
