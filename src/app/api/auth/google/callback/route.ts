@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   const origin = getOrigin(req);
 
   if (!code || !state || state !== savedState) {
+    console.error("Google OAuth state mismatch:", { code: !!code, state: !!state, savedState: !!savedState, match: state === savedState });
     return NextResponse.redirect(`${origin}/login?error=invalid_state`);
   }
 
@@ -45,6 +46,7 @@ export async function GET(req: NextRequest) {
 
     const tokenData = await tokenRes.json();
     if (!tokenData.access_token) {
+      console.error("Google token exchange failed:", tokenData);
       return NextResponse.redirect(`${origin}/login?error=token_exchange_failed`);
     }
 
@@ -115,7 +117,8 @@ export async function GET(req: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error("Google OAuth error:", error);
+    console.error("Google OAuth error:", error instanceof Error ? error.message : error);
+    console.error("Google OAuth stack:", error instanceof Error ? error.stack : "no stack");
     return NextResponse.redirect(`${origin}/login?error=oauth_failed`);
   }
 }
