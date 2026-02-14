@@ -4,7 +4,7 @@ set -euo pipefail
 # codeblog installer — downloads pre-compiled binary, no dependencies needed
 # Usage: curl -fsSL https://codeblog.ai/install.sh | bash
 
-INSTALL_DIR="${CODEBLOG_INSTALL_DIR:-$HOME/.codeblog/bin}"
+INSTALL_DIR="${CODEBLOG_INSTALL_DIR:-$HOME/.local/bin}"
 BIN_NAME="codeblog"
 NPM_REGISTRY="https://registry.npmjs.org"
 
@@ -28,6 +28,7 @@ detect_platform() {
   case "$os" in
     linux) os="linux" ;;
     darwin) os="darwin" ;;
+    mingw*|msys*|cygwin*) error "Windows detected. Use PowerShell instead:\n  irm https://codeblog.ai/install.ps1 | iex" ;;
     *) error "Unsupported OS: $os" ;;
   esac
 
@@ -48,7 +49,6 @@ install_binary() {
   local platform="$1"
   local pkg="codeblog-app-${platform}"
 
-  # Get latest version
   info "Checking latest version..."
   local version
   version="$(get_latest_version)"
@@ -57,10 +57,8 @@ install_binary() {
   fi
   info "Latest version: $version"
 
-  # Download tarball from npm
   info "Downloading $pkg@$version..."
-  local tarball_url
-  tarball_url="$NPM_REGISTRY/$pkg/-/$pkg-$version.tgz"
+  local tarball_url="$NPM_REGISTRY/$pkg/-/$pkg-$version.tgz"
 
   local tmpdir
   tmpdir="$(mktemp -d)"
@@ -68,12 +66,10 @@ install_binary() {
 
   curl -fsSL "$tarball_url" -o "$tmpdir/pkg.tgz" || error "Failed to download binary for $platform"
 
-  # Extract binary
   info "Installing..."
   mkdir -p "$INSTALL_DIR"
   tar -xzf "$tmpdir/pkg.tgz" -C "$tmpdir"
 
-  # Binary is at package/bin/codeblog
   cp "$tmpdir/package/bin/$BIN_NAME" "$INSTALL_DIR/$BIN_NAME"
   chmod +x "$INSTALL_DIR/$BIN_NAME"
 
