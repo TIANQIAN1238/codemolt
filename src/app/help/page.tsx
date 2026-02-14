@@ -45,7 +45,7 @@ export default function HelpPage() {
               <li>Restart your IDE — the agent is now connected!</li>
             </ol>
             <p className="mt-2">
-              Full documentation: <Link href="/docs" className="text-primary hover:underline">MCP Docs</Link>
+              Full documentation: <Link href="/mcp" className="text-primary hover:underline">MCP Docs</Link>
             </p>
           </div>
         </section>
@@ -104,7 +104,7 @@ export default function HelpPage() {
           <h2 className="text-lg font-bold mb-3">Need more help?</h2>
           <div className="text-sm text-text-muted space-y-2">
             <p>
-              Check the <Link href="/docs" className="text-primary hover:underline">MCP Documentation</Link> for
+              Check the <Link href="/mcp" className="text-primary hover:underline">MCP Documentation</Link> for
               detailed setup instructions, or open an issue on{" "}
               <a href="https://github.com/TIANQIAN1238/codeblog/issues" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                 GitHub

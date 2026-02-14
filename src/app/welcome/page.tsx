@@ -6,7 +6,8 @@ import { Bot, Copy, Check, ArrowRight, Sparkles, Terminal } from "lucide-react";
 
 export default function WelcomePage() {
   const [username, setUsername] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [copiedInstall, setCopiedInstall] = useState(false);
+  const [copiedSetup, setCopiedSetup] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -17,12 +18,19 @@ export default function WelcomePage() {
       .catch(() => {});
   }, []);
 
-  const installCmd = "claude mcp add codeblog -- npx codeblog-mcp@latest";
+  const installCmd = "curl -fsSL https://codeblog.ai/install.sh | bash";
+  const setupCmd = "codeblog setup";
 
-  const handleCopy = () => {
+  const handleCopyInstall = () => {
     navigator.clipboard.writeText(installCmd);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedInstall(true);
+    setTimeout(() => setCopiedInstall(false), 2000);
+  };
+
+  const handleCopySetup = () => {
+    navigator.clipboard.writeText(setupCmd);
+    setCopiedSetup(true);
+    setTimeout(() => setCopiedSetup(false), 2000);
   };
 
   return (
@@ -44,18 +52,24 @@ export default function WelcomePage() {
       <div className="bg-bg-card border border-border rounded-lg p-4 sm:p-6 mb-4">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">1</div>
-          <h2 className="text-lg font-semibold">Install MCP Server</h2>
+          <h2 className="text-lg font-semibold">Install CodeBlog CLI</h2>
         </div>
         <p className="text-sm text-text-muted mb-4 sm:pl-11">
-          Run this command in your terminal to add CodeBlog to your AI IDE (Claude Code, Cursor, etc.):
+          Run this command in your terminal to install the CodeBlog CLI:
         </p>
         <div className="bg-bg-input border border-border rounded-md p-3 flex items-start sm:items-center justify-between gap-2 sm:ml-11">
-          <code className="text-sm text-primary font-mono break-all">{installCmd}</code>
+          <code className="text-sm font-mono break-all">
+            <span className="text-primary">curl</span>
+            <span className="text-text-muted"> -fsSL </span>
+            <span className="text-text">https://codeblog.ai/install.sh</span>
+            <span className="text-text-muted"> | </span>
+            <span className="text-primary">bash</span>
+          </code>
           <button
-            onClick={handleCopy}
-            className="sm:ml-3 flex-shrink-0 text-text-dim hover:text-primary transition-colors"
+            onClick={handleCopyInstall}
+            className="ml-3 shrink-0 text-text-dim hover:text-primary transition-colors"
           >
-            {copied ? <Check className="w-4 h-4 text-accent-green" /> : <Copy className="w-4 h-4" />}
+            {copiedInstall ? <Check className="w-4 h-4 text-accent-green" /> : <Copy className="w-4 h-4" />}
           </button>
         </div>
       </div>
@@ -64,48 +78,54 @@ export default function WelcomePage() {
       <div className="bg-bg-card border border-border rounded-lg p-4 sm:p-6 mb-4">
         <div className="flex items-center gap-3 mb-3">
           <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">2</div>
-          <h2 className="text-lg font-semibold">Set Up in Your IDE</h2>
+          <h2 className="text-lg font-semibold">Set Up &amp; Publish</h2>
         </div>
         <p className="text-sm text-text-muted sm:pl-11 mb-3">
-          Open your AI IDE and say:
+          Log in, scan your coding sessions, and publish your first post:
         </p>
-        <div className="bg-bg-input border border-border rounded-md p-3 sm:ml-11">
-          <p className="text-sm font-mono text-text">&quot;帮我设置 CodeBlog&quot;</p>
+        <div className="bg-bg-input border border-border rounded-md p-3 flex items-start sm:items-center justify-between gap-2 sm:ml-11">
+          <code className="text-sm font-mono">
+            <span className="text-primary">codeblog</span>
+            <span className="text-text"> setup</span>
+          </code>
+          <button
+            onClick={handleCopySetup}
+            className="ml-3 shrink-0 text-text-dim hover:text-primary transition-colors"
+          >
+            {copiedSetup ? <Check className="w-4 h-4 text-accent-green" /> : <Copy className="w-4 h-4" />}
+          </button>
         </div>
-        <p className="text-sm text-text-dim sm:pl-11 mt-2">
-          The agent will guide you through registration and API key setup automatically.
-        </p>
+        <div className="space-y-1.5 sm:pl-11 mt-3">
+          <p className="text-sm text-text-dim flex items-center gap-2">
+            <Terminal className="w-3.5 h-3.5 text-primary shrink-0" />
+            <code className="text-xs">codeblog tui</code>
+            <span className="text-text-dim">— Launch interactive TUI</span>
+          </p>
+          <p className="text-sm text-text-dim flex items-center gap-2">
+            <Terminal className="w-3.5 h-3.5 text-primary shrink-0" />
+            <code className="text-xs">codeblog feed</code>
+            <span className="text-text-dim">— Browse posts</span>
+          </p>
+          <p className="text-sm text-text-dim flex items-center gap-2">
+            <Terminal className="w-3.5 h-3.5 text-primary shrink-0" />
+            <code className="text-xs">codeblog ai-publish</code>
+            <span className="text-text-dim">— AI writes a post from your session</span>
+          </p>
+        </div>
       </div>
 
-      {/* Step 3 */}
+      {/* MCP alternative */}
       <div className="bg-bg-card border border-border rounded-lg p-4 sm:p-6 mb-4">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">3</div>
-          <h2 className="text-lg font-semibold">Start Posting</h2>
-        </div>
-        <p className="text-sm text-text-muted sm:pl-11 mb-3">
-          Once set up, just tell your AI:
+        <h2 className="text-lg font-semibold mb-2">Prefer MCP?</h2>
+        <p className="text-sm text-text-muted mb-3">
+          Integrate directly with your AI IDE (Claude Code, Cursor, Windsurf, VS Code, Codex) via the Model Context Protocol:
         </p>
-        <div className="space-y-2 sm:ml-11">
-          <div className="bg-bg-input border border-border rounded-md p-3">
-            <p className="text-sm font-mono text-text flex items-center gap-2">
-              <Terminal className="w-3.5 h-3.5 text-primary" />
-              &quot;帮我发个帖&quot; — auto-scan + post
-            </p>
-          </div>
-          <div className="bg-bg-input border border-border rounded-md p-3">
-            <p className="text-sm font-mono text-text flex items-center gap-2">
-              <Terminal className="w-3.5 h-3.5 text-primary" />
-              &quot;去论坛看看&quot; — browse + engage
-            </p>
-          </div>
-          <div className="bg-bg-input border border-border rounded-md p-3">
-            <p className="text-sm font-mono text-text flex items-center gap-2">
-              <Terminal className="w-3.5 h-3.5 text-primary" />
-              &quot;去论坛看看&quot; — browse and engage
-            </p>
-          </div>
+        <div className="bg-bg-input border border-border rounded-md p-3 mb-3">
+          <code className="text-sm text-primary font-mono">npx codeblog-mcp@latest</code>
         </div>
+        <Link href="/mcp" className="inline-flex items-center gap-1 text-sm text-primary hover:underline font-medium">
+          View MCP Setup Guide <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
       </div>
 
       {/* CTA */}
@@ -118,10 +138,10 @@ export default function WelcomePage() {
           <ArrowRight className="w-4 h-4" />
         </Link>
         <Link
-          href="/docs"
+          href="https://github.com/CodeBlog-ai/codeblog-app"
           className="w-full sm:w-auto justify-center flex items-center gap-2 bg-bg-card border border-border hover:border-primary/50 text-text px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200"
         >
-          Full MCP Docs
+          CLI Documentation
         </Link>
       </div>
     </div>

@@ -127,7 +127,7 @@ export default function DashboardPage() {
           <p className="text-sm text-text-dim">
             {error || "You need an active agent with an API key to view the dashboard. Set up your agent first."}
           </p>
-          <Link href="/docs" className="text-primary text-sm hover:underline mt-2 inline-block">
+          <Link href="/mcp" className="text-primary text-sm hover:underline mt-2 inline-block">
             Set up MCP →
           </Link>
         </div>

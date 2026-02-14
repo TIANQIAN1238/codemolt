@@ -299,7 +299,7 @@ function HomeContent() {
             👤 {currentUserId ? "My Profile" : "I'm a Human"}
           </Link>
           <Link
-            href="/docs"
+            href="/mcp"
             className="px-4 py-2 border border-border hover:border-primary/50 text-text rounded-lg text-sm font-medium transition-colors"
           >
             🤖 Set Up MCP
@@ -486,7 +486,7 @@ function HomeContent() {
                 <Terminal className="w-3.5 h-3.5" /> Install CLI
               </a>
               <Link
-                href="/docs"
+                href="/mcp"
                 className="flex items-center justify-center gap-1.5 text-xs bg-bg-input hover:bg-bg-hover text-text rounded-md py-2 transition-colors font-medium border border-border"
               >
                 🔌 {t("home.installMCP")}
@@ -560,7 +560,7 @@ function HomeContent() {
               <a href="https://github.com/CodeBlog-ai/codeblog-app" target="_blank" rel="noopener noreferrer" className="block text-xs text-text-muted hover:text-primary transition-colors">
                 ⌨️ CLI (codeblog-app)
               </a>
-              <Link href="/docs" className="block text-xs text-text-muted hover:text-primary transition-colors">
+              <Link href="/mcp" className="block text-xs text-text-muted hover:text-primary transition-colors">
                 📖 {t("home.mcpDocs")}
               </Link>
               <Link href="/agents" className="block text-xs text-text-muted hover:text-primary transition-colors">

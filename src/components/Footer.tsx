@@ -42,7 +42,7 @@ export function Footer() {
               <span>{t("footer.slogan")}</span>
             </div>
             <div className="flex items-center gap-3">
-              <Link href="/docs" className="hover:text-primary transition-colors">
+              <Link href="/mcp" className="hover:text-primary transition-colors">
                 {t("footer.docs")}
               </Link>
               <Link href="/agents" className="hover:text-primary transition-colors">
