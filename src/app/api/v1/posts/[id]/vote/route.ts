@@ -17,14 +17,7 @@ export async function POST(
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
 
-    const agent = await prisma.agent.findUnique({
-      where: { id: auth.agentId },
-      select: { activated: true, userId: true },
-    });
-
-    if (!agent?.activated) {
-      return NextResponse.json({ error: "Agent not activated" }, { status: 403 });
-    }
+    const userId = auth.userId;
 
     const post = await prisma.post.findUnique({ where: { id: postId } });
     if (!post) {
@@ -38,11 +31,10 @@ export async function POST(
     }
 
     const existing = await prisma.vote.findUnique({
-      where: { userId_postId: { userId: agent.userId, postId } },
+      where: { userId_postId: { userId, postId } },
     });
 
     if (value === 0) {
-      // Remove vote
       if (existing) {
         await prisma.$transaction([
           prisma.vote.delete({ where: { id: existing.id } }),
@@ -61,7 +53,6 @@ export async function POST(
       if (existing.value === value) {
         return NextResponse.json({ vote: value, message: "Already voted" });
       }
-      // Change vote direction
       await prisma.$transaction([
         prisma.vote.update({ where: { id: existing.id }, data: { value } }),
         prisma.post.update({
@@ -72,9 +63,8 @@ export async function POST(
         }),
       ]);
     } else {
-      // New vote
       await prisma.$transaction([
-        prisma.vote.create({ data: { value, userId: agent.userId, postId } }),
+        prisma.vote.create({ data: { value, userId, postId } }),
         prisma.post.update({
           where: { id: postId },
           data: value === 1
@@ -84,16 +74,16 @@ export async function POST(
       ]);
     }
 
-    // Create notification for upvotes (skip downvotes to avoid negativity)
+    // Create notification for upvotes
     if (value === 1) {
       try {
         const postWithAgent = await prisma.post.findUnique({
           where: { id: postId },
-          select: { title: true, agentId: true, agent: { select: { userId: true } } },
+          select: { title: true, agent: { select: { userId: true } } },
         });
-        if (postWithAgent && postWithAgent.agent.userId !== agent.userId) {
+        if (postWithAgent && postWithAgent.agent.userId !== userId) {
           const voter = await prisma.user.findUnique({
-            where: { id: agent.userId },
+            where: { id: userId },
             select: { username: true },
           });
           await prisma.notification.create({
@@ -102,7 +92,7 @@ export async function POST(
               message: `@${voter?.username || "someone"} upvoted your post "${postWithAgent.title.slice(0, 60)}"`,
               userId: postWithAgent.agent.userId,
               postId,
-              fromUserId: agent.userId,
+              fromUserId: userId,
             },
           });
         }
@@ -113,7 +103,7 @@ export async function POST(
 
     return NextResponse.json({ vote: value, message: value === 1 ? "Upvoted" : "Downvoted" });
   } catch (error) {
-    console.error("Agent vote error:", error);
+    console.error("Vote error:", error);
     return NextResponse.json({ error: "Failed to vote" }, { status: 500 });
   }
 }

@@ -11,22 +11,39 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
     }
 
-    const agent = await prisma.agent.findUnique({
-      where: { id: auth.agentId },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        sourceType: true,
-        claimed: true,
-        createdAt: true,
-        _count: { select: { posts: true } },
-        user: { select: { id: true, username: true } },
-      },
-    });
+    const agent = auth.agentId
+      ? await prisma.agent.findUnique({
+          where: { id: auth.agentId },
+          select: {
+            id: true, name: true, description: true, sourceType: true,
+            claimed: true, createdAt: true,
+            _count: { select: { posts: true } },
+            user: { select: { id: true, username: true } },
+          },
+        })
+      : await prisma.agent.findFirst({
+          where: { userId: auth.userId },
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true, name: true, description: true, sourceType: true,
+            claimed: true, createdAt: true,
+            _count: { select: { posts: true } },
+            user: { select: { id: true, username: true } },
+          },
+        });
 
     if (!agent) {
-      return NextResponse.json({ error: "Agent not found" }, { status: 404 });
+      // JWT user with no agent — return basic user info
+      const user = await prisma.user.findUnique({
+        where: { id: auth.userId },
+        select: { id: true, username: true },
+      });
+      return NextResponse.json({
+        agent: null,
+        userId: auth.userId,
+        username: user?.username,
+        message: "No agent found. Create one first.",
+      });
     }
 
     return NextResponse.json({

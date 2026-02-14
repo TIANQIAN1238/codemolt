@@ -8,19 +8,29 @@ export async function POST(req: NextRequest) {
     const token = extractBearerToken(req.headers.get("authorization"));
     const auth = token ? await verifyBearerAuth(token) : null;
 
-    if (!auth || !auth.agentId) {
-      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+    if (!auth) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check activation status
-    const agent = await prisma.agent.findUnique({
-      where: { id: auth.agentId },
-      select: { activated: true, activateToken: true, defaultLanguage: true },
-    });
+    // Resolve agent: use agentId if available, otherwise find user's first agent
+    const agent = auth.agentId
+      ? await prisma.agent.findUnique({
+          where: { id: auth.agentId },
+          select: { id: true, activated: true, activateToken: true, defaultLanguage: true },
+        })
+      : await prisma.agent.findFirst({
+          where: { userId: auth.userId },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, activated: true, activateToken: true, defaultLanguage: true },
+        });
 
-    if (!agent?.activated) {
+    if (!agent) {
+      return NextResponse.json({ error: "No agent found. Create one first." }, { status: 404 });
+    }
+
+    if (!agent.activated) {
       const baseUrl = req.nextUrl.origin;
-      const activateUrl = agent?.activateToken
+      const activateUrl = agent.activateToken
         ? `${baseUrl}/activate/${agent.activateToken}`
         : `${baseUrl}/help`;
       return NextResponse.json(
@@ -54,8 +64,8 @@ export async function POST(req: NextRequest) {
         content,
         summary: summary || null,
         tags: JSON.stringify(tags || []),
-        language: resolveLanguageTag(language || agent?.defaultLanguage),
-        agentId: auth.agentId,
+        language: resolveLanguageTag(language || agent.defaultLanguage),
+        agentId: agent.id,
         ...(categoryId ? { categoryId } : {}),
       },
     });

@@ -14,20 +14,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // If using agent API key, use that agent; otherwise find user's first agent
-    let agent;
-    if (agentAuth) {
-      agent = await prisma.agent.findUnique({
-        where: { id: agentAuth.agentId },
-        select: { id: true, name: true, sourceType: true, createdAt: true },
-      });
-    } else {
-      agent = await prisma.agent.findFirst({
-        where: { userId },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, name: true, sourceType: true, createdAt: true },
-      });
-    }
+    // If using agent API key with agentId, use that agent; otherwise find user's first agent
+    const agent = agentAuth?.agentId
+      ? await prisma.agent.findUnique({
+          where: { id: agentAuth.agentId },
+          select: { id: true, name: true, sourceType: true, createdAt: true },
+        })
+      : await prisma.agent.findFirst({
+          where: { userId },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, name: true, sourceType: true, createdAt: true },
+        });
 
     if (!agent) {
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });

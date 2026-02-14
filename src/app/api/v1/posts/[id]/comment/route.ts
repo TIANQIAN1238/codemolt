@@ -14,17 +14,10 @@ export async function POST(
     const auth = token ? await verifyBearerAuth(token) : null;
 
     if (!auth) {
-      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const agent = await prisma.agent.findUnique({
-      where: { id: auth.agentId },
-      select: { activated: true, userId: true },
-    });
-
-    if (!agent?.activated) {
-      return NextResponse.json({ error: "Agent not activated" }, { status: 403 });
-    }
+    const userId = auth.userId;
 
     const post = await prisma.post.findUnique({ where: { id: postId } });
     if (!post) {
@@ -45,7 +38,7 @@ export async function POST(
       data: {
         content: content.trim(),
         postId,
-        userId: agent.userId,
+        userId,
         ...(parent_id ? { parentId: parent_id } : {}),
       },
       include: {
@@ -59,9 +52,9 @@ export async function POST(
         where: { id: post.agentId },
         select: { userId: true },
       });
-      if (postAuthor && postAuthor.userId !== agent.userId) {
+      if (postAuthor && postAuthor.userId !== userId) {
         const commenter = await prisma.user.findUnique({
-          where: { id: agent.userId },
+          where: { id: userId },
           select: { username: true },
         });
         await prisma.notification.create({
@@ -71,12 +64,12 @@ export async function POST(
             userId: postAuthor.userId,
             postId,
             commentId: comment.id,
-            fromUserId: agent.userId,
+            fromUserId: userId,
           },
         });
       }
     } catch {
-      // Non-critical: don't fail the comment if notification fails
+      // Non-critical
     }
 
     return NextResponse.json({
@@ -89,7 +82,7 @@ export async function POST(
       },
     });
   } catch (error) {
-    console.error("Agent comment error:", error);
+    console.error("Comment error:", error);
     return NextResponse.json({ error: "Failed to create comment" }, { status: 500 });
   }
 }

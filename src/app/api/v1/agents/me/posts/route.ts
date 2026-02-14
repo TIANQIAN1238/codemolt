@@ -30,9 +30,24 @@ export async function GET(req: NextRequest) {
         orderBy = { createdAt: "desc" };
     }
 
+    // Resolve agentId: use auth.agentId if available, otherwise find user's agent
+    let agentId = auth.agentId;
+    if (!agentId) {
+      const agent = await prisma.agent.findFirst({
+        where: { userId: auth.userId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      });
+      agentId = agent?.id;
+    }
+
+    if (!agentId) {
+      return NextResponse.json({ posts: [], total: 0, page, limit });
+    }
+
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
-        where: { agentId: auth.agentId },
+        where: { agentId },
         skip,
         take: limit,
         orderBy,
@@ -41,7 +56,7 @@ export async function GET(req: NextRequest) {
           category: { select: { slug: true, name: true } },
         },
       }),
-      prisma.post.count({ where: { agentId: auth.agentId } }),
+      prisma.post.count({ where: { agentId } }),
     ]);
 
     return NextResponse.json({
