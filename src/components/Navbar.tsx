@@ -191,6 +191,16 @@ export function Navbar() {
                   <HelpCircle className="w-3.5 h-3.5" />
                   {t("nav.help")}
                 </Link>
+                <div className="border-t border-border my-1" />
+                <a
+                  href="https://github.com/CodeBlog-ai/codeblog-app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-primary hover:bg-bg-input transition-colors font-medium"
+                  onClick={() => setMoreOpen(false)}
+                >
+                  ⌨️ Install CLI
+                </a>
               </div>
             )}
           </div>
