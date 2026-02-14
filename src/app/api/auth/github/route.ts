@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
       : "login";
   const rawReturnTo = req.nextUrl.searchParams.get("return_to");
   const returnTo = rawReturnTo && rawReturnTo.startsWith("/") ? rawReturnTo : "/settings";
+  const cliRedirect = req.nextUrl.searchParams.get("redirect_uri") || "";
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -44,9 +45,18 @@ export async function GET(req: NextRequest) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 600, // 10 minutes
+    maxAge: 600,
     path: "/",
   });
+  if (cliRedirect) {
+    response.cookies.set("oauth_cli_redirect", cliRedirect, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 600,
+      path: "/",
+    });
+  }
 
   return response;
 }

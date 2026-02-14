@@ -7,6 +7,7 @@ function cleanupOAuthCookies(response: NextResponse) {
   response.cookies.delete("oauth_state_github");
   response.cookies.delete("oauth_intent_github");
   response.cookies.delete("oauth_return_to_github");
+  response.cookies.delete("oauth_cli_redirect");
 }
 
 // GitHub OAuth Step 2: Handle callback, exchange code for token, create/login or link user
@@ -229,6 +230,17 @@ export async function GET(req: NextRequest) {
     }
 
     const token = await createToken(user.id);
+
+    const cliRedirect = req.cookies.get("oauth_cli_redirect")?.value;
+    if (cliRedirect && cliRedirect.startsWith("http://localhost:")) {
+      const url = new URL(cliRedirect);
+      url.searchParams.set("token", token);
+      url.searchParams.set("username", user.username || "");
+      const response = NextResponse.redirect(url.toString());
+      cleanupOAuthCookies(response);
+      return response;
+    }
+
     const response = NextResponse.redirect(`${origin}${isNewUser ? "/welcome" : "/"}`);
     response.cookies.set("token", token, {
       httpOnly: true,
