@@ -1,11 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# codeblog-app installer
+# codeblog installer — downloads pre-compiled binary, no dependencies needed
 # Usage: curl -fsSL https://codeblog.ai/install.sh | bash
 
 INSTALL_DIR="${CODEBLOG_INSTALL_DIR:-$HOME/.codeblog/bin}"
 BIN_NAME="codeblog"
+NPM_REGISTRY="https://registry.npmjs.org"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -39,89 +40,44 @@ detect_platform() {
   echo "${os}-${arch}"
 }
 
-ensure_bun() {
-  if command -v bun &>/dev/null; then
-    info "Found bun $(bun --version)"
-    return
-  fi
-
-  if [ -f "$HOME/.bun/bin/bun" ]; then
-    export PATH="$HOME/.bun/bin:$PATH"
-    info "Found bun at ~/.bun/bin/bun"
-    return
-  fi
-
-  info "Installing bun..."
-  curl -fsSL https://bun.sh/install | bash
-  export PATH="$HOME/.bun/bin:$PATH"
-  info "Installed bun $(bun --version)"
+get_latest_version() {
+  curl -fsSL "$NPM_REGISTRY/codeblog-app/latest" 2>/dev/null | grep -o '"version":"[^"]*"' | head -1 | cut -d'"' -f4
 }
 
-install_via_npm() {
-  info "Installing codeblog-app from npm..."
+install_binary() {
+  local platform="$1"
+  local pkg="codeblog-app-${platform}"
+
+  # Get latest version
+  info "Checking latest version..."
+  local version
+  version="$(get_latest_version)"
+  if [ -z "$version" ]; then
+    error "Failed to fetch latest version from npm"
+  fi
+  info "Latest version: $version"
+
+  # Download tarball from npm
+  info "Downloading $pkg@$version..."
+  local tarball_url
+  tarball_url="$NPM_REGISTRY/$pkg/-/$pkg-$version.tgz"
 
   local tmpdir
   tmpdir="$(mktemp -d)"
   trap "rm -rf $tmpdir" EXIT
 
-  cd "$tmpdir"
-  bun init -y > /dev/null 2>&1
-  bun add codeblog-app@latest
+  curl -fsSL "$tarball_url" -o "$tmpdir/pkg.tgz" || error "Failed to download binary for $platform"
 
+  # Extract binary
+  info "Installing..."
   mkdir -p "$INSTALL_DIR"
+  tar -xzf "$tmpdir/pkg.tgz" -C "$tmpdir"
 
-  # Create wrapper script
-  cat > "$INSTALL_DIR/$BIN_NAME" << 'WRAPPER'
-#!/bin/bash
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CODEBLOG_HOME="${CODEBLOG_HOME:-$HOME/.codeblog}"
-
-# Find bun
-BUN="bun"
-if ! command -v bun &>/dev/null; then
-  if [ -f "$HOME/.bun/bin/bun" ]; then
-    BUN="$HOME/.bun/bin/bun"
-  else
-    echo "Error: bun is required. Install it: curl -fsSL https://bun.sh/install | bash" >&2
-    exit 1
-  fi
-fi
-
-# Find codeblog-app package
-PKG=""
-for dir in \
-  "$CODEBLOG_HOME/lib/node_modules/codeblog-app" \
-  "$SCRIPT_DIR/../lib/node_modules/codeblog-app" \
-  "$(npm root -g 2>/dev/null)/codeblog-app" \
-  ; do
-  if [ -f "$dir/src/index.ts" ]; then
-    PKG="$dir"
-    break
-  fi
-done
-
-if [ -z "$PKG" ]; then
-  echo "Error: codeblog-app package not found. Reinstall: curl -fsSL https://codeblog.ai/install.sh | bash" >&2
-  exit 1
-fi
-
-exec "$BUN" run "$PKG/src/index.ts" "$@"
-WRAPPER
+  # Binary is at package/bin/codeblog
+  cp "$tmpdir/package/bin/$BIN_NAME" "$INSTALL_DIR/$BIN_NAME"
   chmod +x "$INSTALL_DIR/$BIN_NAME"
 
-  # Install package to persistent location
-  local lib_dir="$HOME/.codeblog/lib"
-  mkdir -p "$lib_dir/node_modules"
-  cp -r node_modules/codeblog-app "$lib_dir/node_modules/"
-
-  # Also install dependencies
-  cd "$lib_dir"
-  if [ ! -f package.json ]; then
-    echo '{"dependencies":{}}' > package.json
-  fi
-  bun add codeblog-app@latest > /dev/null 2>&1
-
-  success "Installed codeblog to $INSTALL_DIR/$BIN_NAME"
+  success "Installed codeblog v$version to $INSTALL_DIR/$BIN_NAME"
 }
 
 setup_path() {
@@ -158,8 +114,7 @@ main() {
   platform="$(detect_platform)"
   info "Platform: $platform"
 
-  ensure_bun
-  install_via_npm
+  install_binary "$platform"
   setup_path
 
   echo ""
@@ -167,9 +122,7 @@ main() {
   echo ""
   echo -e "  ${BOLD}Get started:${NC}"
   echo ""
-  echo -e "    ${CYAN}codeblog setup${NC}       First-time setup (login + scan + publish)"
-  echo -e "    ${CYAN}codeblog scan${NC}        Scan your IDE sessions"
-  echo -e "    ${CYAN}codeblog feed${NC}        Browse the forum"
+  echo -e "    ${CYAN}codeblog${NC}             Launch interactive TUI"
   echo -e "    ${CYAN}codeblog --help${NC}      See all commands"
   echo ""
   echo -e "  ${YELLOW}Note:${NC} Restart your terminal or run: source ~/.zshrc"
