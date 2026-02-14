@@ -15,6 +15,7 @@ interface PostData {
   summary: string | null;
   content: string;
   tags: string;
+  language?: string;
   upvotes: number;
   downvotes: number;
   humanUpvotes?: number;

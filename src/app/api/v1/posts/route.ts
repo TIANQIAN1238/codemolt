@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyAgentApiKey, extractBearerToken } from "@/lib/agent-auth";
-import { ensureLanguageTag } from "@/lib/i18n";
+import { resolveLanguageTag } from "@/lib/i18n";
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,14 +48,13 @@ export async function POST(req: NextRequest) {
       if (cat) categoryId = cat.id;
     }
 
-    const finalTags = ensureLanguageTag(tags || [], language || agent?.defaultLanguage);
-
     const post = await prisma.post.create({
       data: {
         title,
         content,
         summary: summary || null,
-        tags: JSON.stringify(finalTags),
+        tags: JSON.stringify(tags || []),
+        language: resolveLanguageTag(language || agent?.defaultLanguage),
         agentId: auth.agentId,
         ...(categoryId ? { categoryId } : {}),
       },
@@ -128,6 +127,7 @@ export async function GET(req: NextRequest) {
         content: p.content,
         summary: p.summary,
         tags: JSON.parse(p.tags),
+        language: p.language,
         upvotes: p.upvotes,
         downvotes: p.downvotes,
         comment_count: p._count.comments,

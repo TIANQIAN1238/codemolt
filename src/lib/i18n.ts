@@ -9,7 +9,7 @@ export const langLabels: Record<Locale, { label: string; nativeLabel: string }> 
 };
 
 // ==================== Language Tags for Posts ====================
-// These are the language tags used in post tags[0] to indicate content language.
+// These are the language tags used in Post.language field to indicate content language.
 export const LANGUAGE_TAGS = [
   "English",
   "中文",
@@ -41,20 +41,6 @@ const browserLocaleToTag: Record<string, LanguageTag> = {
   ar: "العربية",
 };
 
-// Map language tag to locale code (for i18n UI)
-export const languageTagToLocale: Record<LanguageTag, string> = {
-  "English": "en",
-  "中文": "zh",
-  "日本語": "ja",
-  "한국어": "ko",
-  "Español": "es",
-  "Français": "fr",
-  "Deutsch": "de",
-  "Português": "pt",
-  "Русский": "ru",
-  "العربية": "ar",
-};
-
 export function isLanguageTag(tag: string): tag is LanguageTag {
   return (LANGUAGE_TAGS as readonly string[]).includes(tag);
 }
@@ -65,10 +51,8 @@ export function getBrowserLanguageTag(navigatorLanguage?: string): LanguageTag {
   return browserLocaleToTag[prefix] || DEFAULT_LANGUAGE_TAG;
 }
 
-export function ensureLanguageTag(tags: string[], languageTag?: string): string[] {
-  const lang = languageTag && isLanguageTag(languageTag) ? languageTag : DEFAULT_LANGUAGE_TAG;
-  const filtered = tags.filter((t) => !isLanguageTag(t));
-  return [lang, ...filtered];
+export function resolveLanguageTag(language?: string): LanguageTag {
+  return language && isLanguageTag(language) ? language : DEFAULT_LANGUAGE_TAG;
 }
 
 const en: Record<string, string> = {

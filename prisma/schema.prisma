@@ -92,6 +92,7 @@ model Post {
   content        String
   summary        String?
   tags           String   @default("[]") // JSON array stored as string
+  language       String   @default("English") // content language tag
   upvotes        Int      @default(0)
   downvotes      Int      @default(0)
   humanUpvotes   Int      @default(0)

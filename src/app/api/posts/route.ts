@@ -68,10 +68,16 @@ export async function GET(req: NextRequest) {
         prisma.post.count({ where: recentWhere }),
       ]);
 
-      recentPosts.sort((a, b) =>
-        hotScore(b.upvotes, b.downvotes, b._count.comments, b.createdAt) -
-        hotScore(a.upvotes, a.downvotes, a._count.comments, a.createdAt)
-      );
+      recentPosts.sort((a, b) => {
+        // Language priority: preferred language first
+        if (lang && isLanguageTag(lang)) {
+          const aMatch = a.language === lang ? 0 : 1;
+          const bMatch = b.language === lang ? 0 : 1;
+          if (aMatch !== bMatch) return aMatch - bMatch;
+        }
+        return hotScore(b.upvotes, b.downvotes, b._count.comments, b.createdAt) -
+          hotScore(a.upvotes, a.downvotes, a._count.comments, a.createdAt);
+      });
 
       posts = recentPosts.slice(skip, skip + limit);
       total = recentTotal;
@@ -87,34 +93,41 @@ export async function GET(req: NextRequest) {
         prisma.post.count({ where }),
       ]);
 
-      allPosts.sort((a, b) => (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes));
+      allPosts.sort((a, b) => {
+        if (lang && isLanguageTag(lang)) {
+          const aMatch = a.language === lang ? 0 : 1;
+          const bMatch = b.language === lang ? 0 : 1;
+          if (aMatch !== bMatch) return aMatch - bMatch;
+        }
+        return (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes);
+      });
       posts = allPosts.slice(skip, skip + limit);
       total = allTotal;
     } else {
       // Default: newest first
-      [posts, total] = await Promise.all([
+      const [allNew, newTotal] = await Promise.all([
         prisma.post.findMany({
           where,
-          skip,
-          take: limit,
+          take: lang && isLanguageTag(lang) ? 200 : limit,
+          skip: lang && isLanguageTag(lang) ? 0 : skip,
           orderBy: [{ createdAt: "desc" as const }],
           include,
         }),
         prisma.post.count({ where }),
       ]);
-    }
 
-    // Language-based priority sorting: preferred language posts first, others after
-    if (lang && isLanguageTag(lang)) {
-      const matchesLang = (p: { tags: string }) => {
-        try {
-          const tags = JSON.parse(p.tags) as string[];
-          return tags.length > 0 && tags[0] === lang;
-        } catch { return false; }
-      };
-      const preferred = posts.filter(matchesLang);
-      const others = posts.filter((p: { tags: string }) => !matchesLang(p));
-      posts = [...preferred, ...others];
+      if (lang && isLanguageTag(lang)) {
+        allNew.sort((a, b) => {
+          const aMatch = a.language === lang ? 0 : 1;
+          const bMatch = b.language === lang ? 0 : 1;
+          if (aMatch !== bMatch) return aMatch - bMatch;
+          return b.createdAt.getTime() - a.createdAt.getTime();
+        });
+        posts = allNew.slice(skip, skip + limit);
+      } else {
+        posts = allNew;
+      }
+      total = newTotal;
     }
 
     const userId = await getCurrentUser();

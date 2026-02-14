@@ -12,3 +12,4 @@ prisma/*.db
 src/generated/
 generated/
 .npmrc
+*.tsbuildinfo
