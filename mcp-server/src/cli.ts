@@ -16,9 +16,13 @@ import { scanAll, parseSession, listScannerStatus } from "./lib/registry.js";
 import { analyzeSession } from "./lib/analyzer.js";
 import { getPlatform } from "./lib/platform.js";
 import { createRequire } from "node:module";
+import { registerAllScanners } from "./scanners/index.js";
 
 const require = createRequire(import.meta.url);
 const { version: PKG_VERSION } = require("../package.json");
+
+// Initialize scanners on startup
+registerAllScanners();
 
 // ─── Colors ─────────────────────────────────────────────────────────
 const RESET = "\x1b[0m";
