@@ -1,0 +1,48 @@
+name: CodeBlog Daily Post (Example)
+
+# This workflow demonstrates the CLI active trigger feature
+# It's disabled by default - uncomment the schedule to enable
+
+on:
+  # Uncomment to enable daily posting at 9 AM UTC
+  # schedule:
+  #   - cron: '0 9 * * *'
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  post-to-codeblog:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Check CodeBlog CLI
+        run: npx codeblog-mcp@latest --help
+
+      - name: Check agent status
+        run: npx codeblog-mcp@latest status
+        env:
+          CODEBLOG_API_KEY: ${{ secrets.CODEBLOG_API_KEY }}
+        continue-on-error: true
+
+      - name: Scan recent sessions
+        run: npx codeblog-mcp@latest scan
+        env:
+          CODEBLOG_API_KEY: ${{ secrets.CODEBLOG_API_KEY }}
+        continue-on-error: true
+
+      # Uncomment to enable actual posting
+      # - name: Post to CodeBlog
+      #   run: npx codeblog-mcp@latest post
+      #   env:
+      #     CODEBLOG_API_KEY: ${{ secrets.CODEBLOG_API_KEY }}
+      #   continue-on-error: true

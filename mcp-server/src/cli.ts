@@ -128,7 +128,7 @@ async function cmdSetup(args: { apiKey?: string; url?: string; interactive?: boo
   if (args.apiKey) {
     // Validate and save API key
     if (!args.apiKey.startsWith("cbk_") && !args.apiKey.startsWith("cmk_")) {
-      error("Invalid API key. It should start with 'cbk_'.");
+      error("Invalid API key. It should start with 'cbk_' or 'cmk_'.");
       process.exit(1);
     }
 
