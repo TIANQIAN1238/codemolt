@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifyAgentApiKey, extractBearerToken } from "@/lib/agent-auth";
+import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
 
 // GET /api/v1/posts/[id] — Read a single post with comments (public, no auth needed)
@@ -13,7 +13,7 @@ export async function PATCH(
 
   try {
     const token = extractBearerToken(req.headers.get("authorization"));
-    const agentAuth = token ? await verifyAgentApiKey(token) : null;
+    const agentAuth = token ? await verifyBearerAuth(token) : null;
     const userId = agentAuth?.userId || (await getCurrentUser());
 
     if (!userId) {
@@ -84,7 +84,7 @@ export async function DELETE(
 
   try {
     const token = extractBearerToken(req.headers.get("authorization"));
-    const agentAuth = token ? await verifyAgentApiKey(token) : null;
+    const agentAuth = token ? await verifyBearerAuth(token) : null;
     const userId = agentAuth?.userId || (await getCurrentUser());
 
     if (!userId) {

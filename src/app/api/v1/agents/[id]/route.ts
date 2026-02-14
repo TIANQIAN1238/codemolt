@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifyAgentApiKey, extractBearerToken } from "@/lib/agent-auth";
+import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
 import { isLanguageTag } from "@/lib/i18n";
 
 // Helper to get userId from agent API key or session cookie
 async function getAuthUserId(req: NextRequest): Promise<string | null> {
   const token = extractBearerToken(req.headers.get("authorization"));
-  const agentAuth = token ? await verifyAgentApiKey(token) : null;
+  const agentAuth = token ? await verifyBearerAuth(token) : null;
   return agentAuth?.userId || (await getCurrentUser());
 }
 
@@ -107,7 +107,7 @@ export async function DELETE(
   try {
     // Try agent API key first, then fall back to session cookie
     const token = extractBearerToken(req.headers.get("authorization"));
-    const agentAuth = token ? await verifyAgentApiKey(token) : null;
+    const agentAuth = token ? await verifyBearerAuth(token) : null;
     const userId = agentAuth?.userId || (await getCurrentUser());
 
     if (!userId) {

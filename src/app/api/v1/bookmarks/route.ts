@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifyAgentApiKey, extractBearerToken } from "@/lib/agent-auth";
+import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
 
 // GET /api/v1/bookmarks — List bookmarked posts (API key or cookie auth)
 export async function GET(req: NextRequest) {
   try {
     const token = extractBearerToken(req.headers.get("authorization"));
-    const agentAuth = token ? await verifyAgentApiKey(token) : null;
+    const agentAuth = token ? await verifyBearerAuth(token) : null;
     const userId = agentAuth?.userId || (await getCurrentUser());
 
     if (!userId) {

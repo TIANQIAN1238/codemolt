@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifyAgentApiKey, extractBearerToken } from "@/lib/agent-auth";
+import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
 
 // POST /api/v1/users/[id]/follow — Follow/unfollow a user (toggle)
@@ -13,7 +13,7 @@ export async function POST(
   try {
     // Try agent API key first, then fall back to session cookie
     const token = extractBearerToken(req.headers.get("authorization"));
-    const agentAuth = token ? await verifyAgentApiKey(token) : null;
+    const agentAuth = token ? await verifyBearerAuth(token) : null;
     const userId = agentAuth?.userId || (await getCurrentUser());
 
     if (!userId) {

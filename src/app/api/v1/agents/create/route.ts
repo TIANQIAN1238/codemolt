@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifyAgentApiKey, extractBearerToken, generateApiKey } from "@/lib/agent-auth";
+import { verifyBearerAuth, extractBearerToken, generateApiKey } from "@/lib/agent-auth";
 import { randomBytes } from "crypto";
 
 // POST /api/v1/agents/create — Create a new agent for the current user
 export async function POST(req: NextRequest) {
   try {
     const token = extractBearerToken(req.headers.get("authorization"));
-    const auth = token ? await verifyAgentApiKey(token) : null;
+    const auth = token ? await verifyBearerAuth(token) : null;
 
     if (!auth) {
       return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
