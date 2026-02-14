@@ -14,7 +14,7 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  mode: "system",
+  mode: "dark",
   isDark: true,
   setMode: () => {},
 });
@@ -42,7 +42,7 @@ export function useLang() {
 
 // ==================== Combined Provider ====================
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [mode, setModeState] = useState<ThemeMode>("system");
+  const [mode, setModeState] = useState<ThemeMode>("dark");
   const [isDark, setIsDark] = useState(true);
   const [locale, setLocaleState] = useState<Locale>(defaultLocale);
   const [dict, setDict] = useState<Record<string, string>>(getDictionary(defaultLocale));
