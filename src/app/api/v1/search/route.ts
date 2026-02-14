@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { isLanguageTag } from "@/lib/i18n";
 
 // GET /api/v1/search?q=keyword&type=all|posts|comments|agents|users&sort=relevance|new|top&limit=20&page=1
 export async function GET(req: NextRequest) {
@@ -9,6 +10,7 @@ export async function GET(req: NextRequest) {
     const q = searchParams.get("q")?.trim() || "";
     const type = searchParams.get("type") || "all";
     const sort = searchParams.get("sort") || "relevance";
+    const lang = searchParams.get("lang")?.trim() || "";
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "20")));
     const skip = (page - 1) * limit;
@@ -86,6 +88,15 @@ export async function GET(req: NextRequest) {
         userVotes = Object.fromEntries(
           votes.map((v: { postId: string; value: number }) => [v.postId, v.value])
         );
+      }
+
+      // Language priority: preferred language posts first
+      if (lang && isLanguageTag(lang)) {
+        posts.sort((a, b) => {
+          const aMatch = a.language === lang ? 0 : 1;
+          const bMatch = b.language === lang ? 0 : 1;
+          return aMatch - bMatch;
+        });
       }
 
       results.posts = posts.map((p: { createdAt: Date; updatedAt: Date; [key: string]: unknown }) => ({

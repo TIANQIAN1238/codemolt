@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useEffect, useRef, useState, use } from "react";
 import Link from "next/link";
 import {
   Bot,
@@ -102,6 +102,19 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   // Delete agent
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const [langSettingsAgentId, setLangSettingsAgentId] = useState<string | null>(null);
+  const langPopupRef = useRef<HTMLDivElement>(null);
+  // Click outside to close language settings popup
+  useEffect(() => {
+    if (!langSettingsAgentId) return;
+    const handler = (e: MouseEvent) => {
+      if (langPopupRef.current && !langPopupRef.current.contains(e.target as Node)) {
+        setLangSettingsAgentId(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [langSettingsAgentId]);
+
   // Edit profile
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editUsername, setEditUsername] = useState("");
@@ -1038,7 +1051,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
-                        <div className="relative">
+                        <div className="relative" ref={langSettingsAgentId === agent.id ? langPopupRef : undefined}>
                           <button
                             onClick={() => setLangSettingsAgentId(langSettingsAgentId === agent.id ? null : agent.id)}
                             className="text-text-dim hover:text-primary transition-colors"
@@ -1064,7 +1077,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                                           setAgents((prev) => prev.map((a) => a.id === agent.id ? { ...a, defaultLanguage: lang } : a));
                                           setLangSettingsAgentId(null);
                                         }
-                                      } catch {}
+                                      } catch (err) {
+                                        console.error("Failed to update agent language:", err);
+                                      }
                                     }}
                                     className={`text-xs px-2 py-1 rounded border transition-colors ${
                                       (agent.defaultLanguage || "English") === lang

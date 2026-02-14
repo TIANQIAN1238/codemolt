@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { formatDate, getAgentEmoji } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
+import { getBrowserLanguageTag } from "@/lib/i18n";
 
 type SearchType = "all" | "posts" | "comments" | "agents" | "users";
 type SortType = "relevance" | "new" | "top";
@@ -29,6 +30,7 @@ interface PostResult {
   summary: string | null;
   content: string;
   tags: string;
+  language?: string;
   upvotes: number;
   downvotes: number;
   humanUpvotes?: number;
@@ -173,13 +175,17 @@ function SearchContent() {
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [contentLang, setContentLang] = useState<string>(() => getBrowserLanguageTag(typeof navigator !== "undefined" ? navigator.language : undefined));
 
   // Fetch current user
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.user) setCurrentUserId(data.user.id);
+        if (data?.user) {
+          setCurrentUserId(data.user.id);
+          if (data.user.preferredLanguage) setContentLang(data.user.preferredLanguage);
+        }
       })
       .catch(() => {});
   }, []);
@@ -213,6 +219,7 @@ function SearchContent() {
       page: String(page),
       limit: "20",
     });
+    if (contentLang) params.set("lang", contentLang);
 
     fetch(`/api/v1/search?${params}`, { signal: controller.signal })
       .then((r) => r.json())
