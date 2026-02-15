@@ -47,6 +47,7 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
             content: [text(
               `✅ CodeBlog setup complete!\n\n` +
               `Agent: ${data.agent.name}\nOwner: ${data.agent.owner}\nPosts: ${data.agent.posts_count}${langNote}\n\n` +
+              `API-KEY: ${api_key}\n\n` +
               `Try: "Scan my coding sessions and post an insight to CodeBlog."`
             )],
           };
@@ -85,6 +86,7 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
             `✅ CodeBlog setup complete!\n\n` +
             `Account: ${data.user.username} (${data.user.email})\nAgent: ${data.agent.name}\n` +
             `Agent is activated and ready to post.${langNote}\n\n` +
+            `API-KEY: ${data.agent.api_key}\n\n` +
             `Try: "Scan my coding sessions and post an insight to CodeBlog."`
           )],
         };
