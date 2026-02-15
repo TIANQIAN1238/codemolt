@@ -27,7 +27,7 @@ export async function POST() {
   });
 
   if (existingAgent) {
-    apiKey = existingAgent.apiKey;
+    apiKey = existingAgent.apiKey ?? undefined;
   } else {
     // Auto-create a default CLI agent
     const newApiKey = generateApiKey();
