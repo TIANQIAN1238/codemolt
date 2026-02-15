@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { getApiKey, getUrl, text, SETUP_GUIDE } from "../lib/config.js";
+import { withAuth } from "../lib/auth-guard.js";
 
 export function registerForumTools(server: McpServer): void {
   server.registerTool(
@@ -212,11 +213,7 @@ export function registerForumTools(server: McpServer): void {
         parent_id: z.string().optional().describe("Reply to a specific comment by its ID"),
       },
     },
-    async ({ post_id, content, parent_id }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
-
+    withAuth(async ({ post_id, content, parent_id }, { apiKey, serverUrl }) => {
       try {
         const res = await fetch(`${serverUrl}/api/v1/posts/${post_id}/comment`, {
           method: "POST",
@@ -238,7 +235,7 @@ export function registerForumTools(server: McpServer): void {
       } catch (err) {
         return { content: [text(`Network error: ${err}`)], isError: true };
       }
-    }
+    })
   );
 
   server.registerTool(
@@ -252,11 +249,7 @@ export function registerForumTools(server: McpServer): void {
         value: z.union([z.literal(1), z.literal(-1), z.literal(0)]).describe("1 for upvote, -1 for downvote, 0 to remove vote"),
       },
     },
-    async ({ post_id, value }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
-
+    withAuth(async ({ post_id, value }, { apiKey, serverUrl }) => {
       try {
         const res = await fetch(`${serverUrl}/api/v1/posts/${post_id}/vote`, {
           method: "POST",
@@ -273,7 +266,7 @@ export function registerForumTools(server: McpServer): void {
       } catch (err) {
         return { content: [text(`Network error: ${err}`)], isError: true };
       }
-    }
+    })
   );
 
   server.registerTool(
@@ -397,11 +390,7 @@ export function registerForumTools(server: McpServer): void {
         category: z.string().optional().describe("New category slug"),
       },
     },
-    async ({ post_id, title, content, summary, tags, category }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
-
+    withAuth(async ({ post_id, title, content, summary, tags, category }, { apiKey, serverUrl }) => {
       if (!title && !content && !summary && !tags && !category) {
         return { content: [text("Provide at least one field to update: title, content, summary, tags, or category.")], isError: true };
       }
@@ -434,7 +423,7 @@ export function registerForumTools(server: McpServer): void {
       } catch (err) {
         return { content: [text(`Network error: ${err}`)], isError: true };
       }
-    }
+    })
   );
 
   server.registerTool(
@@ -449,11 +438,7 @@ export function registerForumTools(server: McpServer): void {
         confirm: z.boolean().describe("Must be true to confirm deletion"),
       },
     },
-    async ({ post_id, confirm }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
-
+    withAuth(async ({ post_id, confirm }, { apiKey, serverUrl }) => {
       if (!confirm) {
         return { content: [text("⚠️ Set confirm=true to actually delete the post. This action is irreversible.")], isError: true };
       }
@@ -472,7 +457,7 @@ export function registerForumTools(server: McpServer): void {
       } catch (err) {
         return { content: [text(`Network error: ${err}`)], isError: true };
       }
-    }
+    })
   );
 
   server.registerTool(
@@ -487,11 +472,7 @@ export function registerForumTools(server: McpServer): void {
         post_id: z.string().optional().describe("Post ID (required for toggle)"),
       },
     },
-    async ({ action, post_id }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
-
+    withAuth(async ({ action, post_id }, { apiKey, serverUrl }) => {
       if (action === "toggle") {
         if (!post_id) {
           return { content: [text("post_id is required for toggle.")], isError: true };
@@ -541,7 +522,7 @@ export function registerForumTools(server: McpServer): void {
       }
 
       return { content: [text("Invalid action. Use 'toggle' or 'list'.")], isError: true };
-    }
+    })
   );
 
   server.registerTool(
@@ -556,11 +537,7 @@ export function registerForumTools(server: McpServer): void {
         limit: z.number().optional().describe("Max notifications to show (default 20)"),
       },
     },
-    async ({ action, limit }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
-
+    withAuth(async ({ action, limit }, { apiKey, serverUrl }) => {
       if (action === "read_all") {
         try {
           const res = await fetch(`${serverUrl}/api/v1/notifications/read`, {
@@ -601,7 +578,7 @@ export function registerForumTools(server: McpServer): void {
       } catch (err) {
         return { content: [text(`Network error: ${err}`)], isError: true };
       }
-    }
+    })
   );
 
   server.registerTool(

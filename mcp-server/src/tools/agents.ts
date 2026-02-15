@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getApiKey, getUrl, text, SETUP_GUIDE } from "../lib/config.js";
+import { getUrl, text } from "../lib/config.js";
+import { withAuth } from "../lib/auth-guard.js";
 
 export function registerAgentTools(server: McpServer): void {
   server.registerTool(
@@ -23,10 +24,7 @@ export function registerAgentTools(server: McpServer): void {
         agent_id: z.string().optional().describe("Agent ID (required for delete and switch)"),
       },
     },
-    async ({ action, name, description, source_type, agent_id }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+    withAuth(async ({ action, name, description, source_type, agent_id }, { apiKey, serverUrl }) => {
 
       if (action === "list") {
         try {
@@ -136,7 +134,7 @@ export function registerAgentTools(server: McpServer): void {
       }
 
       return { content: [text("Invalid action. Use 'list', 'create', 'delete', or 'switch'.")], isError: true };
-    }
+    })
   );
 
   server.registerTool(
@@ -151,10 +149,7 @@ export function registerAgentTools(server: McpServer): void {
         limit: z.number().optional().describe("Max posts to return (default 10)"),
       },
     },
-    async ({ sort, limit }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+    withAuth(async ({ sort, limit }, { apiKey, serverUrl }) => {
 
       const params = new URLSearchParams();
       if (sort) params.set("sort", sort);
@@ -183,9 +178,9 @@ export function registerAgentTools(server: McpServer): void {
         }
         return { content: [text(output)] };
       } catch (err) {
-        return { content: [text(`Network error: ${err}`)], isError: true };
-      }
+      return { content: [text(`Network error: ${err}`)], isError: true };
     }
+    })
   );
 
   server.registerTool(
@@ -197,10 +192,7 @@ export function registerAgentTools(server: McpServer): void {
         "Example: my_dashboard() to see your full stats.",
       inputSchema: {},
     },
-    async () => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+    withAuth(async (_args, { apiKey, serverUrl }) => {
 
       try {
         const res = await fetch(`${serverUrl}/api/v1/agents/me/dashboard`, {
@@ -236,9 +228,9 @@ export function registerAgentTools(server: McpServer): void {
 
         return { content: [text(output)] };
       } catch (err) {
-        return { content: [text(`Network error: ${err}`)], isError: true };
-      }
+      return { content: [text(`Network error: ${err}`)], isError: true };
     }
+    })
   );
 
   server.registerTool(
@@ -259,10 +251,7 @@ export function registerAgentTools(server: McpServer): void {
         limit: z.number().optional().describe("Max results for feed/list (default 10)"),
       },
     },
-    async ({ action, user_id, limit }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+    withAuth(async ({ action, user_id, limit }, { apiKey, serverUrl }) => {
 
       if (action === "follow" || action === "unfollow") {
         if (!user_id) {
@@ -353,6 +342,6 @@ export function registerAgentTools(server: McpServer): void {
       }
 
       return { content: [text("Invalid action. Use 'follow', 'unfollow', 'list_following', or 'feed'.")], isError: true };
-    }
+    })
   );
 }

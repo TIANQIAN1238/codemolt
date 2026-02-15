@@ -1,8 +1,8 @@
 import * as path from "path";
 import * as fs from "fs";
 import type { Scanner, Session, ParsedSession, ConversationTurn } from "../lib/types.js";
-import { getHome, getPlatform } from "../lib/platform.js";
-import { listFiles, listDirs, safeReadFile, safeStats, readJsonl, extractProjectDescription } from "../lib/fs-utils.js";
+import { getHome } from "../lib/platform.js";
+import { listFiles, listDirs, safeReadFile, safeStats, readJsonl, extractProjectDescription, decodeDirNameToPath } from "../lib/fs-utils.js";
 
 // Claude Code stores sessions in ~/.claude/projects/<project>/<session>.jsonl
 // Each line is a JSON object. Verified format:
@@ -59,7 +59,7 @@ export const claudeCodeScanner: Scanner = {
 
           // Fallback: derive from directory name (e.g. "-Users-zhaoyifei-Foo" → "/Users/zhaoyifei/Foo")
           if (!projectPath && project.startsWith("-")) {
-            projectPath = decodeClaudeProjectDir(project);
+            projectPath = decodeDirNameToPath(project);
           }
           const projectName = projectPath ? path.basename(projectPath) : project;
 
@@ -158,55 +158,6 @@ export const claudeCodeScanner: Scanner = {
     };
   },
 };
-
-// Decode Claude Code project directory name back to a real path.
-// e.g. "-Users-zhaoyifei-VibeCodingWork-ai-code-forum" → "/Users/zhaoyifei/VibeCodingWork/ai-code-forum"
-// The challenge: hyphens in the dir name could be path separators OR part of a folder name.
-// Strategy: greedily build path segments, checking which paths actually exist on disk.
-function decodeClaudeProjectDir(dirName: string): string | null {
-  const platform = getPlatform();
-  // Remove leading dash
-  const stripped = dirName.startsWith("-") ? dirName.slice(1) : dirName;
-  const parts = stripped.split("-");
-
-  let currentPath = "";
-  let i = 0;
-
-  // On Windows, the first part may be a drive letter (e.g. "c" → "C:")
-  if (platform === "windows" && parts.length > 0 && /^[a-zA-Z]$/.test(parts[0])) {
-    currentPath = parts[0].toUpperCase() + ":";
-    i = 1;
-  }
-
-  while (i < parts.length) {
-    // Try progressively longer segments (greedy: longest existing path wins)
-    let bestMatch = "";
-    let bestLen = 0;
-
-    for (let end = parts.length; end > i; end--) {
-      const segment = parts.slice(i, end).join("-");
-      const candidate = currentPath + path.sep + segment;
-      try {
-        if (fs.existsSync(candidate)) {
-          bestMatch = candidate;
-          bestLen = end - i;
-          break; // Found longest match
-        }
-      } catch { /* ignore */ }
-    }
-
-    if (bestLen > 0) {
-      currentPath = bestMatch;
-      i += bestLen;
-    } else {
-      // No existing path found, just use single segment
-      currentPath += path.sep + parts[i];
-      i++;
-    }
-  }
-
-  return currentPath || null;
-}
 
 function extractContent(msg: ClaudeMessage): string {
   if (!msg.message?.content) return "";

@@ -3,7 +3,7 @@ import * as fs from "fs";
 import BetterSqlite3 from "better-sqlite3";
 import type { Scanner, Session, ParsedSession, ConversationTurn } from "../lib/types.js";
 import { getHome, getPlatform } from "../lib/platform.js";
-import { listFiles, listDirs, safeReadFile, safeReadJson, safeStats, extractProjectDescription } from "../lib/fs-utils.js";
+import { listFiles, listDirs, safeReadFile, safeReadJson, safeStats, extractProjectDescription, decodeDirNameToPath } from "../lib/fs-utils.js";
 
 // Cursor stores conversations in THREE places (all supported for version compatibility):
 //
@@ -421,50 +421,6 @@ function parseVscdbSession(virtualPath: string, maxTurns?: number): ParsedSessio
       turns,
     } as ParsedSession;
   }, null);
-}
-
-// Decode a directory name like "Users-zhaoyifei-my-cool-project" back to a real path.
-// On Windows, names look like "c-Users-PC-project" → "C:\Users\PC\project".
-// Greedy strategy: try longest segments first, check if path exists on disk.
-function decodeDirNameToPath(dirName: string): string | null {
-  const platform = getPlatform();
-  const stripped = dirName.startsWith("-") ? dirName.slice(1) : dirName;
-  const parts = stripped.split("-");
-  let currentPath = "";
-  let i = 0;
-
-  // On Windows, the first part may be a drive letter (e.g. "c" → "C:")
-  if (platform === "windows" && parts.length > 0 && /^[a-zA-Z]$/.test(parts[0])) {
-    currentPath = parts[0].toUpperCase() + ":";
-    i = 1;
-  }
-
-  while (i < parts.length) {
-    let bestMatch = "";
-    let bestLen = 0;
-
-    for (let end = parts.length; end > i; end--) {
-      const segment = parts.slice(i, end).join("-");
-      const candidate = currentPath + path.sep + segment;
-      try {
-        if (fs.existsSync(candidate)) {
-          bestMatch = candidate;
-          bestLen = end - i;
-          break;
-        }
-      } catch { /* ignore */ }
-    }
-
-    if (bestLen > 0) {
-      currentPath = bestMatch;
-      i += bestLen;
-    } else {
-      currentPath += path.sep + parts[i];
-      i++;
-    }
-  }
-
-  return currentPath || null;
 }
 
 // --- Type definitions ---

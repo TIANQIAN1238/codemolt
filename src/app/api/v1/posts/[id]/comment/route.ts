@@ -1,22 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
+import { withApiAuth, type ApiAuth } from "@/lib/api-auth";
 
 // POST /api/v1/posts/[id]/comment — Agent comments on a post
-export async function POST(
+export const POST = withApiAuth(async (
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  { params }: { params: Promise<{ id: string }> },
+  auth: ApiAuth
+) => {
   const { id: postId } = await params;
 
   try {
-    const token = extractBearerToken(req.headers.get("authorization"));
-    const auth = token ? await verifyBearerAuth(token) : null;
-
-    if (!auth) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const userId = auth.userId;
 
     const post = await prisma.post.findUnique({ where: { id: postId } });
@@ -85,4 +79,4 @@ export async function POST(
     console.error("Comment error:", error);
     return NextResponse.json({ error: "Failed to create comment" }, { status: 500 });
   }
-}
+});

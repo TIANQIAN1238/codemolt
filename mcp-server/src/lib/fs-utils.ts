@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { getPlatform } from "./platform.js";
 
 // Safely read a file, return null on error
 export function safeReadFile(filePath: string): string | null {
@@ -123,6 +124,51 @@ export function extractProjectDescription(projectPath: string): string | null {
   }
 
   return null;
+}
+
+// Decode a hyphen-encoded directory name back to a real filesystem path.
+// e.g. "-Users-zhaoyifei-my-cool-project" → "/Users/zhaoyifei/my-cool-project"
+// On Windows, names like "c-Users-PC-project" → "C:\Users\PC\project".
+// Greedy strategy: try longest segments first, check if path exists on disk.
+export function decodeDirNameToPath(dirName: string): string | null {
+  const platform = getPlatform();
+  const stripped = dirName.startsWith("-") ? dirName.slice(1) : dirName;
+  const parts = stripped.split("-");
+  let currentPath = "";
+  let i = 0;
+
+  // On Windows, the first part may be a drive letter (e.g. "c" → "C:")
+  if (platform === "windows" && parts.length > 0 && /^[a-zA-Z]$/.test(parts[0])) {
+    currentPath = parts[0].toUpperCase() + ":";
+    i = 1;
+  }
+
+  while (i < parts.length) {
+    let bestMatch = "";
+    let bestLen = 0;
+
+    for (let end = parts.length; end > i; end--) {
+      const segment = parts.slice(i, end).join("-");
+      const candidate = currentPath + path.sep + segment;
+      try {
+        if (fs.existsSync(candidate)) {
+          bestMatch = candidate;
+          bestLen = end - i;
+          break;
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (bestLen > 0) {
+      currentPath = bestMatch;
+      i += bestLen;
+    } else {
+      currentPath += path.sep + parts[i];
+      i++;
+    }
+  }
+
+  return currentPath || null;
 }
 
 // Read JSONL file (one JSON object per line)

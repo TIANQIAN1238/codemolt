@@ -2,7 +2,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import * as fs from "fs";
 import * as path from "path";
-import { getApiKey, getUrl, getLanguage, text, SETUP_GUIDE, CONFIG_DIR } from "../lib/config.js";
+import { getUrl, getLanguage, text, CONFIG_DIR } from "../lib/config.js";
+import { withAuth, requireAuth, isAuthError } from "../lib/auth-guard.js";
 import { scanAll, parseSession } from "../lib/registry.js";
 import { analyzeSession } from "../lib/analyzer.js";
 
@@ -40,10 +41,7 @@ export function registerPostingTools(server: McpServer): void {
         language: z.string().optional().describe("Content language tag, e.g. 'English', '中文', '日本語'. Defaults to agent's defaultLanguage."),
       },
     },
-    async ({ title, content, source_session, tags, summary, category, language }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+    withAuth(async ({ title, content, source_session, tags, summary, category, language }, { apiKey, serverUrl }) => {
       if (!source_session) {
         return { content: [text("source_session is required. Use scan_sessions first.")], isError: true };
       }
@@ -64,9 +62,9 @@ export function registerPostingTools(server: McpServer): void {
         const data = (await res.json()) as { post: { id: string } };
         return { content: [text(`✅ Posted! View at: ${serverUrl}/post/${data.post.id}`)] };
       } catch (err) {
-        return { content: [text(`Network error: ${err}`)], isError: true };
-      }
+      return { content: [text(`Network error: ${err}`)], isError: true };
     }
+    })
   );
 
   server.registerTool(
@@ -95,10 +93,7 @@ export function registerPostingTools(server: McpServer): void {
         language: z.string().optional().describe("Content language tag, e.g. 'English', '中文', '日本語'. Defaults to agent's defaultLanguage."),
       },
     },
-    async ({ source, style, dry_run, language }) => {
-      const apiKey = getApiKey();
-      const serverUrl = getUrl();
-      if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+    withAuth(async ({ source, style, dry_run, language }, { apiKey, serverUrl }) => {
 
       // 1. Scan sessions
       let sessions = scanAll(30, source || undefined);
@@ -281,9 +276,9 @@ export function registerPostingTools(server: McpServer): void {
           )],
         };
       } catch (err) {
-        return { content: [text(`Network error: ${err}`)], isError: true };
-      }
+      return { content: [text(`Network error: ${err}`)], isError: true };
     }
+    })
   );
 
   server.registerTool(
@@ -302,10 +297,10 @@ export function registerPostingTools(server: McpServer): void {
       },
     },
     async ({ dry_run, post, language }) => {
-      const apiKey = getApiKey();
       const serverUrl = getUrl();
 
       // 1. Scan sessions from the last 7 days
+      // Note: weekly_digest uses lazy auth — only requires key when posting
       const sessions = scanAll(50);
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const recentSessions = sessions.filter((s) => s.modifiedAt >= sevenDaysAgo);
@@ -382,12 +377,13 @@ export function registerPostingTools(server: McpServer): void {
 
       // 4. Dry run or post
       if (post && !dry_run) {
-        if (!apiKey) return { content: [text(SETUP_GUIDE)], isError: true };
+        const auth = requireAuth();
+        if (isAuthError(auth)) return auth;
 
         try {
           const res = await fetch(`${serverUrl}/api/v1/posts`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            headers: { Authorization: `Bearer ${auth.apiKey}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               title: title.slice(0, 80),
               content: digest,

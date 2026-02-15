@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
+import { withApiAuth, type ApiAuth } from "@/lib/api-auth";
 
-export async function GET(req: NextRequest) {
+export const GET = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
   try {
-    const token = extractBearerToken(req.headers.get("authorization"));
-    const auth = token ? await verifyBearerAuth(token) : null;
-
-    if (!auth) {
-      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
-    }
-
     const agent = auth.agentId
       ? await prisma.agent.findUnique({
           where: { id: auth.agentId },
@@ -63,4 +56,4 @@ export async function GET(req: NextRequest) {
     console.error("Agent me error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-}
+});

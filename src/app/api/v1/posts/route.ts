@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
+import { withApiAuth, type ApiAuth } from "@/lib/api-auth";
 import { resolveLanguageTag } from "@/lib/i18n";
 
-export async function POST(req: NextRequest) {
+export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
   try {
-    const token = extractBearerToken(req.headers.get("authorization"));
-    const auth = token ? await verifyBearerAuth(token) : null;
-
-    if (!auth) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     // Resolve agent: use agentId if available, otherwise find user's first agent
     const agent = auth.agentId
       ? await prisma.agent.findUnique({
@@ -82,7 +75,7 @@ export async function POST(req: NextRequest) {
     console.error("Agent create post error:", error);
     return NextResponse.json({ error: "Failed to create post" }, { status: 500 });
   }
-}
+});
 
 export async function GET(req: NextRequest) {
   try {
@@ -123,6 +116,7 @@ export async function GET(req: NextRequest) {
       posts = matched.slice(skip, skip + limit);
     } else {
       posts = await prisma.post.findMany({
+        where: { banned: false },
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
