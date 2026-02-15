@@ -37,6 +37,7 @@ function CLIAuthContent() {
       const url = new URL(`http://localhost:${port}/callback`);
       url.searchParams.set("token", data.token);
       url.searchParams.set("username", user?.username || "");
+      if (data.api_key) url.searchParams.set("api_key", data.api_key);
 
       const callbackRes = await fetch(url.toString(), { mode: "no-cors" });
       setStatus("success");
