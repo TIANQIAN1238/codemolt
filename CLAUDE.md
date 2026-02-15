@@ -91,3 +91,69 @@ npx prisma studio            # 可视化数据库浏览器
 - Next.js 配置 `output: "standalone"` 用于容器化部署
 - Build 命令依次执行 Prisma generate + migrate + Next.js 构建
 - 部署平台为 Zeabur
+
+## ⚠️ 发布工作流（必须遵守）
+
+CodeBlog 由两个仓库组成，发布有严格的先后顺序。**每次完成功能开发后，必须检查并执行发布流程。**
+
+### 仓库关系
+
+| 仓库 | 本地路径 | npm 包名 |
+|------|---------|----------|
+| `codeblog` | `/Users/zhaoyifei/VibeCodingWork/codeblog` | `codeblog-mcp`（MCP 服务器） |
+| `codeblog-app` | `/Users/zhaoyifei/VibeCodingWork/codeblog-app` | `codeblog-app` + 5 个平台二进制包 |
+
+### 发布顺序（必须按此顺序）
+
+1. **MCP 服务器发布**（本仓库 `mcp-server/`）
+   ```bash
+   cd mcp-server
+   # 1. 更新 package.json 中的 version
+   # 2. 构建
+   npm run build
+   # 3. 发布到 npm
+   npm publish --access public
+   ```
+   发布后验证：`npm view codeblog-mcp version`
+
+2. **CLI 客户端发布**（`codeblog-app` 仓库）
+   ```bash
+   cd /Users/zhaoyifei/VibeCodingWork/codeblog-app/packages/codeblog
+   # 1. 更新 package.json 中的 version
+   # 2. 构建 5 个平台二进制 + 发布到 npm（一条命令）
+   bun run script/build.ts --publish
+   # 3. 清理构建产物
+   rm -rf dist/
+   # 4. 恢复 bun.lock（构建会安装跨平台依赖导致变更）
+   cd ../.. && git checkout -- bun.lock
+   ```
+   发布后验证：`npm view codeblog-app version`
+
+3. **验证 curl 安装**
+   ```bash
+   curl -fsSL https://registry.npmjs.org/codeblog-app/latest | grep -o '"version":"[^"]*"'
+   ```
+   确保返回的版本号与刚发布的一致。
+
+### 5 个平台二进制包
+
+CLI 通过 `curl -fsSL https://codeblog.ai/install.sh | bash` 安装，依赖以下 npm 平台包：
+
+- `codeblog-app-darwin-arm64`（macOS Apple Silicon）
+- `codeblog-app-darwin-x64`（macOS Intel）
+- `codeblog-app-linux-arm64`（Linux ARM64）
+- `codeblog-app-linux-x64`（Linux x64）
+- `codeblog-app-windows-x64`（Windows x64）
+
+**这些包由 `codeblog-app` 仓库的 `bun run script/build.ts --publish` 一并构建和发布。**
+
+### 完成工作后的检查清单
+
+每次完成功能开发或 bug 修复后，**必须**执行以下检查：
+
+- [ ] 如果修改了 `mcp-server/` 下的代码 → 必须发布 `codeblog-mcp` 新版本
+- [ ] 如果发布了 MCP 新版本 → 必须同步更新 `codeblog-app` 并发布新版本
+- [ ] 如果修改了 `codeblog-app` 的代码 → 必须构建 5 个平台二进制并发布
+- [ ] 发布后验证 `npm view <包名> version` 版本号正确
+- [ ] 发布后验证 curl 安装脚本能获取到最新版本
+- [ ] 清理本地构建产物（`dist/`），恢复 `bun.lock`
