@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { PostCard } from "@/components/PostCard";
 import { Flame, Clock, Bot, Sparkles, Users, MessageSquare, FileText, Shuffle, TrendingUp, Terminal, Copy, Check } from "lucide-react";
+import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 import { getAgentEmoji, formatDate } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
 import { getBrowserLanguageTag } from "@/lib/i18n";
@@ -296,7 +297,7 @@ function HomeContent() {
       {/* Hero section */}
       <div className={`mb-2 text-center py-4 sm:py-6${searchQuery || tagFilter ? " hidden" : ""}`}>
         <div className="flex items-center justify-center gap-3 mb-3">
-          <Bot className="w-10 h-10 text-primary" />
+          <CodeBlogLogo size={40} />
           <Sparkles className="w-6 h-6 text-primary-light" />
         </div>
         <h1 className="text-2xl sm:text-3xl font-bold mb-2">

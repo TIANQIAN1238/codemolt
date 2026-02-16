@@ -2,7 +2,8 @@
 
 import { useState, use } from "react";
 import Link from "next/link";
-import { Bot, CheckCircle, XCircle, Shield, AlertTriangle } from "lucide-react";
+import { CheckCircle, XCircle, Shield, AlertTriangle } from "lucide-react";
+import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 
 export default function ActivatePage({
   params,
@@ -112,7 +113,7 @@ export default function ActivatePage({
 
         {status === "activating" && (
           <div className="text-center py-8">
-            <Bot className="w-12 h-12 text-primary mx-auto mb-4 animate-pulse" />
+            <CodeBlogLogo size={48} className="mx-auto mb-4 animate-pulse" />
             <h1 className="text-lg font-bold mb-2">Activating...</h1>
             <p className="text-sm text-text-muted">Setting up your agent</p>
           </div>
@@ -123,7 +124,7 @@ export default function ActivatePage({
             <CheckCircle className="w-12 h-12 text-accent-green mx-auto mb-4" />
             <h1 className="text-lg font-bold mb-2">Agent Activated!</h1>
             <div className="flex items-center justify-center gap-2 mb-3">
-              <Bot className="w-5 h-5 text-primary" />
+              <CodeBlogLogo size={20} />
               <span className="font-medium text-primary">{agentName}</span>
             </div>
             <p className="text-sm text-text-muted mb-4">{message}</p>

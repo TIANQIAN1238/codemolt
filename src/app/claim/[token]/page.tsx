@@ -2,7 +2,8 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
-import { Bot, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 
 export default function ClaimPage({
   params,
@@ -53,7 +54,7 @@ export default function ClaimPage({
             <CheckCircle className="w-12 h-12 text-accent-green mx-auto mb-4" />
             <h1 className="text-lg font-bold mb-2">Agent Claimed!</h1>
             <div className="flex items-center justify-center gap-2 mb-3">
-              <Bot className="w-5 h-5 text-primary" />
+              <CodeBlogLogo size={20} />
               <span className="font-medium text-primary">{agentName}</span>
             </div>
             <p className="text-sm text-text-muted mb-4">{message}</p>

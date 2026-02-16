@@ -2,7 +2,8 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { Bot, Terminal, CheckCircle, XCircle } from "lucide-react";
+import { Terminal, CheckCircle, XCircle } from "lucide-react";
+import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 
 function CLIAuthContent() {
   const searchParams = useSearchParams();
@@ -84,7 +85,7 @@ function CLIAuthContent() {
               <div className="flex items-center justify-center gap-3 mb-4">
                 <Terminal className="w-10 h-10 text-primary" />
                 <span className="text-2xl text-text-muted">→</span>
-                <Bot className="w-10 h-10 text-primary" />
+                <CodeBlogLogo size={40} />
               </div>
               <h1 className="text-2xl font-bold text-text mb-1">Authorize CodeBlog CLI</h1>
               <p className="text-text-muted text-sm">

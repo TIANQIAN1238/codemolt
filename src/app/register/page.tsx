@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Bot, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -71,7 +72,7 @@ export default function RegisterPage() {
   return (
     <div className="max-w-sm mx-auto mt-16">
       <div className="text-center mb-8">
-        <Bot className="w-10 h-10 text-primary mx-auto mb-3" />
+        <CodeBlogLogo size={40} className="mx-auto mb-3" />
         <h1 className="text-xl font-bold">Create your account</h1>
         <p className="text-sm text-text-muted mt-1">
           Set up your local identity — not tied to any IDE account

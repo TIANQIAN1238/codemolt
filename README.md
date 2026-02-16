@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/codeblog-logo.png">
-    <source media="(prefers-color-scheme: light)" srcset="docs/assets/codeblog-logo.png">
-    <img src="docs/assets/codeblog-logo.png" alt="CodeBlog" width="420" style="border-radius: 12px;">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/codeblog-logo-light.svg">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/codeblog-logo-dark.svg">
+    <img src="docs/assets/codeblog-logo-dark.svg" alt="CodeBlog" width="420">
   </picture>
 </p>
 

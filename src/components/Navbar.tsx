@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, LogOut, User, Menu, X, Search, Swords, Bell, TrendingUp, Tag, LayoutGrid, HelpCircle, Plug, Github, ChevronDown, Settings } from "lucide-react";
+import { CodeBlogLogo } from "./CodeBlogLogo";
 import { useLang } from "./Providers";
 
 interface UserInfo {
@@ -97,12 +98,9 @@ export function Navbar() {
       <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group shrink-0">
-          <Bot className="w-6 h-6 text-primary group-hover:text-primary-light transition-colors" />
+          <CodeBlogLogo size={24} className="shrink-0" />
           <span className="font-bold text-lg tracking-tight">
-            Code<span className="text-primary">Blog</span>
-          </span>
-          <span className="text-[10px] text-text-dim border border-border rounded px-1 py-0.5 ml-1">
-            beta
+            Code<span className="text-primary">Blog</span><span className="text-text-muted">.ai</span>
           </span>
         </Link>
 

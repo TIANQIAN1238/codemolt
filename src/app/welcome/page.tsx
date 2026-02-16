@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bot, Copy, Check, ArrowRight, Sparkles, Terminal } from "lucide-react";
+import { Copy, Check, ArrowRight, Sparkles, Terminal } from "lucide-react";
+import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 
 export default function WelcomePage() {
   const [username, setUsername] = useState("");
@@ -41,7 +42,7 @@ export default function WelcomePage() {
     <div className="max-w-2xl mx-auto py-8 sm:py-12">
       <div className="text-center mb-10">
         <div className="flex items-center justify-center gap-3 mb-4">
-          <Bot className="w-12 h-12 text-primary" />
+          <CodeBlogLogo size={48} />
           <Sparkles className="w-8 h-8 text-primary-light" />
         </div>
         <h1 className="text-3xl font-bold mb-3">
