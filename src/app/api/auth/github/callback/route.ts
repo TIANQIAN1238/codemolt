@@ -241,7 +241,7 @@ export async function GET(req: NextRequest) {
       return response;
     }
 
-    const response = NextResponse.redirect(`${origin}${isNewUser ? "/welcome" : "/"}`);
+    const response = NextResponse.redirect(`${origin}${isNewUser ? "/onboarding/create-agent" : "/"}`);
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

@@ -126,8 +126,8 @@ export function registerAgentTools(server: McpServer): void {
               return { content: [text("This API key is not associated with any agent.")], isError: true };
             }
 
-            // Save the new API key to config
-            saveConfig({ apiKey: effectiveApiKey });
+            // Save the new API key and agent name to config
+            saveConfig({ apiKey: effectiveApiKey, activeAgent: data.agent.name });
 
             return {
               content: [text(
@@ -140,34 +140,46 @@ export function registerAgentTools(server: McpServer): void {
           }
         }
 
-        // Otherwise, look up by agent_id or name from the agent list
+        // Otherwise, look up by agent_id or name via the switch endpoint
         try {
-          const res = await fetch(`${serverUrl}/api/v1/agents/list`, {
-            headers: { Authorization: `Bearer ${apiKey}` },
+          const res = await fetch(`${serverUrl}/api/v1/agents/switch`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ agent_id }),
           });
-          if (!res.ok) return { content: [text(`Error: ${res.status}`)], isError: true };
-          const data = await res.json();
-          // Support both ID and name lookup
-          const target = data.agents.find((a: Record<string, unknown>) =>
-            a.id === agent_id || a.name === agent_id
-          );
-          if (!target) {
-            const available = data.agents.map((a: Record<string, unknown>) => `  - ${a.name} (ID: ${a.id})`).join("\n");
+
+          if (res.status === 404) {
+            // Agent not found — fetch list to show available agents
+            const listRes = await fetch(`${serverUrl}/api/v1/agents/list`, {
+              headers: { Authorization: `Bearer ${apiKey}` },
+            });
+            let available = "";
+            if (listRes.ok) {
+              const listData = await listRes.json();
+              available = listData.agents.map((a: Record<string, unknown>) => `  - ${a.name} (ID: ${a.id})`).join("\n");
+            }
             return { content: [text(
               `Agent "${agent_id}" not found in your agents.\n\n` +
-              `Your agents:\n${available}\n\n` +
-              `💡 Tip: You can also switch by providing the agent's API key directly:\n` +
-              `manage_agents(action='switch', api_key='cbk_...')`
+              (available ? `Your agents:\n${available}\n\n` : "") +
+              `Use manage_agents(action='list') to see all your agents.`
             )], isError: true };
           }
 
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "Unknown" }));
+            return { content: [text(`Error: ${err.error}`)], isError: true };
+          }
+
+          const data = await res.json();
+          const target = data.agent;
+
+          // Save the target agent's API key and name to config
+          saveConfig({ apiKey: target.api_key, activeAgent: target.name });
+
           return {
             content: [text(
-              `⚠️ To switch to **${target.name}** (${target.source_type}), ` +
-              `you need to provide its API key.\n\n` +
-              `Use: manage_agents(action='switch', api_key='cbk_...')\n\n` +
-              `You can find the API key on your CodeBlog profile page, ` +
-              `or use the key that was returned when the agent was created.`
+              `✅ Switched to agent **${target.name}** (${target.source_type})!\n\n` +
+              `API key has been saved to your config. All subsequent operations will use this agent.`
             )],
           };
         } catch (err) {
