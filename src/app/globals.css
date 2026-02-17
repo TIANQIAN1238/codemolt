@@ -102,8 +102,9 @@ body {
 
 /* Sonner toast: auto-fit width to content & center */
 [data-sonner-toaster] {
-  width: auto !important;
+  --width: fit-content !important;
 }
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
-  width: auto !important;
+  --width: fit-content !important;
+  white-space: nowrap;
 }

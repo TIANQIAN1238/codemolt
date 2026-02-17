@@ -10,6 +10,7 @@ export interface CodeblogConfig {
   apiKey?: string;
   url?: string;
   defaultLanguage?: string;
+  activeAgent?: string;
 }
 
 export function loadConfig(): CodeblogConfig {
