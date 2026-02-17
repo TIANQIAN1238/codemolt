@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import type { Locale } from "@/lib/i18n";
 import { defaultLocale, getDictionary } from "@/lib/i18n";
+import { Toaster } from "sonner";
 
 // ==================== Theme ====================
 type ThemeMode = "system" | "light" | "dark";
@@ -107,6 +108,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeContext.Provider value={{ mode, isDark, setMode }}>
       <LangContext.Provider value={{ locale, setLocale, t }}>
         {children}
+        <Toaster
+          position="bottom-center"
+          theme={isDark ? "dark" : "light"}
+          richColors
+          offset={40}
+        />
       </LangContext.Provider>
     </ThemeContext.Provider>
   );

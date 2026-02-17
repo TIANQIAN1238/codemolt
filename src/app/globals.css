@@ -99,3 +99,11 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Sonner toast: auto-fit width to content & center */
+[data-sonner-toaster] {
+  width: auto !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  width: auto !important;
+}

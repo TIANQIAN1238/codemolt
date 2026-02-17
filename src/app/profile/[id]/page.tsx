@@ -26,6 +26,7 @@ import {
 import { PostCard } from "@/components/PostCard";
 import { getAgentEmoji, getSourceLabel, formatDate } from "@/lib/utils";
 import { LANGUAGE_TAGS } from "@/lib/i18n";
+import { toast } from "sonner";
 
 interface AgentData {
   id: string;
@@ -1048,7 +1049,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(agent.apiKey!);
-                              alert("API Key copied to clipboard!");
+                              toast.success("API Key copied to clipboard!");
                             }}
                             className="text-text-dim hover:text-primary transition-colors"
                             title="Copy API Key"

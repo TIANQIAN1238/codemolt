@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getUrl, text } from "../lib/config.js";
+import { getUrl, text, saveConfig } from "../lib/config.js";
 import { withAuth } from "../lib/auth-guard.js";
 
 export function registerAgentTools(server: McpServer): void {
@@ -23,9 +23,10 @@ export function registerAgentTools(server: McpServer): void {
         description: z.string().optional().describe("Agent description (optional, for create)"),
         source_type: z.string().optional().describe("IDE source: claude-code, cursor, codex, windsurf, git, other (required for create)"),
         agent_id: z.string().optional().describe("Agent ID or name (required for delete and switch)"),
+        api_key: z.string().optional().describe("API key of the agent to switch to (alternative to agent_id for switch)"),
       },
     },
-    withAuth(async ({ action, name, description, source_type, agent_id }, { apiKey, serverUrl }) => {
+    withAuth(async ({ action, name, description, source_type, agent_id, api_key }, { apiKey, serverUrl }) => {
 
       if (action === "list") {
         try {
@@ -103,10 +104,43 @@ export function registerAgentTools(server: McpServer): void {
       }
 
       if (action === "switch") {
-        if (!agent_id) {
-          return { content: [text("agent_id is required for switch.")], isError: true };
+        // Auto-detect: if agent_id looks like an API key, treat it as api_key
+        const effectiveApiKey = api_key || (agent_id && (agent_id.startsWith("cbk_") || agent_id.startsWith("cmk_")) ? agent_id : undefined);
+        const effectiveAgentId = effectiveApiKey ? undefined : agent_id;
+
+        if (!effectiveAgentId && !effectiveApiKey) {
+          return { content: [text("agent_id or api_key is required for switch.")], isError: true };
         }
-        // First verify the agent exists and belongs to us
+
+        // If api_key is provided (or detected from agent_id), verify it and switch directly
+        if (effectiveApiKey) {
+          try {
+            const res = await fetch(`${serverUrl}/api/v1/agents/me`, {
+              headers: { Authorization: `Bearer ${effectiveApiKey}` },
+            });
+            if (!res.ok) {
+              return { content: [text(`Invalid API key. Server returned: ${res.status}`)], isError: true };
+            }
+            const data = await res.json();
+            if (!data.agent) {
+              return { content: [text("This API key is not associated with any agent.")], isError: true };
+            }
+
+            // Save the new API key to config
+            saveConfig({ apiKey: effectiveApiKey });
+
+            return {
+              content: [text(
+                `✅ Switched to agent **${data.agent.name}** (${data.agent.sourceType})!\n\n` +
+                `API key has been saved to your config. All subsequent operations will use this agent.`
+              )],
+            };
+          } catch (err) {
+            return { content: [text(`Network error: ${err}`)], isError: true };
+          }
+        }
+
+        // Otherwise, look up by agent_id or name from the agent list
         try {
           const res = await fetch(`${serverUrl}/api/v1/agents/list`, {
             headers: { Authorization: `Bearer ${apiKey}` },
@@ -118,18 +152,22 @@ export function registerAgentTools(server: McpServer): void {
             a.id === agent_id || a.name === agent_id
           );
           if (!target) {
-            return { content: [text(`Agent ${agent_id} not found in your agents.`)], isError: true };
+            const available = data.agents.map((a: Record<string, unknown>) => `  - ${a.name} (ID: ${a.id})`).join("\n");
+            return { content: [text(
+              `Agent "${agent_id}" not found in your agents.\n\n` +
+              `Your agents:\n${available}\n\n` +
+              `💡 Tip: You can also switch by providing the agent's API key directly:\n` +
+              `manage_agents(action='switch', api_key='cbk_...')`
+            )], isError: true };
           }
 
-          // We need to get the API key for this agent — create a new one via the create endpoint
-          // Actually, we need a dedicated endpoint for this. For now, inform the user.
           return {
             content: [text(
-              `⚠️ To switch agents, you need to update your API key.\n\n` +
-              `Agent: **${target.name}** (${target.source_type})\n` +
-              `If you created this agent via manage_agents(action='create'), ` +
-              `use the API key that was returned at creation time.\n\n` +
-              `Set it with: codeblog_setup or update ~/.codeblog/config.json`
+              `⚠️ To switch to **${target.name}** (${target.source_type}), ` +
+              `you need to provide its API key.\n\n` +
+              `Use: manage_agents(action='switch', api_key='cbk_...')\n\n` +
+              `You can find the API key on your CodeBlog profile page, ` +
+              `or use the key that was returned when the agent was created.`
             )],
           };
         } catch (err) {
