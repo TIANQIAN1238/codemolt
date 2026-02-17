@@ -100,7 +100,7 @@ npx prisma studio            # 可视化数据库浏览器
 
 1. 在 `mcp-server/src/tools/` 对应文件中用 `server.registerTool()` 添加或修改工具
 2. 本地测试：`cd mcp-server && npm run dev`
-3. 发布：更新 `mcp-server/package.json` 版本 → `npm run build` → `npm publish --access public`
+3. 发布：使用 release 脚本（见下方「发版流程」章节）
 4. CLI 客户端自动发现新工具，**无需改动 `codeblog-app` 仓库的任何代码**
 
 ### 不需要同步到 CLI 的内容
@@ -111,3 +111,90 @@ npx prisma studio            # 可视化数据库浏览器
 ### 可选同步到 CLI 的内容
 
 - `TOOL_LABELS`（`codeblog-app/packages/codeblog/src/ai/tools.ts`）— TUI 中显示的工具状态文案（如 "Scanning IDE sessions..."）。不加的话会 fallback 显示工具名，功能不受影响。
+
+## 发版流程
+
+本项目涉及两个 npm 包，有顺序依赖关系：
+
+```
+codeblog-mcp（MCP 服务器） → codeblog-app（CLI 客户端，依赖 codeblog-mcp）
+```
+
+**规则：如果 MCP 有改动，必须先发 MCP，再发 CLI。**
+
+### 1. 发布 MCP 服务器（`codeblog-mcp`）
+
+**一条命令完成所有操作：**
+
+```bash
+cd mcp-server
+npm run release -- 2.2.0    # 替换为目标版本号
+```
+
+release 脚本（`mcp-server/scripts/release.ts`）自动执行：
+1. 检查工作目录干净
+2. 更新 `package.json` 版本号
+3. `tsc` 构建 → `dist/`
+4. `npm publish --access public`
+5. Git commit + tag（`mcp-v2.2.0`）+ push
+
+**不要手动改版本号再手动 `npm publish`，必须用 release 脚本。**
+
+### 2. 发布 CLI 客户端（`codeblog-app`）
+
+CLI 仓库位于 `codeblog-app/`（独立仓库）。
+
+**一条命令完成所有操作：**
+
+```bash
+cd codeblog-app
+bun run release 2.3.0       # 替换为目标版本号
+```
+
+release 脚本（`packages/codeblog/script/release.ts`）自动执行：
+1. 更新 `package.json` 版本号 + `optionalDependencies` 版本
+2. 更新 README.md、CHANGELOG.md
+3. 构建 5 个平台二进制（darwin-arm64、darwin-x64、linux-arm64、linux-x64、windows-x64）
+4. 发布 6 个 npm 包（5 平台包 + 1 主包）
+5. Git commit + tag（`v2.3.0`）+ push
+6. 创建 GitHub Release（附带二进制下载）
+
+**不要手动分步操作，不要只发主包不发平台包。整个流程必须通过 release 脚本一次完成。**
+
+### 常见发版场景
+
+#### 场景 A：只改了 MCP 工具
+
+```bash
+cd mcp-server
+npm run release -- 2.2.0
+# 完成，CLI 不需要重新发版（^2.x 自动兼容）
+```
+
+#### 场景 B：MCP 有改动 + CLI 也有改动
+
+```bash
+# 第一步：先发 MCP
+cd mcp-server
+npm run release -- 2.2.0
+
+# 第二步：更新 CLI 的 MCP 依赖版本，然后发 CLI
+cd codeblog-app/packages/codeblog
+# 修改 package.json 里 codeblog-mcp 的版本（如需要）
+cd ../..
+bun run release 2.3.0
+```
+
+#### 场景 C：只改了 CLI
+
+```bash
+cd codeblog-app
+bun run release 2.3.0
+```
+
+### 严禁的操作
+
+- **不要**手动改 `package.json` 版本号后直接 `npm publish`
+- **不要**只发布主包不发布平台二进制包
+- **不要**使用根目录的 `scripts/build.ts` 来做发版构建（那是开发构建用的）
+- **不要**跳过 release 脚本手动创建 git tag

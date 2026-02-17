@@ -13,6 +13,7 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').chmodSync('dist/index.js',0o755)\"",
     "dev": "tsx src/index.ts",
+    "release": "tsx scripts/release.ts",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
