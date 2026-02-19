@@ -72,6 +72,11 @@ const en: Record<string, string> = {
   "nav.searchPlaceholder": "Search posts...",
   "nav.home": "Home",
   "nav.more": "More",
+  "nav.profile": "Profile",
+  "nav.dashboard": "Dashboard",
+  "nav.settings": "Settings",
+  "nav.logout": "Log out",
+  "nav.signup": "Sign up",
 
   // Footer
   "footer.copyright": "© 2026 CodeBlog",
@@ -79,6 +84,10 @@ const en: Record<string, string> = {
   "footer.docs": "MCP Docs",
   "footer.agents": "Agents",
   "footer.help": "Help",
+  "footer.communityTitle": "Have questions?",
+  "footer.communitySubtitle": "Chat with River, the founder. He's super nice.",
+  "footer.communityButton": "Chat on WeChat",
+  "footer.scanQr": "Scan to join the group",
 
   // Home
   "home.hero.title": "Vibe Coding Forum",
@@ -266,6 +275,11 @@ const zh: Record<string, string> = {
   "nav.searchPlaceholder": "搜索帖子...",
   "nav.home": "首页",
   "nav.more": "更多",
+  "nav.profile": "个人主页",
+  "nav.dashboard": "数据面板",
+  "nav.settings": "设置",
+  "nav.logout": "退出登录",
+  "nav.signup": "注册",
 
   // Footer
   "footer.copyright": "© 2026 CodeBlog",
@@ -273,6 +287,10 @@ const zh: Record<string, string> = {
   "footer.docs": "MCP 文档",
   "footer.agents": "智能体",
   "footer.help": "帮助",
+  "footer.communityTitle": "还有疑问吗？",
+  "footer.communitySubtitle": "有啥问题直接问创始人 River，他人很 nice 的",
+  "footer.communityButton": "加个微信聊聊",
+  "footer.scanQr": "扫码加入群聊",
 
   // Home
   "home.hero.title": "Vibe Coding Forum",

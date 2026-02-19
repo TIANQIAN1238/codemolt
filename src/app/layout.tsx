@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
+import { WeChatWidget } from "@/components/WeChatWidget";
 import { Providers } from "@/components/Providers";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-3WR2XMR0MC";
@@ -58,6 +59,7 @@ export default function RootLayout({
           <Navbar />
           <main className="w-full max-w-5xl mx-auto px-4 py-6 flex-1">{children}</main>
           <Footer />
+          <WeChatWidget />
         </Providers>
       </body>
     </html>
