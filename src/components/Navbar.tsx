@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, LogOut, User, Menu, X, Search, Swords, Bell, TrendingUp, Tag, LayoutGrid, HelpCircle, Plug, Github, ChevronDown, Settings, Bookmark, Rss } from "lucide-react";
+import { Bot, LogOut, User, Menu, X, Search, Swords, Bell, TrendingUp, Tag, LayoutGrid, HelpCircle, Plug, Github, ChevronDown, Settings, Bookmark, Rss, BarChart3 } from "lucide-react";
 import { CodeBlogLogo } from "./CodeBlogLogo";
 import { useLang } from "./Providers";
 
@@ -20,8 +20,10 @@ export function Navbar() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const moreRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
   const { t } = useLang();
 
   const refreshUser = useCallback(async () => {
@@ -42,7 +44,6 @@ export function Navbar() {
     void refreshUser();
   }, [pathname, refreshUser]);
 
-  // Fetch unread notification count
   useEffect(() => {
     if (!user) { setUnreadCount(0); return; }
     fetch("/api/v1/notifications?unread_only=true&limit=1")
@@ -71,20 +72,22 @@ export function Navbar() {
     };
   }, [refreshUser]);
 
-  // Close "More" dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
         setMoreOpen(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Close "More" dropdown on route change
   useEffect(() => {
     setMoreOpen(false);
+    setUserMenuOpen(false);
   }, [pathname]);
 
   const handleLogout = async () => {
@@ -124,7 +127,6 @@ export function Navbar() {
 
         {/* Desktop navigation */}
         <div className="hidden sm:flex items-center gap-1 ml-auto shrink-0">
-          {/* Primary nav links */}
           <Link
             href="/categories"
             className="text-sm text-text-muted hover:text-text transition-colors flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-bg-input"
@@ -154,32 +156,13 @@ export function Navbar() {
             {t("nav.mcp")}
           </Link>
 
-          {user && (
-            <>
-              <Link
-                href="/bookmarks"
-                className="text-sm text-text-muted hover:text-text transition-colors flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-bg-input"
-              >
-                <Bookmark className="w-3.5 h-3.5" />
-                {t("nav.bookmarks") || "Bookmarks"}
-              </Link>
-              <Link
-                href="/feed"
-                className="text-sm text-text-muted hover:text-text transition-colors flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-bg-input"
-              >
-                <Rss className="w-3.5 h-3.5" />
-                {t("nav.feed") || "Feed"}
-              </Link>
-            </>
-          )}
-
           {/* More dropdown */}
           <div ref={moreRef} className="relative">
             <button
               onClick={() => setMoreOpen(!moreOpen)}
               className="text-sm text-text-muted hover:text-text transition-colors flex items-center gap-0.5 px-2 py-1.5 rounded-md hover:bg-bg-input"
             >
-              {t("nav.more") || "More"}
+              {t("nav.more")}
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
             </button>
             {moreOpen && (
@@ -240,7 +223,7 @@ export function Navbar() {
               <Link
                 href="/notifications"
                 className="relative text-text-muted hover:text-text transition-colors p-1.5 rounded-md hover:bg-bg-input"
-                title={t("nav.notifications") || "Notifications"}
+                title={t("nav.notifications")}
               >
                 <Bell className="w-4 h-4" />
                 {unreadCount > 0 && (
@@ -250,34 +233,101 @@ export function Navbar() {
                 )}
               </Link>
 
-              {/* Separator */}
               <div className="w-px h-5 bg-border mx-1" />
 
-              {/* User avatar & name */}
-              <Link href={`/profile/${user.id}`} className="flex items-center gap-1.5 hover:opacity-80 transition-opacity px-1.5 py-1 rounded-md hover:bg-bg-input">
-                {user.avatar ? (
-                  <img src={user.avatar} alt={user.username} className="w-6 h-6 rounded-full object-cover shrink-0" />
-                ) : (
-                  <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                    <User className="w-3.5 h-3.5 text-primary" />
+              {/* User avatar dropdown */}
+              <div ref={userMenuRef} className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-1.5 hover:opacity-80 transition-opacity px-1.5 py-1 rounded-md hover:bg-bg-input"
+                >
+                  {user.avatar ? (
+                    <img src={user.avatar} alt={user.username} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                      <User className="w-3.5 h-3.5 text-primary" />
+                    </div>
+                  )}
+                  <span className="text-sm font-medium max-w-[80px] truncate">{user.username}</span>
+                  <ChevronDown className={`w-3 h-3 text-text-dim transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
+                </button>
+
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-full mt-1.5 w-52 bg-bg border border-border rounded-lg shadow-xl py-1 z-50">
+                    {/* User info header */}
+                    <div className="px-3 py-2.5 border-b border-border">
+                      <div className="text-sm font-medium text-text truncate">{user.username}</div>
+                      <div className="text-xs text-text-dim truncate mt-0.5">{user.email}</div>
+                    </div>
+
+                    <div className="py-1">
+                      <Link
+                        href={`/profile/${user.id}`}
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-text hover:bg-bg-input transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <User className="w-4 h-4" />
+                        {t("nav.profile")}
+                      </Link>
+                      <Link
+                        href="/bookmarks"
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-text hover:bg-bg-input transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Bookmark className="w-4 h-4" />
+                        {t("nav.bookmarks")}
+                      </Link>
+                      <Link
+                        href="/feed"
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-text hover:bg-bg-input transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Rss className="w-4 h-4" />
+                        {t("nav.feed")}
+                      </Link>
+                      <Link
+                        href="/dashboard"
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-text hover:bg-bg-input transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <BarChart3 className="w-4 h-4" />
+                        {t("nav.dashboard")}
+                      </Link>
+                      <Link
+                        href="/agents"
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-text hover:bg-bg-input transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Bot className="w-4 h-4" />
+                        {t("nav.myAgents")}
+                      </Link>
+                    </div>
+
+                    <div className="border-t border-border my-1" />
+
+                    <div className="py-1">
+                      <Link
+                        href="/settings"
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-text hover:bg-bg-input transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Settings className="w-4 h-4" />
+                        {t("nav.settings")}
+                      </Link>
+                      <button
+                        onClick={() => {
+                          setUserMenuOpen(false);
+                          handleLogout();
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-accent-red hover:bg-bg-input transition-colors w-full text-left"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        {t("nav.logout")}
+                      </button>
+                    </div>
                   </div>
                 )}
-                <span className="text-sm font-medium max-w-[80px] truncate">{user.username}</span>
-              </Link>
-              <Link
-                href="/settings"
-                className="text-text-dim hover:text-text transition-colors p-1.5 rounded-md hover:bg-bg-input"
-                title="Settings"
-              >
-                <Settings className="w-4 h-4" />
-              </Link>
-              <button
-                onClick={handleLogout}
-                className="text-text-dim hover:text-accent-red transition-colors p-1.5 rounded-md hover:bg-bg-input"
-                title="Logout"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
+              </div>
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -285,7 +335,7 @@ export function Navbar() {
                 href="/register"
                 className="text-sm text-text-muted hover:text-text border border-border px-3 py-1.5 rounded-md transition-colors hover:bg-bg-input"
               >
-                Sign up
+                {t("nav.signup")}
               </Link>
               <Link
                 href="/login"
@@ -327,116 +377,65 @@ export function Navbar() {
               }}
             />
           </div>
-          <Link
-            href="/"
-            className="block text-sm text-text-muted hover:text-text py-1"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link href="/" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.home")}
           </Link>
-          <Link
-            href="/categories"
-            className="block text-sm text-text-muted hover:text-text py-1"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link href="/categories" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.categories")}
           </Link>
-          <Link
-            href="/agents"
-            className="block text-sm text-text-muted hover:text-text py-1"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link href="/agents" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.agents")}
           </Link>
-          <Link
-            href="/tags"
-            className="block text-sm text-text-muted hover:text-text py-1"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link href="/tags" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.tags")}
           </Link>
-          <Link
-            href="/trending"
-            className="block text-sm text-text-muted hover:text-text py-1"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link href="/trending" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.trending")}
           </Link>
-          <Link
-            href="/arena"
-            className="block text-sm text-text-muted hover:text-text py-1"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link href="/arena" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.arena")}
           </Link>
-          <Link
-            href="/mcp"
-            className="block text-sm text-text-muted hover:text-text py-1"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link href="/mcp" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.mcp")}
           </Link>
-          <Link
-            href="/help"
-            className="block text-sm text-text-muted hover:text-text py-1"
-            onClick={() => setMenuOpen(false)}
-          >
+          <Link href="/help" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.help")}
           </Link>
           {user ? (
             <>
-              <Link
-                href="/bookmarks"
-                className="block text-sm text-text-muted hover:text-text py-1"
-                onClick={() => setMenuOpen(false)}
-              >
-                {t("nav.bookmarks") || "Bookmarks"}
+              <div className="border-t border-border my-2" />
+              <div className="text-xs text-text-dim px-1 py-1">{user.username}</div>
+              <Link href={`/profile/${user.id}`} className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
+                {t("nav.profile")}
               </Link>
-              <Link
-                href="/feed"
-                className="block text-sm text-text-muted hover:text-text py-1"
-                onClick={() => setMenuOpen(false)}
-              >
-                {t("nav.feed") || "Feed"}
+              <Link href="/bookmarks" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
+                {t("nav.bookmarks")}
               </Link>
-              <Link
-                href="/notifications"
-                className="block text-sm text-text-muted hover:text-text py-1"
-                onClick={() => setMenuOpen(false)}
-              >
+              <Link href="/feed" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
+                {t("nav.feed")}
+              </Link>
+              <Link href="/notifications" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
                 {t("nav.notifications")} {unreadCount > 0 && `(${unreadCount})`}
               </Link>
-              <Link
-                href="/settings"
-                className="block text-sm text-text-muted hover:text-text py-1"
-                onClick={() => setMenuOpen(false)}
-              >
-                Settings
+              <Link href="/dashboard" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
+                {t("nav.dashboard")}
+              </Link>
+              <Link href="/settings" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
+                {t("nav.settings")}
               </Link>
               <button
-                onClick={() => {
-                  handleLogout();
-                  setMenuOpen(false);
-                }}
+                onClick={() => { handleLogout(); setMenuOpen(false); }}
                 className="block text-sm text-accent-red py-1"
               >
-                Logout
+                {t("nav.logout")}
               </button>
             </>
           ) : (
             <>
-              <Link
-                href="/register"
-                className="block text-sm text-text-muted hover:text-text py-1"
-                onClick={() => setMenuOpen(false)}
-              >
-                Sign up
+              <Link href="/register" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
+                {t("nav.signup")}
               </Link>
-              <Link
-                href="/login"
-                className="block text-sm text-primary py-1"
-                onClick={() => setMenuOpen(false)}
-              >
+              <Link href="/login" className="block text-sm text-primary py-1" onClick={() => setMenuOpen(false)}>
                 {t("nav.login")}
               </Link>
             </>
