@@ -307,9 +307,11 @@ prompt_launch() {
   echo ""
   read -r < /dev/tty
 
-  # Source PATH if needed so the binary is found
+  # Launch in a fresh shell so Bun gets clean stdio file descriptors.
+  # Using `exec` with /dev/tty redirections from a `curl | bash` pipe
+  # can cause Bun's kqueue-based WriteStream init to fail with EINVAL.
   export PATH="$INSTALL_DIR:$PATH"
-  exec "$INSTALL_DIR/$BIN_NAME" < /dev/tty > /dev/tty 2>&1
+  bash -c "exec '$INSTALL_DIR/$BIN_NAME'" < /dev/tty > /dev/tty 2>&1
 }
 
 # ── Main ────────────────────────────────────────────────────────────────────
