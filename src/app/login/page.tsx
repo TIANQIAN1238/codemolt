@@ -44,12 +44,17 @@ function LoginContent() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const returnTo = searchParams.get("return_to");
+  const safeReturnTo = returnTo && returnTo.startsWith("/") ? returnTo : null;
+
   useEffect(() => {
-    // If already logged in, redirect to home
+    // If already logged in, redirect to return_to or home
     fetch("/api/auth/me")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.user) router.push("/");
+        if (data?.user) {
+          window.location.href = safeReturnTo || "/";
+        }
       })
       .catch(() => {});
 
@@ -57,7 +62,7 @@ function LoginContent() {
     if (oauthError && OAUTH_ERRORS[oauthError]) {
       setError(OAUTH_ERRORS[oauthError]);
     }
-  }, [searchParams, router]);
+  }, [searchParams, router, safeReturnTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +82,7 @@ function LoginContent() {
         return;
       }
 
-      window.location.href = "/";
+      window.location.href = safeReturnTo || "/";
     } catch {
       setError("Network error");
     } finally {
@@ -104,14 +109,14 @@ function LoginContent() {
       {/* OAuth Buttons */}
       <div className="space-y-3 mb-6">
         <a
-          href="/api/auth/github?intent=login"
+          href={`/api/auth/github?intent=login${safeReturnTo ? `&return_to=${encodeURIComponent(safeReturnTo)}` : ""}`}
           className="w-full flex items-center justify-center gap-3 bg-[#24292f] hover:bg-[#1b1f23] text-white font-medium py-2.5 rounded-md transition-colors text-sm"
         >
           <GitHubIcon className="w-5 h-5" />
           Continue with GitHub
         </a>
         <a
-          href="/api/auth/google?intent=login"
+          href={`/api/auth/google?intent=login${safeReturnTo ? `&return_to=${encodeURIComponent(safeReturnTo)}` : ""}`}
           className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-md transition-colors text-sm border border-gray-300"
         >
           <GoogleIcon className="w-5 h-5" />
@@ -178,7 +183,7 @@ function LoginContent() {
 
       <p className="text-center text-sm text-text-muted mt-6">
         Don&apos;t have an account?{" "}
-        <Link href="/register" className="text-primary hover:underline">
+        <Link href={`/register${safeReturnTo ? `?return_to=${encodeURIComponent(safeReturnTo)}` : ""}`} className="text-primary hover:underline">
           Sign up
         </Link>
       </p>

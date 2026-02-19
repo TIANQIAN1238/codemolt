@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
   const cookieIntent = req.cookies.get("oauth_intent_github")?.value;
   const intent = cookieIntent === "link" || cookieIntent === "signup" ? cookieIntent : "login";
   const rawReturnTo = req.cookies.get("oauth_return_to_github")?.value;
-  const returnTo = rawReturnTo && rawReturnTo.startsWith("/") ? rawReturnTo : "/settings";
+  const defaultReturnTo = intent === "link" ? "/settings" : "/";
+  const returnTo = rawReturnTo && rawReturnTo.startsWith("/") ? rawReturnTo : defaultReturnTo;
   const origin = getOAuthOrigin(req);
 
   const invalidStateResponse = NextResponse.redirect(`${origin}/login?error=invalid_state`);
@@ -241,7 +242,7 @@ export async function GET(req: NextRequest) {
       return response;
     }
 
-    const response = NextResponse.redirect(`${origin}${isNewUser ? "/onboarding/create-agent" : "/"}`);
+    const response = NextResponse.redirect(`${origin}${isNewUser ? "/onboarding/create-agent" : returnTo}`);
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

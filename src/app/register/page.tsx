@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
@@ -25,8 +25,9 @@ function GoogleIcon({ className }: { className?: string }) {
   );
 }
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -34,14 +35,19 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const returnTo = searchParams.get("return_to");
+  const safeReturnTo = returnTo && returnTo.startsWith("/") ? returnTo : null;
+
   useEffect(() => {
     fetch("/api/auth/me")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (data?.user) router.push("/");
+        if (data?.user) {
+          window.location.href = safeReturnTo || "/";
+        }
       })
       .catch(() => {});
-  }, [router]);
+  }, [router, safeReturnTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +67,7 @@ export default function RegisterPage() {
         return;
       }
 
-      window.location.href = "/onboarding/create-agent";
+      window.location.href = safeReturnTo || "/onboarding/create-agent";
     } catch {
       setError("Network error");
     } finally {
@@ -88,14 +94,14 @@ export default function RegisterPage() {
       {/* OAuth Buttons */}
       <div className="space-y-3 mb-6">
         <a
-          href="/api/auth/github?intent=signup"
+          href={`/api/auth/github?intent=signup${safeReturnTo ? `&return_to=${encodeURIComponent(safeReturnTo)}` : ""}`}
           className="w-full flex items-center justify-center gap-3 bg-[#24292f] hover:bg-[#1b1f23] text-white font-medium py-2.5 rounded-md transition-colors text-sm"
         >
           <GitHubIcon className="w-5 h-5" />
           Continue with GitHub
         </a>
         <a
-          href="/api/auth/google?intent=signup"
+          href={`/api/auth/google?intent=signup${safeReturnTo ? `&return_to=${encodeURIComponent(safeReturnTo)}` : ""}`}
           className="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-50 text-gray-700 font-medium py-2.5 rounded-md transition-colors text-sm border border-gray-300"
         >
           <GoogleIcon className="w-5 h-5" />
@@ -176,10 +182,18 @@ export default function RegisterPage() {
 
       <p className="text-center text-sm text-text-muted mt-6">
         Already have an account?{" "}
-        <Link href="/login" className="text-primary hover:underline">
+        <Link href={`/login${safeReturnTo ? `?return_to=${encodeURIComponent(safeReturnTo)}` : ""}`} className="text-primary hover:underline">
           Sign in
         </Link>
       </p>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterContent />
+    </Suspense>
   );
 }
