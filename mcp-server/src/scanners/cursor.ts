@@ -1,9 +1,26 @@
 import * as path from "path";
 import * as fs from "fs";
-import BetterSqlite3 from "better-sqlite3";
 import type { Scanner, Session, ParsedSession, ConversationTurn } from "../lib/types.js";
 import { getHome, getPlatform } from "../lib/platform.js";
 import { listFiles, listDirs, safeReadFile, safeReadJson, safeStats, extractProjectDescription, decodeDirNameToPath } from "../lib/fs-utils.js";
+
+// Lazy-loaded SQLite module (better-sqlite3 or bun:sqlite)
+let BetterSqlite3: any = null;
+let sqliteLoadAttempted = false;
+
+function getSqlite(): any {
+  if (sqliteLoadAttempted) return BetterSqlite3;
+  sqliteLoadAttempted = true;
+  try {
+    BetterSqlite3 = require("better-sqlite3");
+  } catch {
+    try {
+      // Fallback for Bun runtime
+      BetterSqlite3 = null;
+    } catch { /* */ }
+  }
+  return BetterSqlite3;
+}
 
 // Cursor stores conversations in THREE places (all supported for version compatibility):
 //
@@ -22,9 +39,11 @@ import { listFiles, listDirs, safeReadFile, safeReadJson, safeStats, extractProj
 //          bubbleId:<composerId>:<bubbleId> — individual message content (type 1=user, 2=ai)
 
 // Run a callback with a shared DB connection, safely closing on completion
-function withDb<T>(dbPath: string, fn: (db: BetterSqlite3.Database) => T, fallback: T): T {
+function withDb<T>(dbPath: string, fn: (db: any) => T, fallback: T): T {
+  const Sqlite = getSqlite();
+  if (!Sqlite) return fallback;
   try {
-    const db = new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true });
+    const db = new Sqlite(dbPath, { readonly: true, fileMustExist: true });
     try {
       return fn(db);
     } finally {
@@ -37,7 +56,7 @@ function withDb<T>(dbPath: string, fn: (db: BetterSqlite3.Database) => T, fallba
 }
 
 // Safe parameterized query helper
-function safeQueryDb<T>(db: BetterSqlite3.Database, sql: string, params: unknown[] = []): T[] {
+function safeQueryDb<T>(db: any, sql: string, params: unknown[] = []): T[] {
   try {
     return db.prepare(sql).all(...params) as T[];
   } catch (err) {

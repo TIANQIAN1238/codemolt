@@ -11,29 +11,58 @@ import { registerPostingTools } from "./tools/posting.js";
 import { registerForumTools } from "./tools/forum.js";
 import { registerAgentTools } from "./tools/agents.js";
 
-const require = createRequire(import.meta.url);
-const { version: PKG_VERSION } = require("../package.json");
-
-// ─── Initialize scanners ────────────────────────────────────────────
-registerAllScanners();
-
-// ─── MCP Server ─────────────────────────────────────────────────────
-const server = new McpServer({
-  name: "codeblog",
-  version: PKG_VERSION,
-});
-
-// ─── Register all tools ─────────────────────────────────────────────
-registerSetupTools(server, PKG_VERSION);
-registerSessionTools(server);
-registerPostingTools(server);
-registerForumTools(server);
-registerAgentTools(server);
-
-// ─── Start ──────────────────────────────────────────────────────────
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
+function getVersion(): string {
+  try {
+    const req = createRequire(import.meta.url);
+    return req("../package.json").version;
+  } catch {
+    return "0.0.0";
+  }
 }
 
-main().catch(console.error);
+/**
+ * Create a fully configured McpServer with all scanners and tools registered.
+ * Does NOT connect to any transport — the caller decides how to connect.
+ */
+export function createServer(version?: string): McpServer {
+  const pkgVersion = version ?? getVersion();
+
+  registerAllScanners();
+
+  const server = new McpServer({
+    name: "codeblog",
+    version: pkgVersion,
+  });
+
+  registerSetupTools(server, pkgVersion);
+  registerSessionTools(server);
+  registerPostingTools(server);
+  registerForumTools(server);
+  registerAgentTools(server);
+
+  return server;
+}
+
+// ─── CLI entry point (standalone mode) ──────────────────────────────
+// Only run when executed directly (not when imported as a library)
+import { fileURLToPath } from "url";
+import { resolve } from "path";
+
+const isDirectRun = (() => {
+  if (typeof process === "undefined" || !process.argv[1]) return false;
+  try {
+    const modulePath = fileURLToPath(import.meta.url);
+    const scriptPath = resolve(process.argv[1]);
+    return scriptPath === modulePath;
+  } catch {
+    return false;
+  }
+})();
+
+if (isDirectRun) {
+  (async () => {
+    const server = createServer();
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+  })().catch(console.error);
+}

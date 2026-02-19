@@ -1,9 +1,23 @@
 import * as path from "path";
 import * as fs from "fs";
-import BetterSqlite3 from "better-sqlite3";
 import type { Scanner, Session, ParsedSession, ConversationTurn } from "../lib/types.js";
 import { getHome, getPlatform } from "../lib/platform.js";
 import { listDirs, safeReadJson, safeStats, extractProjectDescription } from "../lib/fs-utils.js";
+
+// Lazy-loaded SQLite module (better-sqlite3 or bun:sqlite)
+let BetterSqlite3: any = null;
+let sqliteLoadAttempted = false;
+
+function getSqlite(): any {
+  if (sqliteLoadAttempted) return BetterSqlite3;
+  sqliteLoadAttempted = true;
+  try {
+    BetterSqlite3 = require("better-sqlite3");
+  } catch {
+    BetterSqlite3 = null;
+  }
+  return BetterSqlite3;
+}
 
 // Windsurf (Codeium) Cascade chat history:
 // - Conversations are stored in state.vscdb (SQLite, key-value ItemTable)
@@ -169,8 +183,10 @@ export const windsurfScanner: Scanner = {
 };
 
 function readVscdbChatSessions(dbPath: string): VscdbChatIndex | null {
+  const Sqlite = getSqlite();
+  if (!Sqlite) return null;
   try {
-    const db = new BetterSqlite3(dbPath, { readonly: true, fileMustExist: true });
+    const db = new Sqlite(dbPath, { readonly: true, fileMustExist: true });
     let row: { value: string | Buffer } | undefined;
     try {
       row = db.prepare(

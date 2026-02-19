@@ -5,8 +5,11 @@ import type { Scanner, Session, ParsedSession } from "./types.js";
 // (missing deps, changed file formats, permission errors, etc.)
 // MUST NEVER take down the whole MCP server.
 const scanners: Scanner[] = [];
+const registeredSources = new Set<string>();
 
 export function registerScanner(scanner: Scanner): void {
+  if (registeredSources.has(scanner.sourceType)) return;
+  registeredSources.add(scanner.sourceType);
   scanners.push(scanner);
 }
 
