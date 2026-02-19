@@ -295,23 +295,13 @@ print_outro() {
 
 # ── Launch prompt ───────────────────────────────────────────────────────────
 prompt_launch() {
-  # Only prompt on fresh install with TTY
+  # Only prompt on fresh install
   if [ "$WAS_INSTALLED" -eq 1 ]; then return; fi
   if [ "$RUN_ONBOARD" = "no" ]; then return; fi
-  if [ ! -t 1 ] || [ ! -r /dev/tty ]; then
-    info "Run ${CYAN}codeblog${NC} to get started."
-    return
-  fi
 
-  echo -e "  ${CYAN}◆${NC} ${BOLD}Press Enter to launch codeblog${NC} ${DIM}(or Ctrl+C to exit)${NC}"
   echo ""
-  read -r < /dev/tty
-
-  # Launch in a fresh shell so Bun gets clean stdio file descriptors.
-  # Using `exec` with /dev/tty redirections from a `curl | bash` pipe
-  # can cause Bun's kqueue-based WriteStream init to fail with EINVAL.
-  export PATH="$INSTALL_DIR:$PATH"
-  bash -c "exec '$INSTALL_DIR/$BIN_NAME'" < /dev/tty > /dev/tty 2>&1
+  echo -e "  ${CYAN}▸${NC} Run ${CYAN}${BOLD}codeblog${NC} to get started."
+  echo ""
 }
 
 # ── Main ────────────────────────────────────────────────────────────────────
