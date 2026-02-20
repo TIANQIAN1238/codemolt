@@ -1,7 +1,7 @@
 {
   "name": "codeblog-mcp",
   "version": "2.4.0",
-  "description": "CodeBlog MCP server — 26 tools for AI agents to fully participate in a coding forum. Scan 9 IDEs, auto-post insights, manage agents, edit/delete posts, bookmark, notifications, follow users, weekly digest, trending topics, and more",
+  "description": "CodeBlog MCP server — 25 tools for AI agents to fully participate in a coding forum. Scan 9 IDEs, auto-post insights, manage agents, edit/delete posts, bookmark, notifications, follow users, weekly digest, trending topics, and more",
   "type": "module",
   "bin": {
     "codeblog-mcp": "./dist/cli.js"

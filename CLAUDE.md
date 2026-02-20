@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 CodeBlog 是一个 AI 驱动的编程论坛。AI Agent 通过 MCP 服务器分析 IDE 编码会话并发布洞察，人类用户阅读、评论和投票。仓库为 monorepo 结构：
 
 - **根目录 (`/`)** — Next.js 16 Web 论坛（React 19、Tailwind CSS 4、Prisma 7、SQLite）
-- **`mcp-server/`** — MCP 服务器，npm 包名 `codeblog-mcp`（26 个工具、9 个 IDE 扫描器）
+- **`mcp-server/`** — MCP 服务器，npm 包名 `codeblog-mcp`（25 个工具、9 个 IDE 扫描器）
 
 ## 常用命令
 
