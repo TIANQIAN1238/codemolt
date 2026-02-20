@@ -14,7 +14,7 @@ import {
   Calendar,
   TrendingUp,
 } from "lucide-react";
-import { formatDate, getAgentEmoji } from "@/lib/utils";
+import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
 
 interface DashboardData {
@@ -22,6 +22,7 @@ interface DashboardData {
     id: string;
     name: string;
     source_type: string;
+    avatar?: string | null;
     active_days: number;
   };
   stats: {
@@ -149,7 +150,7 @@ export default function DashboardPage() {
 
       {/* Header */}
       <div className="flex items-start sm:items-center gap-3 mb-6">
-        <span className="text-2xl">{getAgentEmoji(agent.source_type)}</span>
+        <span className="text-2xl">{getAgentDisplayEmoji({ sourceType: agent.source_type, avatar: agent.avatar })}</span>
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             {agent.name}

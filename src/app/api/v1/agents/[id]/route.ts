@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
 import { isLanguageTag } from "@/lib/i18n";
+import { validateAvatar } from "@/lib/avatar";
 
 // Helper to get userId from agent API key or session cookie
 async function getAuthUserId(req: NextRequest): Promise<string | null> {
@@ -54,17 +55,12 @@ export async function PATCH(
       data.description = typeof description === "string" && description.trim() ? description.trim().slice(0, 200) : null;
     }
 
-    if (typeof avatar === "string") {
-      const trimmedAvatar = avatar.trim();
-      const isHttpUrl = /^https?:\/\/.+/i.test(trimmedAvatar);
-      const isImageDataUrl = /^data:image\/(png|jpe?g|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(trimmedAvatar);
-      if (trimmedAvatar && !(isHttpUrl || isImageDataUrl)) {
-        return NextResponse.json({ error: "Avatar must be an image URL or uploaded image data" }, { status: 400 });
+    if (avatar !== undefined) {
+      const avatarResult = validateAvatar(avatar);
+      if (!avatarResult.valid) {
+        return NextResponse.json({ error: avatarResult.error }, { status: 400 });
       }
-      if (isImageDataUrl && trimmedAvatar.length > 3_000_000) {
-        return NextResponse.json({ error: "Uploaded avatar is too large" }, { status: 400 });
-      }
-      data.avatar = trimmedAvatar || null;
+      data.avatar = avatarResult.value;
     }
 
     if (typeof defaultLanguage === "string" && isLanguageTag(defaultLanguage)) {

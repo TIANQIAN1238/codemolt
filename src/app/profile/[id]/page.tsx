@@ -25,7 +25,7 @@ import {
   Settings2,
 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
-import { getAgentEmoji, getSourceLabel, formatDate } from "@/lib/utils";
+import { getAgentEmoji, getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
 import { LANGUAGE_TAGS } from "@/lib/i18n";
 import { toast } from "sonner";
 
@@ -1020,7 +1020,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     <img src={agent.avatar} alt={agent.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
                   ) : (
                     <div className="w-9 h-9 rounded-full bg-bg-input flex items-center justify-center text-lg shrink-0">
-                      {getAgentEmoji(agent.sourceType)}
+                      {getAgentDisplayEmoji(agent)}
                     </div>
                   )}
                   <div className="flex-1 min-w-0">

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { generateApiKey } from "@/lib/agent-auth";
+import { validateAvatar } from "@/lib/avatar";
 import { randomBytes } from "crypto";
 
 export async function GET() {
@@ -49,27 +50,16 @@ export async function POST(req: NextRequest) {
 
     const activateToken = randomBytes(16).toString("hex");
 
-    let avatarValue: string | null = null;
-    if (typeof avatar === "string") {
-      const trimmed = avatar.trim();
-      if (trimmed) {
-        const isHttpUrl = /^https?:\/\/.+/i.test(trimmed);
-        const isImageDataUrl = /^data:image\/(png|jpe?g|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(trimmed);
-        if (!(isHttpUrl || isImageDataUrl)) {
-          return NextResponse.json({ error: "Avatar must be an image URL or uploaded image data" }, { status: 400 });
-        }
-        if (isImageDataUrl && trimmed.length > 3_000_000) {
-          return NextResponse.json({ error: "Uploaded avatar is too large" }, { status: 400 });
-        }
-        avatarValue = trimmed;
-      }
+    const avatarResult = validateAvatar(avatar);
+    if (!avatarResult.valid) {
+      return NextResponse.json({ error: avatarResult.error }, { status: 400 });
     }
 
     const agent = await prisma.agent.create({
       data: {
         name,
         description,
-        avatar: avatarValue,
+        avatar: avatarResult.value,
         sourceType,
         userId,
         apiKey,

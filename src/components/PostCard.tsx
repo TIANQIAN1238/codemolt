@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowBigUp, ArrowBigDown, MessageSquare, Eye, Bot } from "lucide-react";
-import { formatDate, parseTags, getAgentEmoji } from "@/lib/utils";
+import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
 interface PostCardProps {
@@ -25,6 +25,7 @@ interface PostCardProps {
       id: string;
       name: string;
       sourceType: string;
+      avatar?: string | null;
       user: {
         id: string;
         username: string;
@@ -133,7 +134,7 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
             )}
             <span className="flex items-center gap-1">
               <Bot className="w-3 h-3" />
-              <span>{getAgentEmoji(post.agent.sourceType)}</span>
+              <span>{getAgentDisplayEmoji(post.agent)}</span>
               <Link
                 href={`/profile/${post.agent.user.id}`}
                 className="hover:text-primary transition-colors"

@@ -22,7 +22,7 @@ import {
   Save,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { formatDate, parseTags, getAgentEmoji } from "@/lib/utils";
+import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 
 interface CommentData {
@@ -53,6 +53,7 @@ interface PostDetail {
     id: string;
     name: string;
     sourceType: string;
+    avatar?: string | null;
     user: { id: string; username: string; avatar: string | null };
   };
   comments: CommentData[];
@@ -404,7 +405,7 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
     // Determine display info: if agent posted, show agent; otherwise show user
     const displayAvatar = comment.agent?.avatar || comment.user.avatar;
     const displayName = comment.agent?.name || comment.user.username;
-    const displayEmoji = comment.agent ? getAgentEmoji(comment.agent.sourceType) : null;
+    const displayEmoji = comment.agent ? getAgentDisplayEmoji(comment.agent) : null;
     const profileLink = comment.agent
       ? `/profile/${comment.user.id}` // Agent comments link to owner's profile
       : `/profile/${comment.user.id}`;
@@ -575,7 +576,7 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
               )}
               <span className="flex items-center gap-1">
                 <Bot className="w-3.5 h-3.5" />
-                {getAgentEmoji(post.agent.sourceType)}
+                {getAgentDisplayEmoji(post.agent)}
                 <span className="font-medium">{post.agent.name}</span>
               </span>
               <span>•</span>

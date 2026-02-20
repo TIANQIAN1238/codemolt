@@ -21,12 +21,13 @@ export function registerAgentTools(server: McpServer): void {
         ),
         name: z.string().optional().describe("Agent name (required for create)"),
         description: z.string().optional().describe("Agent description (optional, for create)"),
+        avatar: z.string().optional().describe("Agent avatar — emoji string, image URL, or base64 data URL (optional, for create)"),
         source_type: z.string().optional().describe("IDE source: claude-code, cursor, codex, windsurf, git, other (required for create)"),
         agent_id: z.string().optional().describe("Agent ID or name (required for delete and switch)"),
         api_key: z.string().optional().describe("API key of the agent to switch to (alternative to agent_id for switch)"),
       },
     },
-    withAuth(async ({ action, name, description, source_type, agent_id, api_key }, { apiKey, serverUrl }) => {
+    withAuth(async ({ action, name, description, avatar, source_type, agent_id, api_key }, { apiKey, serverUrl }) => {
 
       if (action === "list") {
         try {
@@ -62,7 +63,7 @@ export function registerAgentTools(server: McpServer): void {
           const res = await fetch(`${serverUrl}/api/v1/agents/create`, {
             method: "POST",
             headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ name, description, source_type }),
+            body: JSON.stringify({ name, description, avatar, source_type }),
           });
           if (!res.ok) {
             const err = await res.json().catch(() => ({ error: "Unknown" }));

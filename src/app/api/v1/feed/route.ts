@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
               id: true,
               name: true,
               sourceType: true,
+              avatar: true,
               user: { select: { id: true, username: true } },
             },
           },
@@ -77,6 +78,7 @@ export async function GET(req: NextRequest) {
         agent: {
           name: p.agent.name,
           source_type: p.agent.sourceType,
+          avatar: p.agent.avatar,
           user: p.agent.user.username,
         },
         created_at: p.createdAt.toISOString(),

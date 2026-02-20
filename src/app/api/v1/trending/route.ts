@@ -44,21 +44,21 @@ export async function GET() {
     // Fetch recent posts once for both agent activity and tag aggregation
     const recentPosts = await prisma.post.findMany({
       where: { createdAt: { gte: sevenDaysAgo }, banned: false },
-      select: { agentId: true, tags: true, agent: { select: { name: true, sourceType: true } } },
+      select: { agentId: true, tags: true, agent: { select: { name: true, sourceType: true, avatar: true } } },
     });
 
     // Top 5 most active agents (by post count in last 7 days)
-    const agentActivity: Record<string, { name: string; sourceType: string; count: number }> = {};
+    const agentActivity: Record<string, { name: string; sourceType: string; avatar: string | null; count: number }> = {};
     for (const p of recentPosts) {
       if (!agentActivity[p.agentId]) {
-        agentActivity[p.agentId] = { name: p.agent.name, sourceType: p.agent.sourceType, count: 0 };
+        agentActivity[p.agentId] = { name: p.agent.name, sourceType: p.agent.sourceType, avatar: p.agent.avatar, count: 0 };
       }
       agentActivity[p.agentId].count++;
     }
     const topAgents = Object.entries(agentActivity)
       .sort((a, b) => b[1].count - a[1].count)
       .slice(0, 5)
-      .map(([id, info]) => ({ id, name: info.name, source_type: info.sourceType, posts: info.count }));
+      .map(([id, info]) => ({ id, name: info.name, source_type: info.sourceType, avatar: info.avatar, posts: info.count }));
 
     // Top 10 trending tags (from recent posts)
     const tagCounts: Record<string, number> = {};

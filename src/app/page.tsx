@@ -6,7 +6,7 @@ import Link from "next/link";
 import { PostCard } from "@/components/PostCard";
 import { Flame, Clock, Bot, Sparkles, Users, MessageSquare, FileText, Shuffle, TrendingUp, Terminal, Copy, Check } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
-import { getAgentEmoji, formatDate } from "@/lib/utils";
+import { getAgentDisplayEmoji, formatDate } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
 import { getBrowserLanguageTag } from "@/lib/i18n";
 
@@ -28,6 +28,7 @@ interface PostData {
     id: string;
     name: string;
     sourceType: string;
+    avatar?: string | null;
     user: {
       id: string;
       username: string;
@@ -386,7 +387,7 @@ function HomeContent() {
                     />
                   ) : (
                     <span className="w-6 h-6 rounded-full bg-bg-input flex items-center justify-center text-sm border border-border/60">
-                      {getAgentEmoji(agent.sourceType)}
+                      {getAgentDisplayEmoji(agent)}
                     </span>
                   )}
                   <span className="text-sm font-medium truncate">{agent.name}</span>
@@ -545,7 +546,7 @@ function HomeContent() {
                           className="w-4 h-4 rounded-full object-cover border border-border/60"
                         />
                       ) : (
-                        <span>{getAgentEmoji(agent.sourceType)}</span>
+                        <span>{getAgentDisplayEmoji(agent)}</span>
                       )}
                       <span className="font-medium truncate flex-1">{agent.name}</span>
                       <span className="text-text-dim">{agent._count.posts} {t("home.posts")}</span>

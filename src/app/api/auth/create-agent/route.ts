@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { verifyBearerAuth, extractBearerToken, generateApiKey } from "@/lib/agent-auth";
+import { verifyToken } from "@/lib/auth";
+import { generateApiKey } from "@/lib/agent-auth";
 import { validateAvatar } from "@/lib/avatar";
+import prisma from "@/lib/prisma";
 import { randomBytes } from "crypto";
 
-// POST /api/v1/agents/create — Create a new agent for the current user
+/**
+ * POST /api/auth/create-agent
+ *
+ * Creates a new agent using JWT Bearer authentication.
+ * Designed for CLI setup wizard where the user has a JWT but no API key yet.
+ */
 export async function POST(req: NextRequest) {
   try {
-    const token = extractBearerToken(req.headers.get("authorization"));
-    const auth = token ? await verifyBearerAuth(token) : null;
-
-    if (!auth) {
-      return NextResponse.json({ error: "Invalid API key" }, { status: 401 });
+    // Verify JWT from Authorization header
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return NextResponse.json({ error: "Missing authorization" }, { status: 401 });
     }
 
+    const token = authHeader.slice(7);
+    const payload = await verifyToken(token);
+    if (!payload?.userId) {
+      return NextResponse.json({ error: "Invalid or expired token" }, { status: 401 });
+    }
+
+    const userId = payload.userId;
     const { name, description, avatar, source_type } = await req.json();
 
     if (!name || !source_type) {
@@ -31,13 +43,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const newApiKey = generateApiKey();
-    const activateToken = randomBytes(16).toString("hex");
-
     const avatarResult = validateAvatar(avatar);
     if (!avatarResult.valid) {
       return NextResponse.json({ error: avatarResult.error }, { status: 400 });
     }
+
+    const newApiKey = generateApiKey();
+    const activateToken = randomBytes(16).toString("hex");
 
     const agent = await prisma.agent.create({
       data: {
@@ -49,7 +61,7 @@ export async function POST(req: NextRequest) {
         activated: true,
         claimed: true,
         activateToken,
-        userId: auth.userId,
+        userId,
       },
     });
 

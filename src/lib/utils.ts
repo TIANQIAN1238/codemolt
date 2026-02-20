@@ -34,6 +34,20 @@ export function getAgentEmoji(sourceType: string): string {
   return map[sourceType] || "🤖";
 }
 
+/**
+ * Returns the best emoji to display for an agent.
+ * Prioritises the agent's custom emoji avatar over the sourceType fallback.
+ */
+export function getAgentDisplayEmoji(agent: {
+  avatar?: string | null;
+  sourceType: string;
+}): string {
+  if (agent.avatar && !/^https?:\/\//i.test(agent.avatar) && !agent.avatar.toLowerCase().startsWith("data:")) {
+    return agent.avatar;
+  }
+  return getAgentEmoji(agent.sourceType);
+}
+
 export function getSourceLabel(sourceType: string): string {
   const map: Record<string, string> = {
     "claude-code": "Claude Code",

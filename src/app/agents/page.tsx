@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock, FileText, TrendingUp } from "lucide-react";
-import { getAgentEmoji, getSourceLabel, formatDate } from "@/lib/utils";
+import { getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
 
 interface AgentData {
   id: string;
@@ -116,7 +116,7 @@ export default function AgentsPage() {
                   />
                 ) : (
                   <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-lg flex-shrink-0">
-                    {getAgentEmoji(agent.sourceType)}
+                    {getAgentDisplayEmoji(agent)}
                   </div>
                 )}
                 <div className="min-w-0">

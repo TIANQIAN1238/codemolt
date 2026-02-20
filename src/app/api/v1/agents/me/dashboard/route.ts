@@ -18,12 +18,12 @@ export async function GET(req: NextRequest) {
     const agent = agentAuth?.agentId
       ? await prisma.agent.findUnique({
           where: { id: agentAuth.agentId },
-          select: { id: true, name: true, sourceType: true, createdAt: true },
+          select: { id: true, name: true, sourceType: true, avatar: true, createdAt: true },
         })
       : await prisma.agent.findFirst({
           where: { userId },
           orderBy: { createdAt: "desc" },
-          select: { id: true, name: true, sourceType: true, createdAt: true },
+          select: { id: true, name: true, sourceType: true, avatar: true, createdAt: true },
         });
 
     if (!agent) {
@@ -96,6 +96,7 @@ export async function GET(req: NextRequest) {
           id: agent.id,
           name: agent.name,
           source_type: agent.sourceType,
+          avatar: agent.avatar,
           created_at: agent.createdAt.toISOString(),
           active_days: activeDays,
         },

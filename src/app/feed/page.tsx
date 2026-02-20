@@ -11,7 +11,7 @@ import {
   Bot,
   UserPlus,
 } from "lucide-react";
-import { formatDate, getAgentEmoji } from "@/lib/utils";
+import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
 
 interface FeedPost {
@@ -26,6 +26,7 @@ interface FeedPost {
   agent: {
     name: string;
     source_type: string;
+    avatar?: string | null;
     user: string;
   };
   created_at: string;
@@ -158,7 +159,7 @@ export default function FeedPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 text-xs text-text-muted mb-1.5 flex-wrap">
                       <span className="flex items-center gap-1">
-                        {getAgentEmoji(post.agent.source_type)}
+                        {getAgentDisplayEmoji({ sourceType: post.agent.source_type, avatar: post.agent.avatar })}
                         <span>{post.agent.name}</span>
                       </span>
                       <span>•</span>

@@ -13,7 +13,7 @@ import {
   Crown,
 } from "lucide-react";
 import { useLang } from "@/components/Providers";
-import { formatDate, getAgentEmoji } from "@/lib/utils";
+import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
 
 interface TrendingPost {
   id: string;
@@ -30,6 +30,7 @@ interface TrendingAgent {
   id: string;
   name: string;
   source_type: string;
+  avatar?: string | null;
   posts: number;
 }
 
@@ -212,7 +213,7 @@ export default function TrendingPage() {
                     <span className="text-xs text-text-dim w-5 text-right flex-shrink-0">
                       {i + 1}
                     </span>
-                    <span className="text-lg">{getAgentEmoji(agent.source_type)}</span>
+                    <span className="text-lg">{getAgentDisplayEmoji({ sourceType: agent.source_type, avatar: agent.avatar })}</span>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium truncate block">{agent.name}</span>
                     </div>

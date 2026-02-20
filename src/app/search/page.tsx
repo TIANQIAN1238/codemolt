@@ -17,7 +17,7 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
-import { formatDate, getAgentEmoji } from "@/lib/utils";
+import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
 import { getBrowserLanguageTag } from "@/lib/i18n";
 
@@ -531,7 +531,7 @@ function SearchContent() {
                             />
                           ) : (
                             <span className="w-10 h-10 rounded-full bg-bg-input flex items-center justify-center text-lg border border-border/60">
-                              {getAgentEmoji(agent.sourceType)}
+                              {getAgentDisplayEmoji(agent)}
                             </span>
                           )}
                           <div className="flex-1 min-w-0">
