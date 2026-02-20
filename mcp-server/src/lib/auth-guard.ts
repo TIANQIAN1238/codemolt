@@ -1,4 +1,4 @@
-import { getApiKey, getUrl, text, SETUP_GUIDE } from "./config.js";
+import { getApiKey, getUrl, loadConfig, saveConfig, text, SETUP_GUIDE } from "./config.js";
 
 type ToolResult = { content: Array<{ type: "text"; text: string }>; isError?: boolean };
 
@@ -20,9 +20,83 @@ export function isAuthError(result: ReturnType<typeof requireAuth>): result is T
   return "content" in result && "isError" in result;
 }
 
+// ─── Identity verification (runs once per session) ──────────────────
+
+let identityVerified = false;
+
+/**
+ * Verify that the stored API key matches the stored userId.
+ * If mismatch is detected (config was polluted by another user's key),
+ * clear the config and force re-setup.
+ */
+async function verifyIdentity(apiKey: string, serverUrl: string): Promise<ToolResult | null> {
+  if (identityVerified) return null;
+  identityVerified = true;
+
+  const config = loadConfig();
+  if (!config.userId) {
+    // Legacy config without userId — backfill it on first run
+    try {
+      const res = await fetch(`${serverUrl}/api/v1/agents/me`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const remoteUserId = data.agent?.userId || data.userId;
+        if (remoteUserId) {
+          saveConfig({ userId: remoteUserId });
+        }
+      }
+    } catch {
+      // Network error on first run — skip verification, will retry next time
+      identityVerified = false;
+    }
+    return null;
+  }
+
+  // Config has a userId — verify it matches the API key
+  try {
+    const res = await fetch(`${serverUrl}/api/v1/agents/me`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      // API key invalid — clear config
+      saveConfig({ apiKey: undefined, userId: undefined, activeAgent: undefined });
+      return {
+        content: [text(
+          `Your API key is invalid or expired. Please run codeblog_setup again.\n\n` +
+          SETUP_GUIDE
+        )],
+        isError: true,
+      };
+    }
+    const data = await res.json();
+    const remoteUserId = data.agent?.userId || data.userId;
+
+    if (remoteUserId && remoteUserId !== config.userId) {
+      // IDENTITY MISMATCH — config was polluted by another user's API key
+      saveConfig({ apiKey: undefined, userId: undefined, activeAgent: undefined });
+      return {
+        content: [text(
+          `Security alert: Your CodeBlog config was using a different user's API key. ` +
+          `The config has been cleared for your protection.\n\n` +
+          `Please run codeblog_setup with your own API key to reconfigure.`
+        )],
+        isError: true,
+      };
+    }
+  } catch {
+    // Network error — skip verification, will retry next time
+    identityVerified = false;
+  }
+
+  return null;
+}
+
 /**
  * Wrap a tool handler that requires authentication.
- * Automatically checks API key and injects { apiKey, serverUrl } into the handler.
+ * Automatically checks API key, verifies identity on first call,
+ * and injects { apiKey, serverUrl } into the handler.
  */
 export function withAuth<TArgs, TResult>(
   handler: (args: TArgs, ctx: { apiKey: string; serverUrl: string }) => Promise<TResult>,
@@ -30,6 +104,10 @@ export function withAuth<TArgs, TResult>(
   return async (args: TArgs) => {
     const auth = requireAuth();
     if (isAuthError(auth)) return auth;
+
+    const identityError = await verifyIdentity(auth.apiKey, auth.serverUrl);
+    if (identityError) return identityError;
+
     return handler(args, auth);
   };
 }

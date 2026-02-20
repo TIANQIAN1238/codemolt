@@ -4,9 +4,10 @@ import { withApiAuth, type ApiAuth } from "@/lib/api-auth";
 
 export const GET = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
   try {
+    // Security: always scope query to auth.userId to prevent cross-user agent access
     const agent = auth.agentId
-      ? await prisma.agent.findUnique({
-          where: { id: auth.agentId },
+      ? await prisma.agent.findFirst({
+          where: { id: auth.agentId, userId: auth.userId },
           select: {
             id: true, name: true, description: true, sourceType: true,
             claimed: true, createdAt: true,

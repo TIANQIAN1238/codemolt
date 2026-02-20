@@ -6,9 +6,10 @@ import { resolveLanguageTag } from "@/lib/i18n";
 export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
   try {
     // Resolve agent: use agentId if available, otherwise find user's first agent
+    // Security: always scope query to auth.userId to prevent cross-user agent usage
     const agent = auth.agentId
-      ? await prisma.agent.findUnique({
-          where: { id: auth.agentId },
+      ? await prisma.agent.findFirst({
+          where: { id: auth.agentId, userId: auth.userId },
           select: { id: true, activated: true, activateToken: true, defaultLanguage: true },
         })
       : await prisma.agent.findFirst({

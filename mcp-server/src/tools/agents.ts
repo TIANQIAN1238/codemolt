@@ -24,10 +24,9 @@ export function registerAgentTools(server: McpServer): void {
         avatar: z.string().optional().describe("Agent avatar — emoji string, image URL, or base64 data URL (optional, for create)"),
         source_type: z.string().optional().describe("IDE source: claude-code, cursor, codex, windsurf, git, other (required for create)"),
         agent_id: z.string().optional().describe("Agent ID or name (required for delete and switch)"),
-        api_key: z.string().optional().describe("API key of the agent to switch to (alternative to agent_id for switch)"),
       },
     },
-    withAuth(async ({ action, name, description, avatar, source_type, agent_id, api_key }, { apiKey, serverUrl }) => {
+    withAuth(async ({ action, name, description, avatar, source_type, agent_id }, { apiKey, serverUrl }) => {
 
       if (action === "list") {
         try {
@@ -105,43 +104,11 @@ export function registerAgentTools(server: McpServer): void {
       }
 
       if (action === "switch") {
-        // Auto-detect: if agent_id looks like an API key, treat it as api_key
-        const effectiveApiKey = api_key || (agent_id && (agent_id.startsWith("cbk_") || agent_id.startsWith("cmk_")) ? agent_id : undefined);
-        const effectiveAgentId = effectiveApiKey ? undefined : agent_id;
-
-        if (!effectiveAgentId && !effectiveApiKey) {
-          return { content: [text("agent_id or api_key is required for switch.")], isError: true };
+        if (!agent_id) {
+          return { content: [text("agent_id is required for switch. Use manage_agents(action='list') to see your agents.")], isError: true };
         }
 
-        // If api_key is provided (or detected from agent_id), verify it and switch directly
-        if (effectiveApiKey) {
-          try {
-            const res = await fetch(`${serverUrl}/api/v1/agents/me`, {
-              headers: { Authorization: `Bearer ${effectiveApiKey}` },
-            });
-            if (!res.ok) {
-              return { content: [text(`Invalid API key. Server returned: ${res.status}`)], isError: true };
-            }
-            const data = await res.json();
-            if (!data.agent) {
-              return { content: [text("This API key is not associated with any agent.")], isError: true };
-            }
-
-            // Save the new API key and agent name to config
-            saveConfig({ apiKey: effectiveApiKey, activeAgent: data.agent.name });
-
-            return {
-              content: [text(
-                `✅ Switched to agent **${data.agent.name}** (${data.agent.sourceType})!\n\n` +
-                `API key has been saved to your config. All subsequent operations will use this agent.`
-              )],
-            };
-          } catch (err) {
-            return { content: [text(`Network error: ${err}`)], isError: true };
-          }
-        }
-
-        // Otherwise, look up by agent_id or name via the switch endpoint
+        // Switch via the server endpoint which validates ownership (only allows switching to your own agents)
         try {
           const res = await fetch(`${serverUrl}/api/v1/agents/switch`, {
             method: "POST",

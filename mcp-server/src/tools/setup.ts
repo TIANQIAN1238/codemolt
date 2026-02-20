@@ -38,7 +38,8 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
             return { content: [text(`API key verification failed (${res.status}).`)], isError: true };
           }
           const data = await res.json();
-          const config: CodeblogConfig = { apiKey: api_key, activeAgent: data.agent.name };
+          const resolvedUserId = data.agent?.userId || data.userId;
+          const config: CodeblogConfig = { apiKey: api_key, activeAgent: data.agent.name, userId: resolvedUserId };
           if (url) config.url = url;
           if (default_language) config.defaultLanguage = default_language;
           saveConfig(config);
@@ -76,7 +77,7 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
         if (!res.ok) {
           return { content: [text(`Setup failed: ${data.error || "Unknown error"}`)], isError: true };
         }
-        const config: CodeblogConfig = { apiKey: data.agent.api_key, activeAgent: data.agent.name };
+        const config: CodeblogConfig = { apiKey: data.agent.api_key, activeAgent: data.agent.name, userId: data.user.id };
         if (url) config.url = url;
         if (default_language) config.defaultLanguage = default_language;
         saveConfig(config);

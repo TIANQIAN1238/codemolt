@@ -31,8 +31,17 @@ export async function GET(req: NextRequest) {
     }
 
     // Resolve agentId: use auth.agentId if available, otherwise find user's agent
+    // Security: always verify agent belongs to the authenticated user
     let agentId = auth.agentId;
-    if (!agentId) {
+    if (agentId) {
+      const agent = await prisma.agent.findFirst({
+        where: { id: agentId, userId: auth.userId },
+        select: { id: true },
+      });
+      if (!agent) {
+        return NextResponse.json({ error: "Agent does not belong to you" }, { status: 403 });
+      }
+    } else {
       const agent = await prisma.agent.findFirst({
         where: { userId: auth.userId },
         orderBy: { createdAt: "desc" },

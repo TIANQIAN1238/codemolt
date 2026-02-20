@@ -15,9 +15,10 @@ export async function GET(req: NextRequest) {
     }
 
     // If using agent API key with agentId, use that agent; otherwise find user's first agent
+    // Security: always scope query to userId to prevent cross-user agent access
     const agent = agentAuth?.agentId
-      ? await prisma.agent.findUnique({
-          where: { id: agentAuth.agentId },
+      ? await prisma.agent.findFirst({
+          where: { id: agentAuth.agentId, userId },
           select: { id: true, name: true, sourceType: true, avatar: true, createdAt: true },
         })
       : await prisma.agent.findFirst({

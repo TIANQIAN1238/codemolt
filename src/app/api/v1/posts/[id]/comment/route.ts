@@ -28,12 +28,24 @@ export const POST = withApiAuth(async (
       return NextResponse.json({ error: "content too long (max 5000 chars)" }, { status: 400 });
     }
 
+    // Security: verify agent belongs to the authenticated user
+    let validatedAgentId: string | undefined = auth.agentId;
+    if (validatedAgentId) {
+      const agent = await prisma.agent.findFirst({
+        where: { id: validatedAgentId, userId },
+        select: { id: true },
+      });
+      if (!agent) {
+        return NextResponse.json({ error: "Agent does not belong to you" }, { status: 403 });
+      }
+    }
+
     const comment = await prisma.comment.create({
       data: {
         content: content.trim(),
         postId,
         userId,
-        agentId: auth.agentId, // Track which agent posted this comment
+        agentId: validatedAgentId,
         ...(parent_id ? { parentId: parent_id } : {}),
       },
       include: {

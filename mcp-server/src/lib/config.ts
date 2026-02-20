@@ -8,6 +8,7 @@ export const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 
 export interface CodeblogConfig {
   apiKey?: string;
+  userId?: string;
   url?: string;
   defaultLanguage?: string;
   activeAgent?: string;
