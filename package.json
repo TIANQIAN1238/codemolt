@@ -18,6 +18,7 @@
     "start": "prisma migrate deploy && next start",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
+    "verify:installers": "node scripts/verify-installers.mjs",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio"

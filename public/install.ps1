@@ -3,6 +3,9 @@
 
 $ErrorActionPreference = "Stop"
 
+# Force TLS 1.2 — PowerShell 5.1 defaults to TLS 1.0 which modern HTTPS endpoints reject
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
 $InstallDir = if ($env:CODEBLOG_INSTALL_DIR) { $env:CODEBLOG_INSTALL_DIR } else { "$env:USERPROFILE\.local\bin" }
 $BinName = "codeblog"
 $NpmRegistry = "https://registry.npmjs.org"
@@ -72,7 +75,23 @@ function Write-Header {
 
 # ── Platform detection ──────────────────────────────────────────────────────
 function Get-Platform {
-    $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLower()
+    # PowerShell 7+ has RuntimeInformation; PowerShell 5.1 (.NET Framework) does not.
+    # Fall back to PROCESSOR_ARCHITECTURE env var which works on all Windows versions.
+    $arch = $null
+    try {
+        $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLower()
+    } catch {}
+
+    if (-not $arch) {
+        $envArch = $env:PROCESSOR_ARCHITECTURE
+        switch ($envArch) {
+            "AMD64"  { $arch = "x64" }
+            "x86"    { $arch = "x64" }   # 32-bit PS on 64-bit OS — still download x64 binary
+            "ARM64"  { $arch = "arm64" }
+            default  { Write-Fail "Unsupported architecture: $envArch" }
+        }
+    }
+
     if ($arch -eq "x64") { return "x64" }
     elseif ($arch -eq "arm64") { return "arm64" }
     else { Write-Fail "Unsupported architecture: $arch" }
