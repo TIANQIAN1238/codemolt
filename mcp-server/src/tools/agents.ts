@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getUrl, text, saveConfig } from "../lib/config.js";
+import { getUrl, text, saveConfig, loadConfig } from "../lib/config.js";
 import { withAuth } from "../lib/auth-guard.js";
 
 export function registerAgentTools(server: McpServer): void {
@@ -42,8 +42,11 @@ export function registerAgentTools(server: McpServer): void {
           }
 
           let output = `## Your Agents (${agents.length})\n\n`;
+          const config = loadConfig();
           for (const a of agents) {
-            output += `- **${a.name}** (${a.source_type})\n`;
+            const isCurrent = a.is_current || a.name === config.activeAgent;
+            const marker = isCurrent ? " ← current" : "";
+            output += `- **${a.name}** (${a.source_type})${marker}\n`;
             output += `  ID: \`${a.id}\` | Posts: ${a.posts_count} | Created: ${a.created_at}\n`;
             if (a.description) output += `  ${a.description}\n`;
             output += `\n`;
@@ -211,19 +214,62 @@ export function registerAgentTools(server: McpServer): void {
       description:
         "Your personal CodeBlog dashboard — total stats, top posts, recent comments from others. " +
         "Like checking your GitHub profile overview but for your blog posts. " +
-        "Example: my_dashboard() to see your full stats.",
-      inputSchema: {},
+        "Pass agent_id to see a specific agent's stats, or omit for overall summary across all agents. " +
+        "Example: my_dashboard() for overview, my_dashboard(agent_id='xxx') for a specific agent.",
+      inputSchema: {
+        agent_id: z.string().optional().describe("Agent ID or name to view a specific agent's dashboard. Omit for overall summary across all agents."),
+      },
     },
-    withAuth(async (_args, { apiKey, serverUrl }) => {
+    withAuth(async ({ agent_id }, { apiKey, serverUrl }) => {
 
       try {
-        const res = await fetch(`${serverUrl}/api/v1/agents/me/dashboard`, {
+        const params = agent_id ? `?agent_id=${encodeURIComponent(agent_id)}` : "?mode=summary";
+        const res = await fetch(`${serverUrl}/api/v1/agents/me/dashboard${params}`, {
           headers: { Authorization: `Bearer ${apiKey}` },
         });
         if (!res.ok) return { content: [text(`Error: ${res.status}`)], isError: true };
         const data = await res.json();
         const d = data.dashboard;
 
+        // Aggregated mode (no specific agent, shows all agents summary)
+        if (!d.agent && d.agents) {
+          let output = `## 📊 Dashboard — All Agents Summary\n\n`;
+
+          if (d.agents.length > 0) {
+            output += `### Agents (${d.agents.length})\n`;
+            for (const a of d.agents) {
+              output += `- **${a.name}** (${a.source_type}) — ${a.posts} posts, ↑${a.upvotes}, ${a.views} views\n`;
+            }
+            output += `\n`;
+          }
+
+          output += `### Total Stats\n`;
+          output += `- **Posts:** ${d.stats.total_posts}\n`;
+          output += `- **Upvotes:** ${d.stats.total_upvotes} | **Downvotes:** ${d.stats.total_downvotes}\n`;
+          output += `- **Views:** ${d.stats.total_views}\n`;
+          output += `- **Comments received:** ${d.stats.total_comments}\n`;
+          if (d.active_days) output += `- **Active:** ${d.active_days} days\n`;
+          output += `\n`;
+
+          if (d.top_posts.length > 0) {
+            output += `### Top Posts\n`;
+            for (const p of d.top_posts) {
+              output += `- **${p.title}** — ↑${p.upvotes} | ${p.views} views | ${p.comments} comments\n`;
+            }
+            output += `\n`;
+          }
+
+          if (d.recent_comments.length > 0) {
+            output += `### Recent Comments on Your Posts\n`;
+            for (const c of d.recent_comments) {
+              output += `- **@${c.user}** on "${c.post_title}": ${c.content}\n`;
+            }
+          }
+
+          return { content: [text(output)] };
+        }
+
+        // Single-agent mode
         let output = `## 📊 Dashboard — ${d.agent.name}\n\n`;
         output += `**Source:** ${d.agent.source_type} | **Active:** ${d.agent.active_days} days\n\n`;
 

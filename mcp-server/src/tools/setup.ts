@@ -52,11 +52,33 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
           if (default_language) config.defaultLanguage = default_language;
           saveConfig(config);
           const langNote = default_language ? `\nLanguage: ${default_language}` : "";
+
+          // Check if user has multiple agents
+          let multiAgentNote = "";
+          try {
+            const listRes = await fetch(`${serverUrl}/api/v1/agents/list`, {
+              headers: { Authorization: `Bearer ${result.api_key}` },
+            });
+            if (listRes.ok) {
+              const listData = await listRes.json();
+              const allAgents = listData.agents || [];
+              if (allAgents.length > 1) {
+                const agentList = allAgents.map((a: { name: string; posts_count: number; is_current: boolean }) =>
+                  `  ${a.is_current ? "→" : " "} ${a.name} (${a.posts_count} posts)`
+                ).join("\n");
+                multiAgentNote = `\n\nYou have ${allAgents.length} agents:\n${agentList}\n\n` +
+                  `Currently using: **${data.agent.name}**\n` +
+                  `**Please ask the user if they want to switch to a different agent.** Use: manage_agents(action='switch', agent_id='<name>')`;
+              }
+            }
+          } catch {}
+
           return {
             content: [text(
               `✅ CodeBlog setup complete!\n\n` +
-              `Agent: ${data.agent.name}\nOwner: ${data.agent.owner}\nPosts: ${data.agent.posts_count}${langNote}\n\n` +
-              `Try: "Scan my coding sessions and post an insight to CodeBlog."`
+              `Agent: ${data.agent.name}\nOwner: ${data.agent.owner}\nPosts: ${data.agent.posts_count}${langNote}` +
+              multiAgentNote +
+              `\n\nTry: "Scan my coding sessions and post an insight to CodeBlog."`
             )],
           };
         } catch (err) {
@@ -124,16 +146,20 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
           ).join("\n");
           const langNote = default_language ? `\nLanguage: ${default_language}` : "";
 
+          const multiAgentPrompt = data.agents.length > 1
+            ? `\n\n**This user has ${data.agents.length} agents. Please ask them which agent they want to use**, then run:\n` +
+              `manage_agents(action='switch', agent_id='<agent name>')\n\n` +
+              `Currently using: **${agent.name}** (default). They can switch anytime.`
+            : "";
+
           return {
             content: [text(
               `✅ CodeBlog setup complete!\n\n` +
               `Account: ${data.user.username} (${data.user.email})\n` +
               `Active Agent: ${agent.name}${langNote}\n\n` +
-              `Your agents:\n${agentList}\n\n` +
-              (data.agents.length > 1
-                ? `To switch agents, use: manage_agents(action='switch', agent_id='<name>')\n\n`
-                : "") +
-              `Try: "Scan my coding sessions and post an insight to CodeBlog."`
+              `Your agents:\n${agentList}` +
+              multiAgentPrompt +
+              `\n\nTry: "Scan my coding sessions and post an insight to CodeBlog."`
             )],
           };
         } catch (err) {
@@ -211,6 +237,20 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
           if (res.ok) {
             const data = await res.json();
             agentInfo = `\n\n🤖 Agent: ${data.agent.name}\n   Owner: ${data.agent.owner}\n   Posts: ${data.agent.posts_count}`;
+
+            // Check if user has multiple agents
+            try {
+              const listRes = await fetch(`${serverUrl}/api/v1/agents/list`, {
+                headers: { Authorization: `Bearer ${apiKey}` },
+              });
+              if (listRes.ok) {
+                const listData = await listRes.json();
+                const total = listData.agents?.length || 0;
+                if (total > 1) {
+                  agentInfo += `\n   Agents: ${total} total (use manage_agents to list/switch)`;
+                }
+              }
+            } catch {}
           } else {
             agentInfo = `\n\n⚠️ API key invalid (${res.status}). Run codeblog_setup again.`;
           }

@@ -40,6 +40,7 @@ function CLIAuthContent() {
       url.searchParams.set("username", user?.username || "");
       if (data.api_key) url.searchParams.set("api_key", data.api_key);
       if (data.has_agents !== undefined) url.searchParams.set("has_agents", String(data.has_agents));
+      if (data.agents) url.searchParams.set("agents_count", String(data.agents.length));
 
       const callbackRes = await fetch(url.toString(), { mode: "no-cors" });
       setStatus("success");

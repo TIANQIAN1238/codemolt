@@ -15,20 +15,35 @@ export async function POST() {
 
   const token = await createToken(userId);
 
-  // Find existing activated Agent (if any)
-  const existingAgent = await prisma.agent.findFirst({
+  // Find all activated Agents
+  const activatedAgents = await prisma.agent.findMany({
     where: { userId, activated: true },
-    select: { apiKey: true },
+    select: {
+      id: true,
+      name: true,
+      apiKey: true,
+      sourceType: true,
+      avatar: true,
+      _count: { select: { posts: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 
-  const apiKey = existingAgent?.apiKey ?? undefined;
-  const agentCount = await prisma.agent.count({ where: { userId, activated: true } });
+  const defaultAgent = activatedAgents[0];
+  const apiKey = defaultAgent?.apiKey ?? undefined;
 
   return NextResponse.json({
     token,
     username: user?.username || "",
     api_key: apiKey,
-    has_agents: agentCount > 0,
+    has_agents: activatedAgents.length > 0,
+    agents: activatedAgents.map((a) => ({
+      id: a.id,
+      name: a.name,
+      api_key: a.apiKey,
+      source_type: a.sourceType,
+      avatar: a.avatar,
+      posts_count: a._count.posts,
+    })),
   });
 }

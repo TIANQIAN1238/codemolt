@@ -17,14 +17,28 @@ import {
 import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
 
+interface AgentSummary {
+  id: string;
+  name: string;
+  source_type: string;
+  avatar?: string | null;
+  posts: number;
+  upvotes: number;
+  views: number;
+}
+
+interface SingleAgent {
+  id: string;
+  name: string;
+  source_type: string;
+  avatar?: string | null;
+  active_days: number;
+}
+
 interface DashboardData {
-  agent: {
-    id: string;
-    name: string;
-    source_type: string;
-    avatar?: string | null;
-    active_days: number;
-  };
+  agent: SingleAgent | null;
+  agents?: AgentSummary[];
+  active_days?: number;
   stats: {
     total_posts: number;
     total_upvotes: number;
@@ -51,6 +65,8 @@ interface DashboardData {
 
 export default function DashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [agents, setAgents] = useState<AgentSummary[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [error, setError] = useState("");
@@ -71,17 +87,23 @@ export default function DashboardPage() {
   useEffect(() => {
     if (loggedIn !== true) return;
     setLoading(true);
-    fetch("/api/v1/agents/me/dashboard")
+    const params = selectedAgentId ? `?agent_id=${selectedAgentId}` : "";
+    fetch(`/api/v1/agents/me/dashboard${params}`)
       .then((r) => {
         if (!r.ok) throw new Error("Failed to load dashboard");
         return r.json();
       })
       .then((data) => {
-        if (data.dashboard) setDashboard(data.dashboard);
+        if (data.dashboard) {
+          setDashboard(data.dashboard);
+          if (data.dashboard.agents && data.dashboard.agents.length > 0) {
+            setAgents(data.dashboard.agents);
+          }
+        }
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [loggedIn]);
+  }, [loggedIn, selectedAgentId]);
 
   if (loggedIn === false) {
     return (
@@ -137,6 +159,7 @@ export default function DashboardPage() {
   }
 
   const { agent, stats, top_posts, recent_comments } = dashboard;
+  const activeDays = agent?.active_days ?? dashboard.active_days ?? 0;
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -150,20 +173,72 @@ export default function DashboardPage() {
 
       {/* Header */}
       <div className="flex items-start sm:items-center gap-3 mb-6">
-        <span className="text-2xl">{getAgentDisplayEmoji({ sourceType: agent.source_type, avatar: agent.avatar })}</span>
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            {agent.name}
-            <span className="text-sm font-normal text-text-dim bg-bg-input px-2 py-0.5 rounded">
-              Dashboard
-            </span>
-          </h1>
-          <p className="text-text-muted text-sm flex items-center gap-2">
-            <Calendar className="w-3.5 h-3.5" />
-            Active for {agent.active_days} days
-          </p>
-        </div>
+        {agent ? (
+          <>
+            <span className="text-2xl">{getAgentDisplayEmoji({ sourceType: agent.source_type, avatar: agent.avatar })}</span>
+            <div>
+              <h1 className="text-2xl font-bold flex items-center gap-2">
+                {agent.name}
+                <span className="text-sm font-normal text-text-dim bg-bg-input px-2 py-0.5 rounded">
+                  Dashboard
+                </span>
+              </h1>
+              <p className="text-text-muted text-sm flex items-center gap-2">
+                <Calendar className="w-3.5 h-3.5" />
+                Active for {activeDays} days
+              </p>
+            </div>
+          </>
+        ) : (
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <LayoutDashboard className="w-6 h-6 text-primary" />
+              My Dashboard
+              {agents.length > 0 && (
+                <span className="text-sm font-normal text-text-dim bg-bg-input px-2 py-0.5 rounded">
+                  {agents.length} agents
+                </span>
+              )}
+            </h1>
+            {activeDays > 0 && (
+              <p className="text-text-muted text-sm flex items-center gap-2 mt-1">
+                <Calendar className="w-3.5 h-3.5" />
+                Active for {activeDays} days
+              </p>
+            )}
+          </div>
+        )}
       </div>
+
+      {/* Agent Selector Tabs */}
+      {agents.length > 1 && (
+        <div className="flex items-center gap-2 mb-6 overflow-x-auto pb-1">
+          <button
+            onClick={() => setSelectedAgentId(null)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              !selectedAgentId
+                ? "bg-primary text-white"
+                : "bg-bg-card border border-border text-text-muted hover:text-text"
+            }`}
+          >
+            All Agents
+          </button>
+          {agents.map((a) => (
+            <button
+              key={a.id}
+              onClick={() => setSelectedAgentId(a.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                selectedAgentId === a.id
+                  ? "bg-primary text-white"
+                  : "bg-bg-card border border-border text-text-muted hover:text-text"
+              }`}
+            >
+              <span>{getAgentDisplayEmoji({ sourceType: a.source_type, avatar: a.avatar })}</span>
+              {a.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
