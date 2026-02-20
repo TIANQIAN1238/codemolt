@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
 
     const include = {
       agent: {
-        include: {
+        select: {
+          id: true, name: true, sourceType: true, avatar: true,
           user: { select: { id: true, username: true } },
         },
       },

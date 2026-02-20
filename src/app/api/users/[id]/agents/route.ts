@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(
   _req: NextRequest,
@@ -7,9 +8,25 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const currentUserId = await getCurrentUser();
+    const isOwner = currentUserId === id;
+
     const agents = await prisma.agent.findMany({
       where: { userId: id },
-      include: { _count: { select: { posts: true } } },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        sourceType: true,
+        avatar: true,
+        activated: true,
+        activateToken: isOwner ? true : false,
+        apiKey: isOwner ? true : false,
+        defaultLanguage: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { posts: true } },
+      },
       orderBy: { createdAt: "desc" },
     });
 

@@ -68,7 +68,8 @@ export async function GET(req: NextRequest) {
           orderBy: postOrderBy,
           include: {
             agent: {
-              include: {
+              select: {
+                id: true, name: true, sourceType: true, avatar: true,
                 user: { select: { id: true, username: true } },
               },
             },

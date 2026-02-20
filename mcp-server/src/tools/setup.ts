@@ -4,42 +4,50 @@ import { getApiKey, getUrl, getLanguage, saveConfig, text, SETUP_GUIDE } from ".
 import type { CodeblogConfig } from "../lib/config.js";
 import { getPlatform } from "../lib/platform.js";
 import { listScannerStatus } from "../lib/registry.js";
+import { startOAuthFlow } from "../lib/oauth.js";
 
 export function registerSetupTools(server: McpServer, PKG_VERSION: string): void {
   server.registerTool(
     "codeblog_setup",
     {
       description:
-        "Get started with CodeBlog in 30 seconds. " +
-        "New user? Just provide email + username + password and you're in. " +
-        "Already have an account? Paste your API key. " +
+        "Get started with CodeBlog. " +
+        "New user? Provide email + username + password to create an account. " +
+        "Existing user? Use mode='login' with email + password, or mode='browser' to login via browser (supports Google/GitHub OAuth). " +
         "Config is saved locally — set it once, never think about it again.",
       inputSchema: {
-        email: z.string().optional().describe("Email for new account registration"),
-        username: z.string().optional().describe("Username for new account"),
-        password: z.string().optional().describe("Password for new account (min 6 chars)"),
-        api_key: z.string().optional().describe("Existing API key (starts with cbk_)"),
+        mode: z.enum(["register", "login", "browser"]).optional().describe(
+          "Setup mode: 'register' = create new account (default), 'login' = login with email+password, 'browser' = open browser for web login (supports OAuth)"
+        ),
+        email: z.string().optional().describe("Email for registration or login"),
+        username: z.string().optional().describe("Username for new account (register mode only)"),
+        password: z.string().optional().describe("Password (min 6 chars)"),
         url: z.string().optional().describe("Server URL (default: https://codeblog.ai)"),
         default_language: z.string().optional().describe("Default content language for posts (e.g. 'English', '中文', '日本語')"),
       },
     },
-    async ({ email, username, password, api_key, url, default_language }) => {
+    async ({ mode, email, username, password, url, default_language }) => {
       const serverUrl = url || getUrl();
+      const effectiveMode = mode || "register";
 
-      if (api_key) {
-        if (!api_key.startsWith("cbk_") && !api_key.startsWith("cmk_")) {
-          return { content: [text("Invalid API key. It should start with 'cbk_'.")], isError: true };
-        }
+      // ─── Browser OAuth flow ──────────────────────────
+      if (effectiveMode === "browser") {
         try {
+          const result = await startOAuthFlow();
+          if (!result.api_key) {
+            return { content: [text("Browser login did not return an API key. Please try again.")], isError: true };
+          }
+
+          // Verify the API key and get agent info
           const res = await fetch(`${serverUrl}/api/v1/agents/me`, {
-            headers: { Authorization: `Bearer ${api_key}` },
+            headers: { Authorization: `Bearer ${result.api_key}` },
           });
           if (!res.ok) {
-            return { content: [text(`API key verification failed (${res.status}).`)], isError: true };
+            return { content: [text(`API key verification failed (${res.status}). Please try again.`)], isError: true };
           }
           const data = await res.json();
           const resolvedUserId = data.agent?.userId || data.userId;
-          const config: CodeblogConfig = { apiKey: api_key, activeAgent: data.agent.name, userId: resolvedUserId };
+          const config: CodeblogConfig = { apiKey: result.api_key, activeAgent: data.agent.name, userId: resolvedUserId };
           if (url) config.url = url;
           if (default_language) config.defaultLanguage = default_language;
           saveConfig(config);
@@ -48,7 +56,83 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
             content: [text(
               `✅ CodeBlog setup complete!\n\n` +
               `Agent: ${data.agent.name}\nOwner: ${data.agent.owner}\nPosts: ${data.agent.posts_count}${langNote}\n\n` +
-              `API-KEY: ${api_key}\n\n` +
+              `Try: "Scan my coding sessions and post an insight to CodeBlog."`
+            )],
+          };
+        } catch (err) {
+          return { content: [text(`Browser login failed.\nError: ${err}`)], isError: true };
+        }
+      }
+
+      // ─── Login with email + password ─────────────────
+      if (effectiveMode === "login") {
+        if (!email || !password) {
+          return {
+            content: [text(
+              `Login mode requires:\n• email\n• password\n\n` +
+              `Or use mode='browser' to login via browser (supports Google/GitHub OAuth).`
+            )],
+            isError: true,
+          };
+        }
+
+        try {
+          const res = await fetch(`${serverUrl}/api/v1/auth/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          const data = await res.json();
+
+          if (!res.ok) {
+            if (data.oauth_only) {
+              return {
+                content: [text(
+                  `This account uses ${data.providers?.join(" / ") || "OAuth"} login and has no password.\n\n` +
+                  `Please use mode='browser' to login via browser:\n` +
+                  `→ codeblog_setup(mode='browser')`
+                )],
+                isError: true,
+              };
+            }
+            return { content: [text(`Login failed: ${data.error || "Unknown error"}`)], isError: true };
+          }
+
+          if (!data.agents || data.agents.length === 0) {
+            return {
+              content: [text(
+                `Logged in as ${data.user.username}, but you have no activated agents.\n\n` +
+                `Create one on the website: ${serverUrl}/profile/${data.user.id}`
+              )],
+              isError: true,
+            };
+          }
+
+          // Use the first activated agent
+          const agent = data.agents[0];
+          const config: CodeblogConfig = {
+            apiKey: agent.api_key,
+            activeAgent: agent.name,
+            userId: data.user.id,
+          };
+          if (url) config.url = url;
+          if (default_language) config.defaultLanguage = default_language;
+          saveConfig(config);
+
+          const agentList = data.agents.map((a: { name: string; posts_count: number }) =>
+            `  • ${a.name} (${a.posts_count} posts)`
+          ).join("\n");
+          const langNote = default_language ? `\nLanguage: ${default_language}` : "";
+
+          return {
+            content: [text(
+              `✅ CodeBlog setup complete!\n\n` +
+              `Account: ${data.user.username} (${data.user.email})\n` +
+              `Active Agent: ${agent.name}${langNote}\n\n` +
+              `Your agents:\n${agentList}\n\n` +
+              (data.agents.length > 1
+                ? `To switch agents, use: manage_agents(action='switch', agent_id='<name>')\n\n`
+                : "") +
               `Try: "Scan my coding sessions and post an insight to CodeBlog."`
             )],
           };
@@ -57,11 +141,17 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
         }
       }
 
+      // ─── Register new account ────────────────────────
       if (!email || !username || !password) {
         return {
           content: [text(
-            `To set up CodeBlog, I need:\n• email\n• username\n• password (min 6 chars)\n\n` +
-            `Or provide your api_key if you already have an account.`
+            `To set up CodeBlog, choose one of these modes:\n\n` +
+            `1. New user (register):\n` +
+            `   codeblog_setup(email, username, password)\n\n` +
+            `2. Existing user (login with password):\n` +
+            `   codeblog_setup(mode='login', email, password)\n\n` +
+            `3. Existing user (browser login — supports Google/GitHub):\n` +
+            `   codeblog_setup(mode='browser')`
           )],
           isError: true,
         };
@@ -87,7 +177,6 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
             `✅ CodeBlog setup complete!\n\n` +
             `Account: ${data.user.username} (${data.user.email})\nAgent: ${data.agent.name}\n` +
             `Agent is activated and ready to post.${langNote}\n\n` +
-            `API-KEY: ${data.agent.api_key}\n\n` +
             `Try: "Scan my coding sessions and post an insight to CodeBlog."`
           )],
         };

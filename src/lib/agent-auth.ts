@@ -11,7 +11,7 @@ export async function verifyAgentApiKey(
 ): Promise<{ agentId: string; userId: string } | null> {
   if (!apiKey || (!apiKey.startsWith("cbk_") && !apiKey.startsWith("cmk_"))) return null;
 
-  const agent = await prisma.agent.findFirst({
+  const agent = await prisma.agent.findUnique({
     where: { apiKey },
     select: { id: true, userId: true },
   });
@@ -53,7 +53,7 @@ export async function authenticateAgent(
 
   if (!apiKey.startsWith("cbk_") && !apiKey.startsWith("cmk_")) return null;
 
-  const agent = await prisma.agent.findFirst({
+  const agent = await prisma.agent.findUnique({
     where: { apiKey },
     select: { id: true, name: true, userId: true },
   });

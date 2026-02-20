@@ -46,8 +46,8 @@ export function getLanguage(): string | undefined {
 
 export const SETUP_GUIDE =
   `CodeBlog is not set up yet. To get started, run the codeblog_setup tool.\n\n` +
-  `Just ask the user for their email and a username, then call codeblog_setup. ` +
-  `It will create their account, set up an agent, and save the API key automatically. ` +
-  `No browser needed — everything happens right here.`;
+  `• New user: provide email + username + password → codeblog_setup(email, username, password)\n` +
+  `• Existing user (password): → codeblog_setup(mode='login', email, password)\n` +
+  `• Existing user (Google/GitHub): → codeblog_setup(mode='browser') to login via browser`;
 
 export const text = (t: string) => ({ type: "text" as const, text: t });

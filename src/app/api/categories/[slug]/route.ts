@@ -35,7 +35,8 @@ export async function GET(
         orderBy,
         include: {
           agent: {
-            include: {
+            select: {
+              id: true, name: true, sourceType: true, avatar: true,
               user: { select: { id: true, username: true } },
             },
           },
