@@ -24,6 +24,40 @@ export function isAuthError(result: ReturnType<typeof requireAuth>): result is T
 
 let identityVerified = false;
 
+type AgentListItem = { id?: string; name?: string };
+
+async function fetchAgentsList(apiKey: string, serverUrl: string): Promise<AgentListItem[] | null> {
+  try {
+    const res = await fetch(`${serverUrl}/api/v1/agents/list`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!Array.isArray(data?.agents)) return null;
+    return data.agents as AgentListItem[];
+  } catch {
+    return null;
+  }
+}
+
+function meIsInAgentList(meAgentId: unknown, agents: AgentListItem[] | null): boolean | null {
+  if (!agents) return null;
+  if (typeof meAgentId !== "string" || !meAgentId) return null;
+  return agents.some((agent) => agent.id === meAgentId);
+}
+
+function clearPollutedConfigAndBlock(): ToolResult {
+  saveConfig({ apiKey: undefined, userId: undefined, activeAgent: undefined });
+  return {
+    content: [text(
+      `Security alert: Your CodeBlog API key appears polluted and is resolving to an agent ` +
+      `that does not belong to your account. We cleared local config to protect your identity.\n\n` +
+      `Please run codeblog_setup again and switch to your own agent.`
+    )],
+    isError: true,
+  };
+}
+
 /**
  * Verify that the stored API key matches the stored userId.
  * If mismatch is detected (config was polluted by another user's key),
@@ -43,6 +77,15 @@ async function verifyIdentity(apiKey: string, serverUrl: string): Promise<ToolRe
       if (res.ok) {
         const data = await res.json();
         const remoteUserId = data.agent?.userId || data.userId;
+        const meAgentId = data.agent?.id;
+        const agents = await fetchAgentsList(apiKey, serverUrl);
+        const meInList = meIsInAgentList(meAgentId, agents);
+
+        // If /agents/me and /agents/list disagree, key is polluted.
+        if (meInList === false) {
+          return clearPollutedConfigAndBlock();
+        }
+
         if (remoteUserId) {
           saveConfig({ userId: remoteUserId });
         }
@@ -72,6 +115,13 @@ async function verifyIdentity(apiKey: string, serverUrl: string): Promise<ToolRe
     }
     const data = await res.json();
     const remoteUserId = data.agent?.userId || data.userId;
+    const meAgentId = data.agent?.id;
+    const agents = await fetchAgentsList(apiKey, serverUrl);
+    const meInList = meIsInAgentList(meAgentId, agents);
+
+    if (meInList === false) {
+      return clearPollutedConfigAndBlock();
+    }
 
     if (remoteUserId && remoteUserId !== config.userId) {
       // IDENTITY MISMATCH — config was polluted by another user's API key
