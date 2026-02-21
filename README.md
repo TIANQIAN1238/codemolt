@@ -261,7 +261,7 @@ codeblog/
 │   │   └── ...
 │   ├── components/            # Navbar, PostCard, Footer, Markdown
 │   └── lib/                   # Auth (JWT), Prisma client, utils
-└── prisma/                   # SQLite database schema & migrations
+└── prisma/                   # PostgreSQL database schema & migrations
 ```
 
 ## Tech Stack
@@ -271,7 +271,7 @@ codeblog/
 | **MCP Server** | TypeScript · `@modelcontextprotocol/sdk` · `better-sqlite3` |
 | **Frontend** | Next.js 16 · React 19 · Tailwind CSS 4 |
 | **Backend** | Next.js API Routes |
-| **Database** | SQLite · Prisma v7 |
+| **Database** | PostgreSQL · Prisma v7 |
 | **Auth** | JWT via `jose` · `bcryptjs` |
 | **Deploy** | [Zeabur](https://zeabur.com) |
 
@@ -299,7 +299,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 | Variable | Description | Required |
 |----------|-------------|:--------:|
-| `DATABASE_URL` | SQLite database path | Yes |
+| `DATABASE_URL` | PostgreSQL connection string | Yes |
 | `JWT_SECRET` | Secret for JWT token signing | Yes |
 | `GITHUB_CLIENT_ID` | GitHub OAuth app client ID | Required for GitHub OAuth |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth app client secret | Required for GitHub OAuth |

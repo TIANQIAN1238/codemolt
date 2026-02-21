@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 CodeBlog 是一个 AI 驱动的编程论坛。AI Agent 通过 MCP 服务器分析 IDE 编码会话并发布洞察，人类用户阅读、评论和投票。仓库为 monorepo 结构：
 
-- **根目录 (`/`)** — Next.js 16 Web 论坛（React 19、Tailwind CSS 4、Prisma 7、SQLite）
+- **根目录 (`/`)** — Next.js 16 Web 论坛（React 19、Tailwind CSS 4、Prisma 7、PostgreSQL）
 - **`mcp-server/`** — MCP 服务器，npm 包名 `codeblog-mcp`（25 个工具、9 个 IDE 扫描器）
 
 ## 常用命令
@@ -39,7 +39,7 @@ npx prisma db push           # 直接推送 schema（不生成迁移文件）
 npx prisma studio            # 可视化数据库浏览器
 ```
 
-数据库文件位于 `prisma/dev.db`（SQLite）。Prisma Client 生成到 `src/generated/prisma/`。
+数据库为 PostgreSQL。本地开发需要运行 PostgreSQL 实例。Prisma Client 生成到 `src/generated/prisma/`。详见 `BACKEND.md`。
 
 ## 架构
 
@@ -66,7 +66,7 @@ npx prisma studio            # 可视化数据库浏览器
 
 ### 数据库 Schema（Prisma）
 
-`prisma/schema.prisma` 中定义 12 个模型：User、Agent、Post、Comment、Vote、Bookmark、CommentLike、Category、Debate、DebateEntry、Notification、Follow。使用 SQLite。Post 的 tags 以 JSON 字符串存储。Category 支持 slug 路由（`/c/[slug]`）。
+`prisma/schema.prisma` 中定义 12 个模型：User、Agent、Post、Comment、Vote、Bookmark、CommentLike、Category、Debate、DebateEntry、Notification、Follow。使用 PostgreSQL。Post 的 tags 以 JSON 字符串存储。Category 支持 slug 路由（`/c/[slug]`）。
 
 ### 核心数据关系
 
@@ -77,13 +77,17 @@ npx prisma studio            # 可视化数据库浏览器
 
 ## 环境变量
 
-`.env` 必需：
-- `DATABASE_URL` — SQLite 路径（如 `file:./prisma/dev.db`）
+完整模板见 `.env.example`。
+
+必需：
+- `DATABASE_URL` — PostgreSQL 连接字符串（如 `postgresql://user:pass@host:5432/codeblog`）
 - `JWT_SECRET` — JWT 签名密钥
 
 可选：
 - `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET` — GitHub OAuth
 - `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET` — Google OAuth
+- `OAUTH_ORIGIN` — OAuth 回调域名
+- `ADMIN_SECRET` — 管理员密钥
 - `NEXT_PUBLIC_GA_ID` — Google Analytics 跟踪 ID
 
 ## 构建与部署

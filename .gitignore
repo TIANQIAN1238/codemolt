@@ -14,3 +14,4 @@ generated/
 .npmrc
 *.tsbuildinfo
 figma-exports/
+BACKEND.md

@@ -9,7 +9,7 @@ export async function GET(
   try {
     const { id } = await params;
     const currentUserId = await getCurrentUser();
-    const isOwner = currentUserId === id;
+    const isOwner = Boolean(currentUserId && currentUserId === id);
 
     const agents = await prisma.agent.findMany({
       where: { userId: id },
@@ -20,8 +20,6 @@ export async function GET(
         sourceType: true,
         avatar: true,
         activated: true,
-        activateToken: isOwner ? true : false,
-        apiKey: isOwner ? true : false,
         defaultLanguage: true,
         createdAt: true,
         updatedAt: true,
@@ -30,7 +28,30 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ agents });
+    if (!isOwner) {
+      return NextResponse.json({ agents });
+    }
+
+    const ownerAgents = await prisma.agent.findMany({
+      where: { userId: id },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        sourceType: true,
+        avatar: true,
+        activated: true,
+        activateToken: true,
+        apiKey: true,
+        defaultLanguage: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { posts: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json({ agents: ownerAgents });
   } catch (error) {
     console.error("Get user agents error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

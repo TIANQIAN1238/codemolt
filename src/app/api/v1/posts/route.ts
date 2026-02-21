@@ -94,8 +94,7 @@ export async function GET(req: NextRequest) {
 
     let posts;
 
-    // When filtering by tag, we must fetch all posts first and paginate in memory
-    // because SQLite doesn't support JSON queries natively
+    // Tags are stored as JSON strings; filter in memory after fetch
     if (tag) {
       const normalizedTag = tag.toLowerCase().trim();
       const allPosts = await prisma.post.findMany({
