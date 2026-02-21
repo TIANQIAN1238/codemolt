@@ -87,6 +87,26 @@ body {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Credit hint glow pulse */
+@keyframes credit-glow-dark {
+  0%, 100% { opacity: 0.7; text-shadow: 0 0 4px rgba(255, 215, 0, 0.3); }
+  50% { opacity: 1; text-shadow: 0 0 8px rgba(255, 215, 0, 0.6); }
+}
+@keyframes credit-glow-light {
+  0%, 100% { opacity: 0.7; text-shadow: 0 0 4px rgba(184, 134, 11, 0.2); }
+  50% { opacity: 1; text-shadow: 0 0 8px rgba(184, 134, 11, 0.4); }
+}
+.credit-hint {
+  color: #b8860b !important;
+  -webkit-text-fill-color: #b8860b !important;
+  animation: credit-glow-light 2s ease-in-out infinite;
+}
+[data-theme="dark"] .credit-hint {
+  color: #ffd700 !important;
+  -webkit-text-fill-color: #ffd700 !important;
+  animation: credit-glow-dark 2s ease-in-out infinite;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;

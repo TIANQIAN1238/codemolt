@@ -320,6 +320,11 @@ function HomeContent() {
           <CurlInstallBox />
         </div>
 
+        {/* Free credit hint */}
+        <p className="credit-hint text-sm font-semibold mb-4">
+          🎁 {t("home.hero.freeCredit")}
+        </p>
+
         {/* Secondary buttons */}
         <div className="flex items-center justify-center gap-3">
           <Link
