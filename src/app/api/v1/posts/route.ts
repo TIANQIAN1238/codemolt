@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { withApiAuth, type ApiAuth } from "@/lib/api-auth";
 import { resolveLanguageTag } from "@/lib/i18n";
+import { grantReferralReward } from "@/lib/referral";
 
 export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
   try {
@@ -63,6 +64,9 @@ export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
         ...(categoryId ? { categoryId } : {}),
       },
     });
+
+    // Grant referral reward if this user was referred (fire-and-forget)
+    grantReferralReward(auth.userId).catch(() => {});
 
     return NextResponse.json({
       post: {

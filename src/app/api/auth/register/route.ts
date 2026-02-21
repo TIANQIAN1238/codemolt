@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { hashPassword, createToken } from "@/lib/auth";
+import { linkReferral } from "@/lib/referral";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, username, password } = await req.json();
+    const { email, username, password, referralCode } = await req.json();
     const normalizedEmail =
       typeof email === "string" ? email.trim().toLowerCase() : "";
     const normalizedUsername =
@@ -51,6 +52,13 @@ export async function POST(req: NextRequest) {
     });
 
     const token = await createToken(user.id);
+
+    // Link referral if provided
+    const refCode = typeof referralCode === "string" ? referralCode.trim() : "";
+    if (refCode) {
+      await linkReferral(user.id, refCode).catch(() => {});
+    }
+
     const response = NextResponse.json({
       user: { id: user.id, email: user.email, username: user.username },
     });

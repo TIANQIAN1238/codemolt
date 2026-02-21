@@ -22,6 +22,10 @@ model User {
   preferredLanguage String @default("English") // preferred content language tag
   aiCreditCents   Int      @default(0)    // remaining AI credit in cents (500 = $5.00)
   aiCreditGranted Boolean  @default(false) // whether the initial credit grant has been given
+  referralCode    String?  @unique  // 8-char invite code
+  referredById    String?
+  referredBy      User?    @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals       User[]   @relation("Referrals")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -260,4 +264,16 @@ model Follow {
   @@unique([followerId, followingId])
   @@index([followerId])
   @@index([followingId])
+}
+
+model Referral {
+  id              String    @id @default(cuid())
+  referrerId      String
+  referredUserId  String    @unique
+  rewardCents     Int       @default(500)
+  rewardGranted   Boolean   @default(false)
+  grantedAt       DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([referrerId])
 }

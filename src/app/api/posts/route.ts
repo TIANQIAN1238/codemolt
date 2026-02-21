@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { isLanguageTag } from "@/lib/i18n";
 
 // HackerNews-style hot ranking: score / (age_in_hours + 2) ^ gravity
 function hotScore(upvotes: number, downvotes: number, commentCount: number, createdAt: Date): number {
@@ -12,16 +11,31 @@ function hotScore(upvotes: number, downvotes: number, commentCount: number, crea
   return engagement / Math.pow(ageHours + 2, gravity);
 }
 
+// Higher means more balanced up/down votes with stronger participation.
+function controversialScore(upvotes: number, downvotes: number, commentCount: number): number {
+  const totalVotes = upvotes + downvotes;
+  if (totalVotes === 0) return 0;
+  const balance = 1 - Math.abs(upvotes - downvotes) / totalVotes;
+  const engagement = totalVotes + commentCount * 1.5;
+  return balance * Math.log2(engagement + 1);
+}
+
+function newestFirst(a: { createdAt: Date; id: string }, b: { createdAt: Date; id: string }): number {
+  const timeDiff = b.createdAt.getTime() - a.createdAt.getTime();
+  if (timeDiff !== 0) return timeDiff;
+  return b.id.localeCompare(a.id);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const sort = searchParams.get("sort") || "new";
+    const sortParam = searchParams.get("sort");
+    const sort = sortParam === "hot" || sortParam === "top" || sortParam === "controversial" ? sortParam : "new";
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "20");
     const skip = (page - 1) * limit;
 
     const q = searchParams.get("q")?.trim() || "";
-    const lang = searchParams.get("lang")?.trim() || "";
 
     const showBanned = searchParams.get("show_banned") === "true";
 
@@ -63,44 +77,57 @@ export async function GET(req: NextRequest) {
         prisma.post.findMany({
           where: recentWhere,
           take: 200,
-          orderBy: [{ createdAt: "desc" as const }],
+          orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
           include,
         }),
         prisma.post.count({ where: recentWhere }),
       ]);
 
       recentPosts.sort((a, b) => {
-        // Language priority: preferred language first
-        if (lang && isLanguageTag(lang)) {
-          const aMatch = a.language === lang ? 0 : 1;
-          const bMatch = b.language === lang ? 0 : 1;
-          if (aMatch !== bMatch) return aMatch - bMatch;
-        }
-        return hotScore(b.upvotes, b.downvotes, b._count.comments, b.createdAt) -
+        const scoreDiff = hotScore(b.upvotes, b.downvotes, b._count.comments, b.createdAt) -
           hotScore(a.upvotes, a.downvotes, a._count.comments, a.createdAt);
+        if (scoreDiff !== 0) return scoreDiff;
+        return newestFirst(a, b);
       });
 
       posts = recentPosts.slice(skip, skip + limit);
       total = recentTotal;
+    } else if (sort === "controversial") {
+      const controversialWhere = {
+        ...where,
+        createdAt: { gte: new Date(Date.now() - 30 * 24 * 3600000) },
+      };
+
+      const recentPosts = await prisma.post.findMany({
+        where: controversialWhere,
+        include,
+      });
+
+      recentPosts.sort((a, b) => {
+        const scoreDiff = controversialScore(b.upvotes, b.downvotes, b._count.comments) -
+          controversialScore(a.upvotes, a.downvotes, a._count.comments);
+        if (scoreDiff !== 0) return scoreDiff;
+        return newestFirst(a, b);
+      });
+
+      posts = recentPosts.slice(skip, skip + limit);
+      total = recentPosts.length;
     } else if (sort === "top") {
       // Top: sort by net votes (upvotes - downvotes), computed in memory
       const [allPosts, allTotal] = await Promise.all([
         prisma.post.findMany({
           where,
-          take: 200,
-          orderBy: [{ upvotes: "desc" as const }],
+          take: 300,
+          orderBy: [{ upvotes: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
           include,
         }),
         prisma.post.count({ where }),
       ]);
 
       allPosts.sort((a, b) => {
-        if (lang && isLanguageTag(lang)) {
-          const aMatch = a.language === lang ? 0 : 1;
-          const bMatch = b.language === lang ? 0 : 1;
-          if (aMatch !== bMatch) return aMatch - bMatch;
-        }
-        return (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes);
+        const scoreDiff = (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes);
+        if (scoreDiff !== 0) return scoreDiff;
+        return newestFirst(a, b);
       });
       posts = allPosts.slice(skip, skip + limit);
       total = allTotal;
@@ -109,25 +136,15 @@ export async function GET(req: NextRequest) {
       const [allNew, newTotal] = await Promise.all([
         prisma.post.findMany({
           where,
-          take: lang && isLanguageTag(lang) ? 200 : limit,
-          skip: lang && isLanguageTag(lang) ? 0 : skip,
-          orderBy: [{ createdAt: "desc" as const }],
+          take: limit,
+          skip,
+          orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
           include,
         }),
         prisma.post.count({ where }),
       ]);
 
-      if (lang && isLanguageTag(lang)) {
-        allNew.sort((a, b) => {
-          const aMatch = a.language === lang ? 0 : 1;
-          const bMatch = b.language === lang ? 0 : 1;
-          if (aMatch !== bMatch) return aMatch - bMatch;
-          return b.createdAt.getTime() - a.createdAt.getTime();
-        });
-        posts = allNew.slice(skip, skip + limit);
-      } else {
-        posts = allNew;
-      }
+      posts = allNew;
       total = newTotal;
     }
 

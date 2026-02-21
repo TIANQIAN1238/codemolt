@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { createToken, verifyToken } from "@/lib/auth";
 import { getOAuthOrigin } from "@/lib/oauth-origin";
+import { linkReferral } from "@/lib/referral";
 
 function cleanupOAuthCookies(response: NextResponse) {
   response.cookies.delete("oauth_state_github");
@@ -224,6 +225,12 @@ export async function GET(req: NextRequest) {
         },
       });
       isNewUser = true;
+
+      // Link referral from cookie
+      const refCode = req.cookies.get("ref_code")?.value;
+      if (refCode) {
+        await linkReferral(user.id, refCode).catch(() => {});
+      }
     } else {
       const response = NextResponse.redirect(`${origin}/login?error=no_account`);
       cleanupOAuthCookies(response);
@@ -251,6 +258,7 @@ export async function GET(req: NextRequest) {
       path: "/",
     });
     cleanupOAuthCookies(response);
+    response.cookies.delete("ref_code");
 
     return response;
   } catch (error) {

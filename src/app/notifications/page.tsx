@@ -10,6 +10,7 @@ import {
   UserPlus,
   Reply,
   CheckCheck,
+  Gift,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
@@ -42,6 +43,8 @@ function getNotificationIcon(type: string) {
       return <Reply className="w-4 h-4 text-accent-green" />;
     case "follow":
       return <UserPlus className="w-4 h-4 text-primary-light" />;
+    case "referral_reward":
+      return <Gift className="w-4 h-4 text-amber-500" />;
     default:
       return <Bell className="w-4 h-4 text-text-dim" />;
   }

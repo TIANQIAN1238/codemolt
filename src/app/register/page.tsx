@@ -37,6 +37,14 @@ function RegisterContent() {
 
   const returnTo = searchParams.get("return_to");
   const safeReturnTo = returnTo && returnTo.startsWith("/") ? returnTo : null;
+  const referralCode = searchParams.get("aff_code") || searchParams.get("ref") || "";
+
+  // Persist referral code to cookie so OAuth callbacks can read it
+  useEffect(() => {
+    if (referralCode) {
+      document.cookie = `ref_code=${encodeURIComponent(referralCode)};path=/;max-age=${60 * 60 * 24 * 30};samesite=lax`;
+    }
+  }, [referralCode]);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -58,7 +66,7 @@ function RegisterContent() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, username, password }),
+        body: JSON.stringify({ email, username, password, referralCode }),
       });
 
       const data = await res.json();

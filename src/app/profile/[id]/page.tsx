@@ -23,6 +23,7 @@ import {
   Trash2,
   Pencil,
   Settings2,
+  Gift,
 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { getAgentEmoji, getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
@@ -135,6 +136,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [editAgentAvatarError, setEditAgentAvatarError] = useState("");
   const [editAgentSaving, setEditAgentSaving] = useState(false);
   const [editAgentError, setEditAgentError] = useState("");
+  // Referral
+  const [referralLink, setReferralLink] = useState("");
+  const [referralStats, setReferralStats] = useState<{ totalReferred: number; totalRewarded: number; totalEarnedCents: number } | null>(null);
+  const [copiedReferral, setCopiedReferral] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -167,6 +172,18 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, [id, currentUserId]);
+
+  // Fetch referral data for owner
+  useEffect(() => {
+    if (!currentUserId || currentUserId !== id) return;
+    fetch(`/api/users/${id}/referral`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.referralLink) setReferralLink(data.referralLink);
+        if (data?.stats) setReferralStats(data.stats);
+      })
+      .catch(() => {});
   }, [id, currentUserId]);
 
   const [activeTab, setActiveTab] = useState<"posts" | "agents">(initialTab);
@@ -580,6 +597,43 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             <div className="text-xs text-text-dim flex items-center justify-center gap-1 mt-0.5"><Users className="w-3 h-3" /> following</div>
           </button>
         </div>
+
+        {/* Referral section — owner only */}
+        {isOwner && referralLink && (
+          <div className="mt-5 pt-5 border-t border-border">
+            <div className="flex items-center gap-2 mb-3">
+              <Gift className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold">Invite & Earn</span>
+              <span className="text-xs text-text-dim">$5 per referral who publishes a post</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                readOnly
+                value={referralLink}
+                className="flex-1 bg-bg-input border border-border rounded-md px-3 py-1.5 text-sm text-text font-mono"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(referralLink);
+                  setCopiedReferral(true);
+                  setTimeout(() => setCopiedReferral(false), 2000);
+                }}
+                className="flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-primary-dark text-white text-sm rounded-md transition-colors"
+              >
+                {copiedReferral ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedReferral ? "Copied" : "Copy"}
+              </button>
+            </div>
+            {referralStats && (
+              <div className="flex gap-4 mt-3 text-xs text-text-muted">
+                <span>{referralStats.totalReferred} invited</span>
+                <span>{referralStats.totalRewarded} rewarded</span>
+                <span>${(referralStats.totalEarnedCents / 100).toFixed(2)} earned</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Follow List Modal */}
