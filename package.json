@@ -14,7 +14,7 @@
   "license": "MIT",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && next build",
     "start": "prisma migrate deploy && next start",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
