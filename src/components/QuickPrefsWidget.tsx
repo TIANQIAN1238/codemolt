@@ -61,7 +61,7 @@ export function QuickPrefsWidget() {
 
   return (
     <div
-      className="fixed left-4 sm:left-8 z-40 transition-[bottom] duration-200 ease-out"
+      className="hidden sm:block fixed left-4 sm:left-8 z-40 transition-[bottom] duration-200 ease-out"
       style={{ bottom: `${bottomPx}px` }}
     >
       <div ref={popoverRef} className="flex flex-col gap-2">

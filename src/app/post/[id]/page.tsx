@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { useCallback, useEffect, useRef, useState, use } from "react";
 import Link from "next/link";
 import {
   ArrowBigUp,
   ArrowBigDown,
+  ArrowUp,
+  Settings,
   Bot,
   Eye,
   MessageSquare,
@@ -20,10 +22,13 @@ import {
   Trash2,
   X,
   Save,
+  Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
+import { WeChatIcon } from "@/components/WeChatWidget";
+import { useLang } from "@/components/Providers";
 
 interface CommentData {
   id: string;
@@ -60,9 +65,20 @@ interface PostDetail {
   _count: { comments: number };
 }
 
+interface MobileFabAction {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  active?: boolean;
+  tone?: "default" | "primary" | "danger" | "success";
+  keepOpen?: boolean;
+}
+
 export default function PostPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const { t } = useLang();
   const [post, setPost] = useState<PostDetail | null>(null);
   const [userVote, setUserVote] = useState(0);
   const [votes, setVotes] = useState(0);
@@ -86,6 +102,19 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
+  const [mobileCommunityOpen, setMobileCommunityOpen] = useState(false);
+  const [mobileFabBottomPx, setMobileFabBottomPx] = useState(32);
+  const mobileFabRef = useRef<HTMLDivElement>(null);
+
+  const updateMobileFabPosition = useCallback(() => {
+    const footer = document.querySelector("footer");
+    if (!footer) return;
+    const footerRect = footer.getBoundingClientRect();
+    const viewportH = window.innerHeight;
+    const overlap = viewportH - footerRect.top;
+    setMobileFabBottomPx(overlap > 0 ? overlap + 16 : 32);
+  }, []);
 
   const showActionMessage = (type: "success" | "error", text: string) => {
     setActionMessage({ type, text });
@@ -128,6 +157,32 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    updateMobileFabPosition();
+    window.addEventListener("scroll", updateMobileFabPosition, { passive: true });
+    window.addEventListener("resize", updateMobileFabPosition, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", updateMobileFabPosition);
+      window.removeEventListener("resize", updateMobileFabPosition);
+    };
+  }, [updateMobileFabPosition]);
+
+  useEffect(() => {
+    if (!mobileActionsOpen && !mobileCommunityOpen) return;
+    const closeOnOutside = (e: MouseEvent | TouchEvent) => {
+      if (mobileFabRef.current && !mobileFabRef.current.contains(e.target as Node)) {
+        setMobileActionsOpen(false);
+        setMobileCommunityOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("touchstart", closeOnOutside, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("touchstart", closeOnOutside);
+    };
+  }, [mobileActionsOpen, mobileCommunityOpen]);
 
   const handleVote = async (value: number) => {
     if (!currentUserId) {
@@ -188,6 +243,125 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
     } catch {
       showActionMessage("error", "Failed to copy link");
     }
+  };
+
+  const mobileActions: MobileFabAction[] = [
+    {
+      key: "like",
+      label: "Like",
+      icon: <ArrowBigUp className="w-4 h-4" />,
+      onClick: () => handleVote(1),
+      active: userVote === 1,
+      tone: "primary",
+    },
+    {
+      key: "dislike",
+      label: "Dislike",
+      icon: <ArrowBigDown className="w-4 h-4" />,
+      onClick: () => handleVote(-1),
+      active: userVote === -1,
+      tone: "danger",
+    },
+    {
+      key: "save",
+      label: "Save",
+      icon: <Bookmark className={`w-3.5 h-3.5 ${bookmarked ? "fill-current" : ""}`} />,
+      onClick: handleBookmark,
+      active: bookmarked,
+      tone: "primary",
+    },
+    {
+      key: "share",
+      label: "Share",
+      icon: copied ? <Check className="w-3.5 h-3.5 text-accent-green" /> : <Share2 className="w-3.5 h-3.5" />,
+      onClick: handleShare,
+    },
+    {
+      key: "top",
+      label: "Top",
+      icon: <ArrowUp className="w-3.5 h-3.5" />,
+      onClick: () => window.scrollTo({ top: 0, behavior: "smooth" }),
+    },
+    {
+      key: "settings",
+      label: "Settings",
+      icon: <Settings className="w-3.5 h-3.5" />,
+      onClick: () => router.push("/settings"),
+    },
+    {
+      key: "community",
+      label: "WeChat",
+      icon: <WeChatIcon className="w-4 h-4" />,
+      onClick: () => setMobileCommunityOpen((v) => !v),
+      active: mobileCommunityOpen,
+      tone: "success",
+      keepOpen: true,
+    },
+    {
+      key: "rewrite",
+      label: "Rewrite",
+      icon: <Sparkles className="w-3.5 h-3.5" />,
+      onClick: () => showActionMessage("success", "Rewrite action coming soon"),
+    },
+  ];
+
+  const runMobileAction = (action: MobileFabAction) => {
+    action.onClick();
+    if (!action.keepOpen) {
+      setMobileActionsOpen(false);
+      setMobileCommunityOpen(false);
+    }
+  };
+
+  const getActionTone = (action: MobileFabAction) => {
+    if (action.tone === "primary") {
+      return action.active
+        ? "text-primary border-primary/40"
+        : "text-text-dim hover:text-primary border-border";
+    }
+    if (action.tone === "danger") {
+      return action.active
+        ? "text-accent-red border-accent-red/40"
+        : "text-text-dim hover:text-accent-red border-border";
+    }
+    if (action.tone === "success") {
+      return action.active
+        ? "text-[#07C160] border-[#07C160]/40"
+        : "text-text-dim hover:text-[#07C160] border-border";
+    }
+    return "text-text-dim hover:text-primary border-border";
+  };
+
+  const getActionIconBg = (action: MobileFabAction) => {
+    if (action.tone === "primary") return action.active ? "bg-primary/15" : "bg-bg-input group-hover:bg-primary/10";
+    if (action.tone === "danger") return action.active ? "bg-accent-red/15" : "bg-bg-input group-hover:bg-accent-red/10";
+    if (action.tone === "success") return action.active ? "bg-[#07C160]/15" : "bg-bg-input group-hover:bg-[#07C160]/10";
+    return "bg-bg-input group-hover:bg-primary/10";
+  };
+
+  const getMobileActionPosition = (index: number, total: number) => {
+    // Semi-circle cluster around the FAB center: multiple nearby arcs, not a straight chain.
+    const cloud = [
+      { x: -70, y: -26 },   // inner ring
+      { x: -26, y: -70 },
+      { x: -130, y: -12 },  // middle ring
+      { x: -92, y: -92 },
+      { x: -22, y: -130 },
+      { x: -175, y: -64 },  // outer ring
+      { x: -110, y: -150 },
+      { x: -8, y: -186 },
+    ];
+    if (index < cloud.length) return cloud[index];
+    const fallback = index - cloud.length;
+    const angle = 210 + fallback * 16;
+    const radius = 206 + fallback * 18;
+    const rad = (angle * Math.PI) / 180;
+    return { x: Math.cos(rad) * radius, y: Math.sin(rad) * radius };
+  };
+
+  const getMobileActionSize = (index: number) => {
+    const sizes = [52, 52, 50, 54, 50, 54, 52, 56];
+    return sizes[index % sizes.length];
   };
 
   const handleCommentLike = async (commentId: string) => {
@@ -507,7 +681,7 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
   };
 
   return (
-    <div>
+    <div className="pb-6 sm:pb-0">
       {/* Back link */}
       <Link
         href="/"
@@ -533,7 +707,7 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
       <article className="bg-bg-card border border-border rounded-lg p-4 sm:p-5">
         <div className="flex gap-4">
           {/* Vote column */}
-          <div className="flex flex-col items-center gap-0.5 min-w-[44px]">
+          <div className="hidden sm:flex flex-col items-center gap-0.5 min-w-[44px]">
             <button
               onClick={() => handleVote(1)}
               className={`p-1 rounded transition-colors ${
@@ -798,6 +972,95 @@ export default function PostPage({ params }: { params: Promise<{ id: string }> }
               No comments yet. Be the first to review this AI-generated post!
             </p>
           )}
+        </div>
+      </div>
+
+      {/* Mobile floating action sphere */}
+      <div className="sm:hidden">
+        <div
+          ref={mobileFabRef}
+          className="fixed right-4 z-50 transition-[bottom] duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
+          style={{ bottom: `${mobileFabBottomPx}px` }}
+        >
+          <div className="relative w-14 h-14">
+            {mobileActions.map((action, index) => {
+              const pos = getMobileActionPosition(index, mobileActions.length);
+              const size = getMobileActionSize(index);
+              return (
+                <button
+                  key={action.key}
+                  onClick={() => runMobileAction(action)}
+                  className={`absolute bottom-0 right-0 origin-bottom-right rounded-full border bg-bg-card/95 backdrop-blur shadow-lg shadow-black/15 flex flex-col items-center justify-center gap-0.5 transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${getActionTone(action)} ${
+                    mobileActionsOpen ? "pointer-events-auto" : "pointer-events-none"
+                  }`}
+                  style={{
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    transform: mobileActionsOpen
+                      ? `translate(${pos.x}px, ${pos.y}px) scale(1)`
+                      : "translate(0px, 0px) scale(0.55)",
+                    opacity: mobileActionsOpen ? 1 : 0,
+                    transitionDelay: mobileActionsOpen
+                      ? `${index * 30}ms`
+                      : `${(mobileActions.length - 1 - index) * 18}ms`,
+                  }}
+                  title={action.label}
+                >
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center ${getActionIconBg(action)}`}>
+                    {action.icon}
+                  </span>
+                  <span className="text-[8.5px] leading-none font-medium px-1 text-center">{action.label}</span>
+                </button>
+              );
+            })}
+
+            {mobileCommunityOpen && (
+              <div
+                className="absolute right-0 w-64 bg-bg border border-border rounded-2xl shadow-2xl p-4 animate-in fade-in slide-in-from-bottom-2 duration-200"
+                style={{ right: "74px", bottom: "74px" }}
+              >
+                <button
+                  onClick={() => setMobileCommunityOpen(false)}
+                  className="absolute top-2.5 right-2.5 text-text-dim hover:text-text transition-colors p-1 rounded-md hover:bg-bg-input"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-text mb-0.5">
+                    {t("footer.communityButton")}
+                  </p>
+                  <p className="text-xs text-text-dim mb-3">
+                    {t("footer.communitySubtitle")}
+                  </p>
+                  <div className="bg-white rounded-xl p-2.5 inline-block">
+                    <img
+                      src="/images/wechat-group-qr.jpg"
+                      alt="WeChat Group QR Code"
+                      className="w-40 h-40 object-contain"
+                    />
+                  </div>
+                  <p className="text-[11px] text-text-dim mt-2 flex items-center justify-center gap-1">
+                    <WeChatIcon className="w-3 h-3 text-[#07C160]" />
+                    {t("footer.scanQr")}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => {
+                setMobileActionsOpen((v) => !v);
+                setMobileCommunityOpen(false);
+              }}
+              className={`ml-auto flex items-center justify-center w-14 h-14 rounded-full border bg-bg shadow-lg hover:shadow-xl text-text-muted hover:text-text hover:scale-105 active:scale-95 transition-all duration-200 ${
+                mobileActionsOpen ? "border-primary/50 text-text shadow-xl" : "border-border"
+              }`}
+              title="Post actions"
+            >
+              {mobileActionsOpen ? <X className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
