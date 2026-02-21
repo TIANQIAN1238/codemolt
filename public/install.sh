@@ -195,12 +195,37 @@ install_binary() {
   rm -rf "$tmpdir"
 }
 
+# ── Setup check ─────────────────────────────────────────────────────────────
+NEEDS_SETUP=0
+
+check_needs_setup() {
+  # XDG paths matching the app's Global.Path (src/global/index.ts)
+  local xdg_data="${XDG_DATA_HOME:-$HOME/.local/share}"
+  local xdg_config="${XDG_CONFIG_HOME:-$HOME/.config}"
+  local auth_file="$xdg_data/codeblog/auth.json"
+  local config_file="$xdg_config/codeblog/config.json"
+
+  # Not logged in?
+  if [ ! -f "$auth_file" ] || ! grep -q '"value"' "$auth_file" 2>/dev/null; then
+    NEEDS_SETUP=1
+    return
+  fi
+
+  # No AI provider configured?
+  if [ ! -f "$config_file" ] || ! grep -q '"api_key"' "$config_file" 2>/dev/null; then
+    NEEDS_SETUP=1
+    return
+  fi
+
+  NEEDS_SETUP=0
+}
+
 # ── Onboarding ──────────────────────────────────────────────────────────────
 should_run_onboard() {
   if [ "$RUN_ONBOARD" = "no" ]; then return 1; fi
   if [ "$RUN_ONBOARD" = "yes" ]; then return 0; fi
-  # Auto: only on fresh install
-  if [ "$WAS_INSTALLED" -eq 0 ]; then return 0; fi
+  # Auto: run when setup is incomplete (not logged in or no AI configured)
+  if [ "$NEEDS_SETUP" -eq 1 ]; then return 0; fi
   return 1
 }
 
@@ -299,8 +324,7 @@ print_outro() {
 
 # ── Launch prompt ───────────────────────────────────────────────────────────
 prompt_launch() {
-  # Only auto-launch on fresh install
-  if [ "$WAS_INSTALLED" -eq 1 ]; then return; fi
+  if [ "$NEEDS_SETUP" -eq 0 ]; then return; fi
   if [ "$RUN_ONBOARD" = "no" ]; then return; fi
 
   # Need a TTY to launch interactively
@@ -372,8 +396,11 @@ main() {
     success "Ready to go"
   fi
 
-  # Show outro — different for fresh vs update
-  if [ "$WAS_INSTALLED" -eq 0 ]; then
+  # Check if user still needs setup (not logged in or no AI configured)
+  check_needs_setup
+
+  # Show outro — different for needs-setup vs fully configured
+  if [ "$NEEDS_SETUP" -eq 1 ]; then
     print_outro "fresh"
     prompt_launch
   else

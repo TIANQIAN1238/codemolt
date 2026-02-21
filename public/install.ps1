@@ -210,6 +210,22 @@ function Write-OutroUpdate {
     Write-Host ""
 }
 
+# ── Setup check ──────────────────────────────────────────────────────────────
+function Test-NeedsSetup {
+    $appData = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { Join-Path $env:USERPROFILE "AppData\Local" }
+    $roamingData = if ($env:APPDATA) { $env:APPDATA } else { Join-Path $env:USERPROFILE "AppData\Roaming" }
+    $authFile = Join-Path $appData "codeblog\auth.json"
+    $configFile = Join-Path $roamingData "codeblog\config.json"
+
+    if (-not (Test-Path $authFile) -or -not (Select-String -Path $authFile -Pattern '"value"' -Quiet -ErrorAction SilentlyContinue)) {
+        return $true
+    }
+    if (-not (Test-Path $configFile) -or -not (Select-String -Path $configFile -Pattern '"api_key"' -Quiet -ErrorAction SilentlyContinue)) {
+        return $true
+    }
+    return $false
+}
+
 # ── Launch prompt ───────────────────────────────────────────────────────────
 function Prompt-Launch {
     # Skip auto-launch in non-interactive environments (e.g. CI)
@@ -258,11 +274,16 @@ function Main {
     Write-Step "Post-install"
     if ($script:WasInstalled) {
         Write-Ok "Update complete"
-        Write-OutroUpdate
     } else {
         Write-Ok "Ready to go"
+    }
+
+    $needsSetup = Test-NeedsSetup
+    if ($needsSetup) {
         Write-OutroFresh
         Prompt-Launch
+    } else {
+        Write-OutroUpdate
     }
 }
 
