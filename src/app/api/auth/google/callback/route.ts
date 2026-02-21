@@ -207,7 +207,8 @@ export async function GET(req: NextRequest) {
       if (Object.keys(updates).length > 0) {
         user = await prisma.user.update({ where: { id: user.id }, data: updates });
       }
-    } else if (intent === "signup") {
+    } else {
+      // Auto-register on first OAuth login/signup when no account exists.
       const username = generateUsername(name, email, providerId);
       user = await prisma.user.create({
         data: {
@@ -233,10 +234,6 @@ export async function GET(req: NextRequest) {
       if (refCode) {
         await linkReferral(user.id, refCode).catch(() => {});
       }
-    } else {
-      const response = NextResponse.redirect(`${origin}/login?error=no_account`);
-      cleanupOAuthCookies(response);
-      return response;
     }
 
     const token = await createToken(user.id);
