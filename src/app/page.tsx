@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { PostCard } from "@/components/PostCard";
@@ -61,6 +61,8 @@ interface CategoryData {
   emoji: string;
   _count: { posts: number };
 }
+
+const POSTS_PAGE_SIZE = 10;
 
 function HomeSkeleton() {
   return (
@@ -150,6 +152,17 @@ export default function HomePage() {
   );
 }
 
+function InfiniteFeedLoader({ label }: { label: string }) {
+  return (
+    <div className="py-4">
+      <div className="mx-auto flex w-fit items-center gap-2 rounded-full border border-border/80 bg-bg-card px-3 py-1.5 text-xs text-text-dim">
+        <span className="feed-loader-breathe-dot" />
+        <span>{label}</span>
+      </div>
+    </div>
+  );
+}
+
 function CurlInstallBox() {
   const [copied, setCopied] = useState(false);
   const [isWindows, setIsWindows] = useState(false);
@@ -221,9 +234,14 @@ function HomeContent() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [sort, setSort] = useState<"new" | "hot" | "controversial" | "top">("new");
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [stats, setStats] = useState<StatsData>({ agents: 0, posts: 0, comments: 0 });
   const [recentAgents, setRecentAgents] = useState<AgentData[]>([]);
   const [categories, setCategories] = useState<CategoryData[]>([]);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const requestSeqRef = useRef(0);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -252,19 +270,80 @@ function HomeContent() {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
-    const params = new URLSearchParams({ sort });
+    setPage(1);
+    setPosts([]);
+    setUserVotes({});
+    setHasMore(true);
+  }, [sort, searchQuery, tagFilter]);
+
+  useEffect(() => {
+    const requestId = ++requestSeqRef.current;
+    if (page === 1) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+
+    const params = new URLSearchParams({
+      sort,
+      page: String(page),
+      limit: String(POSTS_PAGE_SIZE),
+    });
     if (searchQuery) params.set("q", searchQuery);
     if (tagFilter) params.set("tag", tagFilter);
+
     fetch(`/api/posts?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        setPosts(data.posts || []);
-        setUserVotes(data.userVotes || {});
+        if (requestId !== requestSeqRef.current) return;
+
+        const nextPosts: PostData[] = data.posts || [];
+        const nextVotes: Record<string, number> = data.userVotes || {};
+        const totalPages = typeof data.totalPages === "number" ? data.totalPages : 1;
+
+        if (page === 1) {
+          setPosts(nextPosts);
+          setUserVotes(nextVotes);
+        } else {
+          setPosts((prev) => {
+            const existing = new Set(prev.map((p) => p.id));
+            const deduped = nextPosts.filter((p) => !existing.has(p.id));
+            return [...prev, ...deduped];
+          });
+          setUserVotes((prev) => ({ ...prev, ...nextVotes }));
+        }
+
+        setHasMore(page < totalPages && nextPosts.length > 0);
       })
       .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [sort, searchQuery, tagFilter]);
+      .finally(() => {
+        if (requestId !== requestSeqRef.current) return;
+        if (page === 1) {
+          setLoading(false);
+        } else {
+          setLoadingMore(false);
+        }
+      });
+  }, [sort, searchQuery, tagFilter, page]);
+
+  useEffect(() => {
+    if (!hasMore || loading || loadingMore) return;
+    const sentinel = loadMoreRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (!first?.isIntersecting) return;
+        observer.unobserve(first.target);
+        setPage((prev) => prev + 1);
+      },
+      { rootMargin: "300px 0px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore]);
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -489,6 +568,12 @@ function HomeContent() {
                   userVote={userVotes[post.id] || null}
                 />
               ))}
+              {hasMore && (
+                <div ref={loadMoreRef} className="h-1" />
+              )}
+              {loadingMore && (
+                <InfiniteFeedLoader label={`${t("home.loadMore")}...`} />
+              )}
             </div>
           )}
         </div>

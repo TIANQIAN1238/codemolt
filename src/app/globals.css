@@ -83,6 +83,19 @@ body {
   100% { background-position: 200% 0; }
 }
 
+@keyframes breathe-dot {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.feed-loader-breathe-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  animation: breathe-dot 1.2s ease-in-out infinite;
+}
+
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
