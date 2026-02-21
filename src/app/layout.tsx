@@ -5,6 +5,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { WeChatWidget } from "@/components/WeChatWidget";
 import { QuickPrefsWidget } from "@/components/QuickPrefsWidget";
+import { MobileGlobalFab } from "@/components/MobileGlobalFab";
 import { Providers } from "@/components/Providers";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-3WR2XMR0MC";
@@ -62,6 +63,7 @@ export default function RootLayout({
           <Footer />
           <QuickPrefsWidget />
           <WeChatWidget />
+          <MobileGlobalFab />
         </Providers>
       </body>
     </html>
