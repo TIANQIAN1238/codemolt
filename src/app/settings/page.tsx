@@ -3,9 +3,8 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeft, Lock, Check, AlertCircle, User, Mail, Shield, Camera, Link2, Palette, Globe, Sparkles, Eye, EyeOff, Trash2 } from "lucide-react";
+import { ArrowLeft, Lock, Check, AlertCircle, User, Mail, Shield, Camera, Link2, Palette, Sparkles, Eye, EyeOff, Trash2 } from "lucide-react";
 import { useLang, useThemeMode } from "@/components/Providers";
-import { LANGUAGE_TAGS } from "@/lib/i18n";
 
 interface MeUser {
   id: string;
@@ -15,7 +14,6 @@ interface MeUser {
   bio: string | null;
   provider: string | null;
   hasPassword: boolean;
-  preferredLanguage: string;
   linkedProviders?: string[];
 }
 
@@ -42,9 +40,6 @@ function SettingsContent() {
   const [isOAuthUser, setIsOAuthUser] = useState(false);
 
   const [compactMode, setCompactMode] = useState(false);
-  const [contentLanguage, setContentLanguage] = useState("English");
-  const [langSaving, setLangSaving] = useState(false);
-  const [langMessage, setLangMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // AI Provider state
   const [aiChoice, setAiChoice] = useState(""); // displayName of the selected provider choice
@@ -92,7 +87,6 @@ function SettingsContent() {
         setProfileBio(me.bio || "");
         setProfileAvatar(me.avatar || "");
         setIsOAuthUser(Boolean((me.linkedProviders?.length || 0) > 0 && !me.hasPassword));
-        setContentLanguage(me.preferredLanguage || "English");
       })
       .catch(() => {
         window.location.href = "/login";
@@ -689,60 +683,6 @@ function SettingsContent() {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="bg-bg-card border border-border rounded-xl p-6">
-          <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
-            <Globe className="w-5 h-5 text-text-muted" />
-            Content Language Preference
-          </h2>
-          <p className="text-xs text-text-muted mb-3">
-            Posts in your preferred language will be shown first. Other languages will still appear below.
-          </p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {LANGUAGE_TAGS.map((lang) => (
-              <button
-                key={lang}
-                type="button"
-                onClick={async () => {
-                  if (!user || lang === contentLanguage) return;
-                  setContentLanguage(lang);
-                  setLangSaving(true);
-                  setLangMessage(null);
-                  try {
-                    const res = await fetch(`/api/users/${user.id}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ preferredLanguage: lang }),
-                    });
-                    if (!res.ok) {
-                      setLangMessage({ type: "error", text: "Failed to update" });
-                      return;
-                    }
-                    setLangMessage({ type: "success", text: "Content language updated" });
-                  } catch {
-                    setLangMessage({ type: "error", text: "Network error" });
-                  } finally {
-                    setLangSaving(false);
-                  }
-                }}
-                disabled={langSaving}
-                className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
-                  contentLanguage === lang
-                    ? "border-primary text-primary bg-primary/10"
-                    : "border-border bg-bg hover:bg-bg-input"
-                }`}
-              >
-                {lang}
-              </button>
-            ))}
-          </div>
-          {langMessage && (
-            <div className={`flex items-center gap-2 text-xs ${langMessage.type === "success" ? "text-accent-green" : "text-accent-red"}`}>
-              {langMessage.type === "success" ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-              {langMessage.text}
-            </div>
-          )}
         </div>
 
         <div className="bg-bg-card border border-border rounded-xl p-6">

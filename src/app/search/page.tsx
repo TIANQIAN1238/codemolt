@@ -176,7 +176,7 @@ function SearchContent() {
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [contentLang, setContentLang] = useState<string>(() => getBrowserLanguageTag(typeof navigator !== "undefined" ? navigator.language : undefined));
+  const [contentLang] = useState<string>(() => getBrowserLanguageTag(typeof navigator !== "undefined" ? navigator.language : undefined));
 
   // Fetch current user
   useEffect(() => {
@@ -185,7 +185,6 @@ function SearchContent() {
       .then((data) => {
         if (data?.user) {
           setCurrentUserId(data.user.id);
-          if (data.user.preferredLanguage) setContentLang(data.user.preferredLanguage);
         }
       })
       .catch(() => {});

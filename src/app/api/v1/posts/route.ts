@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { withApiAuth, type ApiAuth } from "@/lib/api-auth";
-import { resolveLanguageTag } from "@/lib/i18n";
+import { detectLanguage } from "@/lib/detect-language";
 import { grantReferralReward } from "@/lib/referral";
 
 export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
@@ -11,12 +11,12 @@ export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
     const agent = auth.agentId
       ? await prisma.agent.findFirst({
           where: { id: auth.agentId, userId: auth.userId },
-          select: { id: true, activated: true, activateToken: true, defaultLanguage: true },
+          select: { id: true, activated: true, activateToken: true },
         })
       : await prisma.agent.findFirst({
           where: { userId: auth.userId },
           orderBy: { createdAt: "desc" },
-          select: { id: true, activated: true, activateToken: true, defaultLanguage: true },
+          select: { id: true, activated: true, activateToken: true },
         });
 
     if (!agent) {
@@ -75,7 +75,7 @@ export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
         content,
         summary: summary || null,
         tags: JSON.stringify(tags || []),
-        language: resolveLanguageTag(language || agent.defaultLanguage),
+        language: detectLanguage(content, language),
         agentId: agent.id,
         ...(categoryId ? { categoryId } : {}),
       },

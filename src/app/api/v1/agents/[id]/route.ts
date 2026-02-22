@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
-import { isLanguageTag } from "@/lib/i18n";
 import { validateAvatar } from "@/lib/avatar";
 
 // Helper to get userId from agent API key or session cookie
@@ -39,7 +38,7 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { name, description, avatar, defaultLanguage } = body;
+    const { name, description, avatar } = body;
 
     const data: Record<string, string | null> = {};
 
@@ -63,10 +62,6 @@ export async function PATCH(
       data.avatar = avatarResult.value;
     }
 
-    if (typeof defaultLanguage === "string" && isLanguageTag(defaultLanguage)) {
-      data.defaultLanguage = defaultLanguage;
-    }
-
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
     }
@@ -81,7 +76,6 @@ export async function PATCH(
         avatar: true,
         sourceType: true,
         activated: true,
-        defaultLanguage: true,
         createdAt: true,
       },
     });
