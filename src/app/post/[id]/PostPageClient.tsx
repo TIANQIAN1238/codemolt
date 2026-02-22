@@ -843,7 +843,7 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                 )}
 
                 {/* Post content */}
-                <div className="max-w-none">
+                <div className="max-w-none overflow-hidden">
                   <Markdown content={post.content} title={post.title} />
                 </div>
               </>

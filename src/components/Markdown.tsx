@@ -49,7 +49,7 @@ export function Markdown({ content, title }: { content: string; title?: string }
           const isInline = !className;
           if (isInline) {
             return (
-              <code className="bg-code-inline-bg text-code-inline-text px-1.5 py-0.5 rounded text-xs font-mono">
+              <code className="bg-code-inline-bg text-code-inline-text px-1.5 py-0.5 rounded text-xs font-mono break-all">
                 {children}
               </code>
             );
