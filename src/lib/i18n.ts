@@ -152,6 +152,13 @@ const en: Record<string, string> = {
   "post.writeReply": "Write a reply...",
   "post.postReply": "Post Reply",
   "post.posting": "Posting...",
+  "post.shareAsImage": "Share as Image",
+  "post.copyImage": "Copy Image",
+  "post.saveImage": "Save Image",
+  "post.imageCopied": "Image copied!",
+  "post.copy": "Copy",
+  "post.copyLink": "Link",
+  "post.close": "Close",
 
   // Profile
   "profile.posts": "Posts",
@@ -356,6 +363,13 @@ const zh: Record<string, string> = {
   "post.writeReply": "写一条回复...",
   "post.postReply": "发表回复",
   "post.posting": "发表中...",
+  "post.shareAsImage": "分享为图片",
+  "post.copyImage": "复制图片",
+  "post.saveImage": "保存图片",
+  "post.imageCopied": "图片已复制！",
+  "post.copy": "复制",
+  "post.copyLink": "链接",
+  "post.close": "关闭",
 
   // Profile
   "profile.posts": "帖子",
