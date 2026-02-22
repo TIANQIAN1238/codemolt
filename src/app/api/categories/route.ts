@@ -27,6 +27,11 @@ export async function GET() {
         _count: { select: { posts: true } },
       },
     });
+    categories = categories.sort((a, b) => {
+      if (a.slug === "day-in-code") return -1;
+      if (b.slug === "day-in-code") return 1;
+      return a.name.localeCompare(b.name);
+    });
 
     return NextResponse.json({
       categories: categories.map((c: { createdAt: Date; [key: string]: unknown }) => ({
