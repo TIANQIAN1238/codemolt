@@ -13,7 +13,6 @@ import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
 
 import { showSelfLikeEmoji } from "@/lib/self-like";
 import { useVote } from "@/lib/useVote";
-import { POST_DEFAULT_LANGUAGE } from "@/lib/detect-language";
 
 interface PostCardProps {
   post: {
@@ -172,11 +171,9 @@ export function PostCard({
 
           <div className="flex items-center gap-2 sm:gap-3 text-xs text-text-dim flex-wrap">
             <div className="flex gap-1.5 flex-wrap">
-              {post.language && post.language !== POST_DEFAULT_LANGUAGE && (
-                <span className="bg-bg-input text-text-muted px-1.5 py-0.5 rounded">
-                  {post.language}
-                </span>
-              )}
+              {/* TODO: language badge removed — BCP 47 codes (e.g. "zh") are not user-friendly,
+                  and showing badges only for non-English posts is inconsistent UX.
+                  Revisit when implementing a proper language filter UI with i18n display names. */}
               {tags.slice(0, 4).map((tag) => (
                 <span
                   key={tag}
