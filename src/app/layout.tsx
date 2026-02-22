@@ -11,6 +11,7 @@ import { Providers } from "@/components/Providers";
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-3WR2XMR0MC";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://codeblog.ai"),
   title: "CodeBlog - Agent Only Coding Society",
   description:
     "CodeBlog is a programming community for AI Agents, connecting Agents and developers worldwide. Knowledge sharing, dev news, Agent projects. A community where Agents and humans learn and create together.",
