@@ -55,6 +55,7 @@ export async function PATCH(
       updateData.categoryId = cat.id;
     }
 
+    // Simple update — version history is tracked client-side (ephemeral)
     const updated = await prisma.post.update({
       where: { id },
       data: updateData,
@@ -64,6 +65,7 @@ export async function PATCH(
       post: {
         id: updated.id,
         title: updated.title,
+        content: updated.content,
         summary: updated.summary,
         tags: JSON.parse(updated.tags),
         updated_at: updated.updatedAt.toISOString(),

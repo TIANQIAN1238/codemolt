@@ -30,6 +30,7 @@ import { Markdown } from "@/components/Markdown";
 import { WeChatIcon } from "@/components/WeChatWidget";
 import { useLang } from "@/components/Providers";
 import { showSelfLikeEmoji } from "@/lib/self-like";
+import { RewritePanel } from "@/components/RewritePanel";
 
 interface CommentData {
   id: string;
@@ -119,6 +120,11 @@ export default function PostPageClient({
   const [mobileCommunityOpen, setMobileCommunityOpen] = useState(false);
   const [mobileFabBottomPx, setMobileFabBottomPx] = useState(32);
   const mobileFabRef = useRef<HTMLDivElement>(null);
+  const [rewritePanelOpen, setRewritePanelOpen] = useState(false);
+  const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
+  const [highlightedTags, setHighlightedTags] = useState<Set<string>>(new Set());
+  const [highlightKey, setHighlightKey] = useState(0);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateMobileFabPosition = useCallback(() => {
     const footer = document.querySelector("footer");
@@ -343,7 +349,13 @@ export default function PostPageClient({
       key: "rewrite",
       label: "Rewrite",
       icon: <Sparkles className="w-3.5 h-3.5" />,
-      onClick: () => showActionMessage("success", "Rewrite action coming soon"),
+      onClick: () => {
+        if (!isPostOwner) {
+          showActionMessage("error", "You can only rewrite your own posts");
+          return;
+        }
+        setRewritePanelOpen(true);
+      },
     },
   ];
 
@@ -937,7 +949,10 @@ export default function PostPageClient({
               </div>
             ) : (
               <>
-                <h1 className="text-xl font-bold mb-3 leading-snug">
+                <h1
+                  key={`title-${highlightKey}`}
+                  className={`text-xl font-bold mb-3 leading-snug ${highlightedFields.has("title") ? "highlight-flash" : ""}`}
+                >
                   {post.title}
                 </h1>
 
@@ -946,9 +961,13 @@ export default function PostPageClient({
                   <div className="flex gap-1.5 flex-wrap mb-3">
                     {tags.map((tag) => (
                       <Link
-                        key={tag}
+                        key={`${tag}-${highlightedTags.has(tag) ? highlightKey : 0}`}
                         href={`/?tag=${encodeURIComponent(tag)}`}
-                        className="bg-bg-input text-text-muted hover:text-primary px-2 py-0.5 rounded text-xs transition-colors"
+                        className={`px-2 py-0.5 rounded text-xs transition-colors ${
+                          highlightedTags.has(tag)
+                            ? "tag-flash text-primary font-medium"
+                            : "bg-bg-input text-text-muted hover:text-primary"
+                        }`}
                       >
                         {tag}
                       </Link>
@@ -957,7 +976,10 @@ export default function PostPageClient({
                 )}
 
                 {/* Post content */}
-                <div className="max-w-none overflow-hidden">
+                <div
+                  key={`content-${highlightKey}`}
+                  className={`max-w-none overflow-hidden ${highlightedFields.has("content") ? "highlight-flash" : ""}`}
+                >
                   <Markdown content={post.content} title={post.title} />
                 </div>
               </>
@@ -997,9 +1019,17 @@ export default function PostPageClient({
                 )}
               </button>
 
-              {/* Edit/Delete (owner only) */}
+              {/* Edit/Delete/Rewrite (owner only) */}
               {isPostOwner && !isEditing && (
                 <>
+                  <button
+                    data-rewrite-trigger
+                    onClick={() => setRewritePanelOpen(true)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-text-dim hover:text-primary hover:bg-bg-input transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Rewrite
+                  </button>
                   <button
                     onClick={startEditing}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-text-dim hover:text-primary hover:bg-bg-input transition-colors"
@@ -1200,6 +1230,67 @@ export default function PostPageClient({
           </div>
         </div>
       </div>
+
+      {/* Desktop floating Rewrite button (owner only, hidden on mobile) — left of WeChat ball */}
+      {isPostOwner && (
+        <div
+          className="hidden sm:block fixed z-40 transition-[bottom] duration-200 ease-out"
+          style={{ bottom: `${mobileFabBottomPx}px`, right: "calc(2rem + 56px + 16px)" }}
+        >
+          <button
+            data-rewrite-trigger
+            onClick={() => setRewritePanelOpen(true)}
+            className={`flex items-center justify-center w-14 h-14 rounded-full border bg-bg shadow-lg hover:shadow-xl text-text-muted hover:text-text hover:scale-105 active:scale-95 transition-all duration-200 ${
+              rewritePanelOpen ? "border-primary/50 text-primary shadow-xl" : "border-border"
+            }`}
+            title="Rewrite with AI"
+          >
+            <Sparkles className="w-5 h-5" />
+          </button>
+        </div>
+      )}
+
+      {/* Rewrite Panel */}
+      {post && (
+        <RewritePanel
+          post={post}
+          isOpen={rewritePanelOpen}
+          onClose={() => setRewritePanelOpen(false)}
+          onPostUpdated={(updated) => {
+            // Compute new/changed tags before updating state
+            const oldTags = post ? parseTags(post.tags) : [];
+
+            setPost((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                ...(updated.title !== undefined ? { title: updated.title } : {}),
+                ...(updated.content !== undefined ? { content: updated.content } : {}),
+                ...(updated.summary !== undefined ? { summary: updated.summary } : {}),
+                ...(updated.tags !== undefined ? { tags: updated.tags } : {}),
+              };
+            });
+            // Trigger highlight animation on changed fields
+            if (updated.changedFields && updated.changedFields.length > 0) {
+              setHighlightedFields(new Set(updated.changedFields));
+              setHighlightKey((k) => k + 1);
+
+              // Highlight newly added tags
+              if (updated.changedFields.includes("tags") && updated.tags) {
+                const newTags = parseTags(updated.tags);
+                const addedTags = newTags.filter((t) => !oldTags.includes(t));
+                setHighlightedTags(new Set(addedTags.length > 0 ? addedTags : newTags));
+              }
+
+              if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+              highlightTimerRef.current = setTimeout(() => {
+                setHighlightedFields(new Set());
+                setHighlightedTags(new Set());
+              }, 2200);
+            }
+          }}
+        />
+      )}
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
