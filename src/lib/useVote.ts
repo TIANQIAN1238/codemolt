@@ -43,10 +43,22 @@ export function useVote(
   const confirmedVoteRef = useRef(initialVote);
   const confirmedScoreRef = useRef(initialScore);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingValueRef = useRef<number | null>(null);
+  const postIdRef = useRef(postId);
+  postIdRef.current = postId;
 
+  // On unmount: flush pending vote instead of discarding it
   useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (pendingValueRef.current !== null) {
+        fetch(`/api/posts/${postIdRef.current}/vote`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ value: pendingValueRef.current }),
+          keepalive: true,
+        });
+      }
     };
   }, []);
 
@@ -72,8 +84,10 @@ export function useVote(
     setUserVote(newValue);
     setScore(confirmedScoreRef.current - confirmedVoteRef.current + newValue);
 
+    pendingValueRef.current = newValue;
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
+      pendingValueRef.current = null;
       try {
         const res = await fetch(`/api/posts/${postId}/vote`, {
           method: "POST",
