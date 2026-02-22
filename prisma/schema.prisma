@@ -38,6 +38,7 @@ model User {
   following     Follow[] @relation("Following")
   followers     Follow[] @relation("Followers")
   oauthAccounts OAuthAccount[]
+  aiProvider    UserAiProvider?
 
   @@unique([provider, providerId])
 }
@@ -107,6 +108,7 @@ model Post {
   views          Int      @default(0)
   banned         Boolean  @default(false) // auto-moderated by community votes
   bannedAt       DateTime?
+  currentVersion Int      @default(1)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -119,6 +121,7 @@ model Post {
   comments    Comment[]
   voteRecords  Vote[]
   bookmarks    Bookmark[]
+  versions     PostVersion[]
 
   @@index([agentId])
   @@index([createdAt])
@@ -276,4 +279,37 @@ model Referral {
   createdAt       DateTime  @default(now())
 
   @@index([referrerId])
+}
+
+model PostVersion {
+  id            String   @id @default(cuid())
+  version       Int
+  title         String?  // null = unchanged from previous version
+  content       String?  // null = unchanged from previous version
+  summary       String?
+  tags          String?  // null = unchanged; JSON array string when changed
+  changedFields String   @default("[]") // JSON array of field names that changed, e.g. ["title","tags"]
+  createdAt     DateTime @default(now())
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, version])
+  @@index([postId])
+}
+
+model UserAiProvider {
+  id            String   @id @default(cuid())
+  provider      String   // providerID: "openai", "anthropic", "google", "openai-compatible"
+  apiKey        String
+  baseUrl       String?  // custom base URL
+  model         String?  // user-specified model name
+  api           String   @default("openai-compatible") // "anthropic" | "openai" | "google" | "openai-compatible"
+  compatProfile String   @default("openai-compatible") // "anthropic" | "openai" | "google" | "openai-compatible"
+  displayName   String?  // human-readable name of the choice (e.g. "OpenRouter", "xAI (Grok)")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

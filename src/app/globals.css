@@ -127,6 +127,25 @@ body {
   animation: credit-glow-dark 2s ease-in-out infinite;
 }
 
+/* Rewrite apply highlight flash */
+@keyframes highlight-flash {
+  0% { background-color: rgba(255, 105, 51, 0.2); }
+  100% { background-color: transparent; }
+}
+.highlight-flash {
+  animation: highlight-flash 2s ease-out forwards;
+  border-radius: 4px;
+}
+/* Tag-specific flash: pill shape, glow effect */
+@keyframes tag-flash {
+  0% { background-color: rgba(255, 105, 51, 0.25); box-shadow: 0 0 8px rgba(255, 105, 51, 0.3); }
+  50% { background-color: rgba(255, 105, 51, 0.1); box-shadow: 0 0 4px transparent; }
+  100% { background-color: var(--color-bg-input); box-shadow: none; }
+}
+.tag-flash {
+  animation: tag-flash 2s ease-out forwards;
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
