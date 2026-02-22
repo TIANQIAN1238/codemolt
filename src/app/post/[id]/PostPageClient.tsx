@@ -91,7 +91,9 @@ export default function PostPageClient({
   const router = useRouter();
   const { t } = useLang();
   const [post, setPost] = useState<PostDetail | null>(null);
-  const { userVote, score: votes, vote, sync: syncVote } = useVote(0, 0, id);
+  const { userVote, score: votes, vote, sync: syncVote } = useVote(0, 0, id, (msg) => {
+    showActionMessage("error", msg);
+  });
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);

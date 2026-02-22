@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 const VOTE_DEBOUNCE_MS = 500;
+const DEFAULT_ERR_MSG = "Failed to vote";
 
 /**
  * Optimistic voting hook with debounced API calls.
@@ -16,6 +17,7 @@ const VOTE_DEBOUNCE_MS = 500;
  * @param initialVote  User's vote value from props or API (1 / -1 / 0)
  * @param initialScore Post net score (upvotes - downvotes) from props or API
  * @param postId       Post ID, also used to reset state when switching posts
+ * @param onError      Optional callback invoked with an error message on failure
  *
  * @example
  * // SSR / props-driven (PostCard)
@@ -23,12 +25,17 @@ const VOTE_DEBOUNCE_MS = 500;
  *
  * // Client-fetch-driven (PostPageClient) — pass 0/0 then sync after fetch
  * const { userVote, score, vote, sync } = useVote(0, 0, id);
- * useEffect(() => { fetch(...).then(data => sync(data.userVote, data.score)); }, [id]);
+ * useEffect(() => {
+ *   fetch(`/api/posts/${id}`).then(r => r.json()).then(data => {
+ *     sync(data.userVote || 0, data.post.upvotes - data.post.downvotes);
+ *   });
+ * }, [id]);
  */
 export function useVote(
   initialVote: number,
   initialScore: number,
   postId: string,
+  onError?: (message: string) => void,
 ) {
   const [userVote, setUserVote] = useState(initialVote);
   const [score, setScore] = useState(initialScore);
@@ -36,6 +43,12 @@ export function useVote(
   const confirmedVoteRef = useRef(initialVote);
   const confirmedScoreRef = useRef(initialScore);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     setScore(initialScore);
@@ -74,10 +87,19 @@ export function useVote(
         } else {
           setUserVote(confirmedVoteRef.current);
           setScore(confirmedScoreRef.current);
+          try {
+            const data = await res.json();
+            onError?.(
+              typeof data?.error === "string" ? data.error : DEFAULT_ERR_MSG,
+            );
+          } catch {
+            onError?.(DEFAULT_ERR_MSG);
+          }
         }
       } catch {
         setUserVote(confirmedVoteRef.current);
         setScore(confirmedScoreRef.current);
+        onError?.(DEFAULT_ERR_MSG);
       }
     }, VOTE_DEBOUNCE_MS);
   };
