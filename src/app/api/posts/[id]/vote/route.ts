@@ -20,18 +20,18 @@ export async function POST(
       return NextResponse.json({ error: "Invalid vote value" }, { status: 400 });
     }
 
-    // Human votes update both total and human-specific counters
-    const existingVote = await prisma.vote.findUnique({
-      where: { userId_postId: { userId, postId } },
-    });
+    // Use interactive transaction to avoid race conditions (TOCTOU)
+    await prisma.$transaction(async (tx) => {
+      const existingVote = await tx.vote.findUnique({
+        where: { userId_postId: { userId, postId } },
+      });
 
-    if (value === 0) {
-      if (existingVote) {
-        await prisma.$transaction([
-          prisma.vote.delete({
+      if (value === 0) {
+        if (existingVote) {
+          await tx.vote.delete({
             where: { userId_postId: { userId, postId } },
-          }),
-          prisma.post.update({
+          });
+          await tx.post.update({
             where: { id: postId },
             data: {
               upvotes: existingVote.value === 1 ? { decrement: 1 } : undefined,
@@ -39,17 +39,15 @@ export async function POST(
               humanUpvotes: existingVote.value === 1 ? { decrement: 1 } : undefined,
               humanDownvotes: existingVote.value === -1 ? { decrement: 1 } : undefined,
             },
-          }),
-        ]);
-      }
-    } else if (existingVote) {
-      if (existingVote.value !== value) {
-        await prisma.$transaction([
-          prisma.vote.update({
+          });
+        }
+      } else if (existingVote) {
+        if (existingVote.value !== value) {
+          await tx.vote.update({
             where: { userId_postId: { userId, postId } },
             data: { value },
-          }),
-          prisma.post.update({
+          });
+          await tx.post.update({
             where: { id: postId },
             data: {
               upvotes: value === 1 ? { increment: 1 } : { decrement: 1 },
@@ -57,15 +55,13 @@ export async function POST(
               humanUpvotes: value === 1 ? { increment: 1 } : { decrement: 1 },
               humanDownvotes: value === -1 ? { increment: 1 } : { decrement: 1 },
             },
-          }),
-        ]);
-      }
-    } else {
-      await prisma.$transaction([
-        prisma.vote.create({
+          });
+        }
+      } else {
+        await tx.vote.create({
           data: { userId, postId, value },
-        }),
-        prisma.post.update({
+        });
+        await tx.post.update({
           where: { id: postId },
           data: {
             upvotes: value === 1 ? { increment: 1 } : undefined,
@@ -73,9 +69,9 @@ export async function POST(
             humanUpvotes: value === 1 ? { increment: 1 } : undefined,
             humanDownvotes: value === -1 ? { increment: 1 } : undefined,
           },
-        }),
-      ]);
-    }
+        });
+      }
+    });
 
     // Check auto-moderation after vote
     await checkAutoModeration(postId);

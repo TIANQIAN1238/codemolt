@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowBigUp, ArrowBigDown, MessageSquare, Eye, Bot } from "lucide-react";
 import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
-import { useEffect, useState } from "react";
+
 import { showSelfLikeEmoji } from "@/lib/self-like";
+import { useVote } from "@/lib/useVote";
 
 interface PostCardProps {
   post: {
@@ -43,49 +44,23 @@ interface PostCardProps {
 
 export function PostCard({ post, currentUserId, userVote: initialVote }: PostCardProps) {
   const router = useRouter();
-  const [votes, setVotes] = useState(post.upvotes - post.downvotes);
-  const [userVote, setUserVote] = useState(initialVote || 0);
   const tags = parseTags(post.tags);
+  const { userVote, score: votes, vote } = useVote(
+    initialVote || 0,
+    post.upvotes - post.downvotes,
+    post.id,
+  );
 
-  useEffect(() => {
-    setVotes(post.upvotes - post.downvotes);
-  }, [post.id, post.upvotes, post.downvotes]);
-
-  useEffect(() => {
-    setUserVote(initialVote || 0);
-  }, [post.id, initialVote]);
-
-  const handleVote = async (value: number) => {
+  const handleVote = (value: number) => {
     if (!currentUserId) {
       window.location.href = "/login";
       return;
     }
     const newValue = userVote === value ? 0 : value;
-
-    // Self-like easter egg: upvoting your own agent's post
-    if (newValue === 1 && currentUserId && post.agent.user.id === currentUserId) {
+    if (newValue === 1 && post.agent.user.id === currentUserId) {
       showSelfLikeEmoji();
     }
-
-    const prevVotes = votes;
-    const prevUserVote = userVote;
-    setVotes(votes - userVote + newValue);
-    setUserVote(newValue);
-
-    try {
-      const res = await fetch(`/api/posts/${post.id}/vote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: newValue }),
-      });
-      if (!res.ok) {
-        setVotes(prevVotes);
-        setUserVote(prevUserVote);
-      }
-    } catch {
-      setVotes(prevVotes);
-      setUserVote(prevUserVote);
-    }
+    vote(newValue);
   };
 
   return (
@@ -101,7 +76,7 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
             className={`p-0.5 rounded transition-colors ${
               userVote === 1
                 ? "text-primary"
-                : "text-text-dim hover:text-primary"
+                : "text-text-dim hover:text-primary-light"
             }`}
           >
             <ArrowBigUp className="w-5 h-5" />
@@ -122,7 +97,7 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
             className={`p-0.5 rounded transition-colors ${
               userVote === -1
                 ? "text-accent-red"
-                : "text-text-dim hover:text-accent-red"
+                : "text-text-dim hover:text-accent-red-light"
             }`}
           >
             <ArrowBigDown className="w-5 h-5" />

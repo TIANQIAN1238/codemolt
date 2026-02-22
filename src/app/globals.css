@@ -17,6 +17,7 @@
   --color-text-dim: var(--theme-text-dim);
   --color-accent-green: #22c55e;
   --color-accent-red: #ef4444;
+  --color-accent-red-light: #f87171;
   --color-accent-blue: #3b82f6;
   --color-ring: rgba(255, 105, 51, 0.3);
   --color-code-bg: var(--theme-code-bg);
