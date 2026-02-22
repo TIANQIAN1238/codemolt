@@ -29,6 +29,7 @@ import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { WeChatIcon } from "@/components/WeChatWidget";
 import { useLang } from "@/components/Providers";
+import { showSelfLikeEmoji } from "@/lib/self-like";
 
 interface CommentData {
   id: string;
@@ -36,7 +37,12 @@ interface CommentData {
   likes: number;
   createdAt: string;
   user: { id: string; username: string; avatar: string | null };
-  agent?: { id: string; name: string; sourceType: string; avatar: string | null } | null;
+  agent?: {
+    id: string;
+    name: string;
+    sourceType: string;
+    avatar: string | null;
+  } | null;
   parentId: string | null;
 }
 
@@ -75,7 +81,11 @@ interface MobileFabAction {
   keepOpen?: boolean;
 }
 
-export default function PostPageClient({ params }: { params: Promise<{ id: string }> }) {
+export default function PostPageClient({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = use(params);
   const router = useRouter();
   const { t } = useLang();
@@ -101,7 +111,10 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [actionMessage, setActionMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [actionMessage, setActionMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [mobileActionsOpen, setMobileActionsOpen] = useState(false);
   const [mobileCommunityOpen, setMobileCommunityOpen] = useState(false);
   const [mobileFabBottomPx, setMobileFabBottomPx] = useState(32);
@@ -160,8 +173,12 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
 
   useEffect(() => {
     updateMobileFabPosition();
-    window.addEventListener("scroll", updateMobileFabPosition, { passive: true });
-    window.addEventListener("resize", updateMobileFabPosition, { passive: true });
+    window.addEventListener("scroll", updateMobileFabPosition, {
+      passive: true,
+    });
+    window.addEventListener("resize", updateMobileFabPosition, {
+      passive: true,
+    });
     return () => {
       window.removeEventListener("scroll", updateMobileFabPosition);
       window.removeEventListener("resize", updateMobileFabPosition);
@@ -171,7 +188,10 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
   useEffect(() => {
     if (!mobileActionsOpen && !mobileCommunityOpen) return;
     const closeOnOutside = (e: MouseEvent | TouchEvent) => {
-      if (mobileFabRef.current && !mobileFabRef.current.contains(e.target as Node)) {
+      if (
+        mobileFabRef.current &&
+        !mobileFabRef.current.contains(e.target as Node)
+      ) {
         setMobileActionsOpen(false);
         setMobileCommunityOpen(false);
       }
@@ -191,6 +211,12 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
     }
     if (!post) return;
     const newValue = userVote === value ? 0 : value;
+
+    // Self-like easter egg: upvoting your own agent's post
+    if (newValue === 1 && currentUserId && post.agent.user.id === currentUserId) {
+      showSelfLikeEmoji();
+    }
+
     const prevVotes = votes;
     const prevUserVote = userVote;
     setVotes(votes - userVote + newValue);
@@ -204,7 +230,10 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
       if (!res.ok) {
         setVotes(prevVotes);
         setUserVote(prevUserVote);
-        showActionMessage("error", await readErrorMessage(res, "Failed to update vote"));
+        showActionMessage(
+          "error",
+          await readErrorMessage(res, "Failed to update vote"),
+        );
       }
     } catch {
       setVotes(prevVotes);
@@ -221,13 +250,18 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
     if (!post) return;
     setBookmarked(!bookmarked);
     try {
-      const res = await fetch(`/api/posts/${post.id}/bookmark`, { method: "POST" });
+      const res = await fetch(`/api/posts/${post.id}/bookmark`, {
+        method: "POST",
+      });
       if (res.ok) {
         const data = await res.json();
         setBookmarked(data.bookmarked);
       } else {
         setBookmarked(bookmarked);
-        showActionMessage("error", await readErrorMessage(res, "Failed to update bookmark"));
+        showActionMessage(
+          "error",
+          await readErrorMessage(res, "Failed to update bookmark"),
+        );
       }
     } catch {
       setBookmarked(bookmarked);
@@ -265,7 +299,11 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
     {
       key: "save",
       label: "Save",
-      icon: <Bookmark className={`w-3.5 h-3.5 ${bookmarked ? "fill-current" : ""}`} />,
+      icon: (
+        <Bookmark
+          className={`w-3.5 h-3.5 ${bookmarked ? "fill-current" : ""}`}
+        />
+      ),
       onClick: handleBookmark,
       active: bookmarked,
       tone: "primary",
@@ -273,7 +311,11 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
     {
       key: "share",
       label: "Share",
-      icon: copied ? <Check className="w-3.5 h-3.5 text-accent-green" /> : <Share2 className="w-3.5 h-3.5" />,
+      icon: copied ? (
+        <Check className="w-3.5 h-3.5 text-accent-green" />
+      ) : (
+        <Share2 className="w-3.5 h-3.5" />
+      ),
       onClick: handleShare,
     },
     {
@@ -333,21 +375,30 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
   };
 
   const getActionIconBg = (action: MobileFabAction) => {
-    if (action.tone === "primary") return action.active ? "bg-primary/15" : "bg-bg-input group-hover:bg-primary/10";
-    if (action.tone === "danger") return action.active ? "bg-accent-red/15" : "bg-bg-input group-hover:bg-accent-red/10";
-    if (action.tone === "success") return action.active ? "bg-[#07C160]/15" : "bg-bg-input group-hover:bg-[#07C160]/10";
+    if (action.tone === "primary")
+      return action.active
+        ? "bg-primary/15"
+        : "bg-bg-input group-hover:bg-primary/10";
+    if (action.tone === "danger")
+      return action.active
+        ? "bg-accent-red/15"
+        : "bg-bg-input group-hover:bg-accent-red/10";
+    if (action.tone === "success")
+      return action.active
+        ? "bg-[#07C160]/15"
+        : "bg-bg-input group-hover:bg-[#07C160]/10";
     return "bg-bg-input group-hover:bg-primary/10";
   };
 
   const getMobileActionPosition = (index: number, total: number) => {
     // Semi-circle cluster around the FAB center: multiple nearby arcs, not a straight chain.
     const cloud = [
-      { x: -70, y: -26 },   // inner ring
+      { x: -70, y: -26 }, // inner ring
       { x: -26, y: -70 },
-      { x: -130, y: -12 },  // middle ring
+      { x: -130, y: -12 }, // middle ring
       { x: -92, y: -92 },
       { x: -22, y: -130 },
-      { x: -175, y: -64 },  // outer ring
+      { x: -175, y: -64 }, // outer ring
       { x: -110, y: -150 },
       { x: -8, y: -186 },
     ];
@@ -382,7 +433,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
       return {
         ...prev,
         comments: prev.comments.map((c) =>
-          c.id === commentId ? { ...c, likes: c.likes + (wasLiked ? -1 : 1) } : c
+          c.id === commentId
+            ? { ...c, likes: c.likes + (wasLiked ? -1 : 1) }
+            : c,
         ),
       };
     });
@@ -401,17 +454,22 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
           comments: prev.comments.map((c) =>
             c.id === commentId
               ? { ...c, likes: Math.max(0, c.likes + (wasLiked ? 1 : -1)) }
-              : c
+              : c,
           ),
         };
       });
     };
 
     try {
-      const res = await fetch(`/api/comments/${commentId}/like`, { method: "POST" });
+      const res = await fetch(`/api/comments/${commentId}/like`, {
+        method: "POST",
+      });
       if (!res.ok) {
         rollback();
-        showActionMessage("error", await readErrorMessage(res, "Failed to update comment like"));
+        showActionMessage(
+          "error",
+          await readErrorMessage(res, "Failed to update comment like"),
+        );
       }
     } catch {
       rollback();
@@ -438,14 +496,20 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
         });
         setCommentText("");
       } else {
-        showActionMessage("error", await readErrorMessage(res, "Failed to post comment"));
+        showActionMessage(
+          "error",
+          await readErrorMessage(res, "Failed to post comment"),
+        );
       }
     } catch {
       showActionMessage("error", "Failed to post comment");
-    } finally { setSubmitting(false); }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const isPostOwner = post && currentUserId && post.agent.user.id === currentUserId;
+  const isPostOwner =
+    post && currentUserId && post.agent.user.id === currentUserId;
 
   const startEditing = () => {
     if (!post) return;
@@ -464,7 +528,10 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
       if (editTitle !== post.title) body.title = editTitle;
       if (editContent !== post.content) body.content = editContent;
       if (editSummary !== (post.summary || "")) body.summary = editSummary;
-      const newTags = editTags.split(",").map((t) => t.trim()).filter(Boolean);
+      const newTags = editTags
+        .split(",")
+        .map((t) => t.trim())
+        .filter(Boolean);
       body.tags = newTags;
 
       const res = await fetch(`/api/v1/posts/${post.id}`, {
@@ -477,19 +544,24 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
         setPost({
           ...post,
           title: data.post.title || post.title,
-          summary: data.post.summary !== undefined ? data.post.summary : post.summary,
+          summary:
+            data.post.summary !== undefined ? data.post.summary : post.summary,
           content: editContent !== post.content ? editContent : post.content,
           tags: JSON.stringify(data.post.tags || newTags),
         });
         setIsEditing(false);
         showActionMessage("success", "Post updated");
       } else {
-        showActionMessage("error", await readErrorMessage(res, "Failed to update post"));
+        showActionMessage(
+          "error",
+          await readErrorMessage(res, "Failed to update post"),
+        );
       }
     } catch {
       showActionMessage("error", "Failed to update post");
+    } finally {
+      setSaving(false);
     }
-    finally { setSaving(false); }
   };
 
   const handleDelete = async () => {
@@ -502,12 +574,16 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
       if (res.ok) {
         router.push("/");
       } else {
-        showActionMessage("error", await readErrorMessage(res, "Failed to delete post"));
+        showActionMessage(
+          "error",
+          await readErrorMessage(res, "Failed to delete post"),
+        );
       }
     } catch {
       showActionMessage("error", "Failed to delete post");
+    } finally {
+      setDeleting(false);
     }
-    finally { setDeleting(false); }
   };
 
   const handleReply = async (parentId: string) => {
@@ -529,11 +605,16 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
         setReplyText("");
         setReplyingTo(null);
       } else {
-        showActionMessage("error", await readErrorMessage(res, "Failed to post reply"));
+        showActionMessage(
+          "error",
+          await readErrorMessage(res, "Failed to post reply"),
+        );
       }
     } catch {
       showActionMessage("error", "Failed to post reply");
-    } finally { setSubmittingReply(false); }
+    } finally {
+      setSubmittingReply(false);
+    }
   };
 
   if (loading) {
@@ -555,7 +636,10 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
     return (
       <div className="text-center py-16">
         <h2 className="text-lg font-medium text-text-muted">Post not found</h2>
-        <Link href="/" className="text-primary text-sm hover:underline mt-2 inline-block">
+        <Link
+          href="/"
+          className="text-primary text-sm hover:underline mt-2 inline-block"
+        >
           Back to feed
         </Link>
       </div>
@@ -579,16 +663,20 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
     // Determine display info: if agent posted, show agent; otherwise show user
     const displayAvatar = comment.agent?.avatar || comment.user.avatar;
     const displayName = comment.agent?.name || comment.user.username;
-    const displayEmoji = comment.agent ? getAgentDisplayEmoji(comment.agent) : null;
+    const displayEmoji = comment.agent
+      ? getAgentDisplayEmoji(comment.agent)
+      : null;
     const profileLink = comment.agent
       ? `/profile/${comment.user.id}` // Agent comments link to owner's profile
       : `/profile/${comment.user.id}`;
 
     return (
       <div key={comment.id} className={depth > 0 ? "ml-4 sm:ml-6 mt-2" : ""}>
-        <div className={`bg-bg-card border rounded-lg p-3 ${
-          depth > 0 ? "border-border/50" : "border-border"
-        }`}>
+        <div
+          className={`bg-bg-card border rounded-lg p-3 ${
+            depth > 0 ? "border-border/50" : "border-border"
+          }`}
+        >
           <div className="flex items-center gap-2 mb-2">
             {displayAvatar ? (
               <img
@@ -631,12 +719,16 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                   : "text-text-dim hover:text-accent-red"
               }`}
             >
-              <Heart className={`w-3.5 h-3.5 ${likedComments.has(comment.id) ? "fill-current" : ""}`} />
+              <Heart
+                className={`w-3.5 h-3.5 ${likedComments.has(comment.id) ? "fill-current" : ""}`}
+              />
               {comment.likes > 0 && comment.likes}
             </button>
             {currentUserId && (
               <button
-                onClick={() => setReplyingTo(replyingTo === comment.id ? null : comment.id)}
+                onClick={() =>
+                  setReplyingTo(replyingTo === comment.id ? null : comment.id)
+                }
                 className="flex items-center gap-1 text-xs text-text-dim hover:text-primary transition-colors"
               >
                 <Reply className="w-3.5 h-3.5" />
@@ -675,7 +767,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
         </div>
 
         {/* Nested replies */}
-        {repliesMap.get(comment.id)?.map((reply) => renderComment(reply, depth + 1))}
+        {repliesMap
+          .get(comment.id)
+          ?.map((reply) => renderComment(reply, depth + 1))}
       </div>
     );
   };
@@ -711,14 +805,20 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
             <button
               onClick={() => handleVote(1)}
               className={`p-1 rounded transition-colors ${
-                userVote === 1 ? "text-primary" : "text-text-dim hover:text-primary"
+                userVote === 1
+                  ? "text-primary"
+                  : "text-text-dim hover:text-primary"
               }`}
             >
               <ArrowBigUp className="w-6 h-6" />
             </button>
             <span
               className={`text-lg font-bold ${
-                votes > 0 ? "text-primary" : votes < 0 ? "text-accent-red" : "text-text-muted"
+                votes > 0
+                  ? "text-primary"
+                  : votes < 0
+                    ? "text-accent-red"
+                    : "text-text-muted"
               }`}
             >
               {votes}
@@ -726,7 +826,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
             <button
               onClick={() => handleVote(-1)}
               className={`p-1 rounded transition-colors ${
-                userVote === -1 ? "text-accent-red" : "text-text-dim hover:text-accent-red"
+                userVote === -1
+                  ? "text-accent-red"
+                  : "text-text-dim hover:text-accent-red"
               }`}
             >
               <ArrowBigDown className="w-6 h-6" />
@@ -768,7 +870,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
             {isEditing ? (
               <div className="space-y-3 mb-4">
                 <div>
-                  <label className="block text-xs text-text-muted mb-1">Title</label>
+                  <label className="block text-xs text-text-muted mb-1">
+                    Title
+                  </label>
                   <input
                     type="text"
                     value={editTitle}
@@ -777,7 +881,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-muted mb-1">Summary</label>
+                  <label className="block text-xs text-text-muted mb-1">
+                    Summary
+                  </label>
                   <input
                     type="text"
                     value={editSummary}
@@ -787,7 +893,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-muted mb-1">Tags (comma separated)</label>
+                  <label className="block text-xs text-text-muted mb-1">
+                    Tags (comma separated)
+                  </label>
                   <input
                     type="text"
                     value={editTags}
@@ -797,7 +905,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-text-muted mb-1">Content (Markdown)</label>
+                  <label className="block text-xs text-text-muted mb-1">
+                    Content (Markdown)
+                  </label>
                   <textarea
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
@@ -808,7 +918,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleSaveEdit}
-                    disabled={saving || !editTitle.trim() || !editContent.trim()}
+                    disabled={
+                      saving || !editTitle.trim() || !editContent.trim()
+                    }
                     className="flex items-center gap-1.5 bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm font-medium px-4 py-1.5 rounded-md transition-colors"
                   >
                     <Save className="w-3.5 h-3.5" />
@@ -825,7 +937,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
               </div>
             ) : (
               <>
-                <h1 className="text-xl font-bold mb-3 leading-snug">{post.title}</h1>
+                <h1 className="text-xl font-bold mb-3 leading-snug">
+                  {post.title}
+                </h1>
 
                 {/* Tags */}
                 {tags.length > 0 && (
@@ -861,7 +975,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                 }`}
                 title={bookmarked ? "Remove bookmark" : "Bookmark this post"}
               >
-                <Bookmark className={`w-3.5 h-3.5 ${bookmarked ? "fill-current" : ""}`} />
+                <Bookmark
+                  className={`w-3.5 h-3.5 ${bookmarked ? "fill-current" : ""}`}
+                />
                 {bookmarked ? "Saved" : "Save"}
               </button>
 
@@ -871,9 +987,13 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs text-text-dim hover:text-primary hover:bg-bg-input transition-colors"
               >
                 {copied ? (
-                  <><Check className="w-3.5 h-3.5 text-accent-green" /> Copied!</>
+                  <>
+                    <Check className="w-3.5 h-3.5 text-accent-green" /> Copied!
+                  </>
                 ) : (
-                  <><Share2 className="w-3.5 h-3.5" /> Share</>
+                  <>
+                    <Share2 className="w-3.5 h-3.5" /> Share
+                  </>
                 )}
               </button>
 
@@ -907,14 +1027,19 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                   <MessageSquare className="w-3.5 h-3.5" />
                   {post._count.comments}
                 </span>
-                <span className="flex items-center gap-1 text-accent-blue" title="Human votes">
+                <span
+                  className="flex items-center gap-1 text-accent-blue"
+                  title="Human votes"
+                >
                   👤 +{post.humanUpvotes}/-{post.humanDownvotes}
                 </span>
                 <span className="flex items-center gap-1" title="Total votes">
                   🤖 +{post.upvotes}/-{post.downvotes}
                 </span>
                 {post.banned && (
-                  <span className="text-accent-red font-medium">⚠️ Moderated</span>
+                  <span className="text-accent-red font-medium">
+                    ⚠️ Moderated
+                  </span>
                 )}
               </div>
             </div>
@@ -991,7 +1116,9 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                   key={action.key}
                   onClick={() => runMobileAction(action)}
                   className={`absolute bottom-0 right-0 origin-bottom-right rounded-full border bg-bg-card/95 backdrop-blur shadow-lg shadow-black/15 flex flex-col items-center justify-center gap-0.5 transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${getActionTone(action)} ${
-                    mobileActionsOpen ? "pointer-events-auto" : "pointer-events-none"
+                    mobileActionsOpen
+                      ? "pointer-events-auto"
+                      : "pointer-events-none"
                   }`}
                   style={{
                     width: `${size}px`,
@@ -1006,10 +1133,14 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                   }}
                   title={action.label}
                 >
-                  <span className={`w-6 h-6 rounded-full flex items-center justify-center ${getActionIconBg(action)}`}>
+                  <span
+                    className={`w-6 h-6 rounded-full flex items-center justify-center ${getActionIconBg(action)}`}
+                  >
                     {action.icon}
                   </span>
-                  <span className="text-[8.5px] leading-none font-medium px-1 text-center">{action.label}</span>
+                  <span className="text-[8.5px] leading-none font-medium px-1 text-center">
+                    {action.label}
+                  </span>
                 </button>
               );
             })}
@@ -1054,11 +1185,17 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
                 setMobileCommunityOpen(false);
               }}
               className={`ml-auto flex items-center justify-center w-14 h-14 rounded-full border bg-bg shadow-lg hover:shadow-xl text-text-muted hover:text-text hover:scale-105 active:scale-95 transition-all duration-200 ${
-                mobileActionsOpen ? "border-primary/50 text-text shadow-xl" : "border-border"
+                mobileActionsOpen
+                  ? "border-primary/50 text-text shadow-xl"
+                  : "border-border"
               }`}
               title="Post actions"
             >
-              {mobileActionsOpen ? <X className="w-5 h-5" /> : <Sparkles className="w-5 h-5" />}
+              {mobileActionsOpen ? (
+                <X className="w-5 h-5" />
+              ) : (
+                <Sparkles className="w-5 h-5" />
+              )}
             </button>
           </div>
         </div>
@@ -1066,14 +1203,21 @@ export default function PostPageClient({ params }: { params: Promise<{ id: strin
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowDeleteConfirm(false)}>
-          <div className="bg-bg-card border border-border rounded-xl p-6 w-full max-w-sm mx-4" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowDeleteConfirm(false)}
+        >
+          <div
+            className="bg-bg-card border border-border rounded-xl p-6 w-full max-w-sm mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
               <Trash2 className="w-5 h-5 text-accent-red" />
               Delete Post
             </h3>
             <p className="text-sm text-text-muted mb-4">
-              Are you sure you want to delete &quot;{post?.title}&quot;? This action cannot be undone.
+              Are you sure you want to delete &quot;{post?.title}&quot;? This
+              action cannot be undone.
             </p>
             <div className="flex items-center gap-2 justify-end">
               <button
