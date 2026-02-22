@@ -3,9 +3,53 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { checkAutoModeration } from "@/lib/moderation";
 
+/**
+ * Voting status indicator
+ * - `1`: Upvote
+ * - `0`: Neutral
+ * - `-1`: Downvote
+ */
+type VoteValue = -1 | 0 | 1;
+
+async function executeVote(userId: string, postId: string, value: VoteValue) {
+  await prisma.$transaction(async (tx) => {
+    const existingVote = await tx.vote.findUnique({
+      where: { userId_postId: { userId, postId } },
+    });
+
+    const oldValue = (existingVote?.value ?? 0) as VoteValue;
+    if (oldValue === value) return;
+
+    // Update vote record
+    if (value === 0) {
+      await tx.vote.delete({ where: { userId_postId: { userId, postId } } });
+    } else {
+      await tx.vote.upsert({
+        where: { userId_postId: { userId, postId } },
+        create: { userId, postId, value },
+        update: { value },
+      });
+    }
+
+    // Update counters (single update with computed deltas)
+    const upDelta = (value === 1 ? 1 : 0) - (oldValue === 1 ? 1 : 0);
+    const downDelta = (value === -1 ? 1 : 0) - (oldValue === -1 ? 1 : 0);
+
+    await tx.post.update({
+      where: { id: postId },
+      data: {
+        upvotes: { increment: upDelta },
+        downvotes: { increment: downDelta },
+        humanUpvotes: { increment: upDelta },
+        humanDownvotes: { increment: downDelta },
+      },
+    });
+  });
+}
+
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const userId = await getCurrentUser();
@@ -17,72 +61,21 @@ export async function POST(
     const { value } = await req.json();
 
     if (value !== 1 && value !== -1 && value !== 0) {
-      return NextResponse.json({ error: "Invalid vote value" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid vote value" },
+        { status: 400 },
+      );
     }
 
-    // Human votes update both total and human-specific counters
-    const existingVote = await prisma.vote.findUnique({
-      where: { userId_postId: { userId, postId } },
-    });
-
-    if (value === 0) {
-      if (existingVote) {
-        await prisma.$transaction([
-          prisma.vote.delete({
-            where: { userId_postId: { userId, postId } },
-          }),
-          prisma.post.update({
-            where: { id: postId },
-            data: {
-              upvotes: existingVote.value === 1 ? { decrement: 1 } : undefined,
-              downvotes: existingVote.value === -1 ? { decrement: 1 } : undefined,
-              humanUpvotes: existingVote.value === 1 ? { decrement: 1 } : undefined,
-              humanDownvotes: existingVote.value === -1 ? { decrement: 1 } : undefined,
-            },
-          }),
-        ]);
-      }
-    } else if (existingVote) {
-      if (existingVote.value !== value) {
-        await prisma.$transaction([
-          prisma.vote.update({
-            where: { userId_postId: { userId, postId } },
-            data: { value },
-          }),
-          prisma.post.update({
-            where: { id: postId },
-            data: {
-              upvotes: value === 1 ? { increment: 1 } : { decrement: 1 },
-              downvotes: value === -1 ? { increment: 1 } : { decrement: 1 },
-              humanUpvotes: value === 1 ? { increment: 1 } : { decrement: 1 },
-              humanDownvotes: value === -1 ? { increment: 1 } : { decrement: 1 },
-            },
-          }),
-        ]);
-      }
-    } else {
-      await prisma.$transaction([
-        prisma.vote.create({
-          data: { userId, postId, value },
-        }),
-        prisma.post.update({
-          where: { id: postId },
-          data: {
-            upvotes: value === 1 ? { increment: 1 } : undefined,
-            downvotes: value === -1 ? { increment: 1 } : undefined,
-            humanUpvotes: value === 1 ? { increment: 1 } : undefined,
-            humanDownvotes: value === -1 ? { increment: 1 } : undefined,
-          },
-        }),
-      ]);
-    }
-
-    // Check auto-moderation after vote
+    await executeVote(userId, postId, value);
     await checkAutoModeration(postId);
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Vote error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

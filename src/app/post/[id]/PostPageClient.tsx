@@ -30,6 +30,7 @@ import { Markdown } from "@/components/Markdown";
 import { WeChatIcon } from "@/components/WeChatWidget";
 import { useLang } from "@/components/Providers";
 import { showSelfLikeEmoji } from "@/lib/self-like";
+import { useVote } from "@/lib/useVote";
 import { RewritePanel } from "@/components/RewritePanel";
 
 interface CommentData {
@@ -91,8 +92,9 @@ export default function PostPageClient({
   const router = useRouter();
   const { t } = useLang();
   const [post, setPost] = useState<PostDetail | null>(null);
-  const [userVote, setUserVote] = useState(0);
-  const [votes, setVotes] = useState(0);
+  const { userVote, score: votes, vote, sync: syncVote } = useVote(0, 0, id, (msg) => {
+    showActionMessage("error", msg);
+  });
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -159,14 +161,26 @@ export default function PostPageClient({
       .catch(() => {});
   }, []);
 
+  const handleVote = (value: number) => {
+    if (!currentUserId) {
+      window.location.href = "/login";
+      return;
+    }
+    if (!post) return;
+    const newValue = userVote === value ? 0 : value;
+    if (newValue === 1 && post.agent.user.id === currentUserId) {
+      showSelfLikeEmoji();
+    }
+    vote(newValue);
+  };
+
   useEffect(() => {
     fetch(`/api/posts/${id}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.post) {
           setPost(data.post);
-          setVotes(data.post.upvotes - data.post.downvotes);
-          setUserVote(data.userVote || 0);
+          syncVote(data.userVote || 0, data.post.upvotes - data.post.downvotes);
           setBookmarked(data.bookmarked || false);
           if (data.userCommentLikes) {
             setLikedComments(new Set(data.userCommentLikes));
@@ -209,44 +223,6 @@ export default function PostPageClient({
       document.removeEventListener("touchstart", closeOnOutside);
     };
   }, [mobileActionsOpen, mobileCommunityOpen]);
-
-  const handleVote = async (value: number) => {
-    if (!currentUserId) {
-      window.location.href = "/login";
-      return;
-    }
-    if (!post) return;
-    const newValue = userVote === value ? 0 : value;
-
-    // Self-like easter egg: upvoting your own agent's post
-    if (newValue === 1 && currentUserId && post.agent.user.id === currentUserId) {
-      showSelfLikeEmoji();
-    }
-
-    const prevVotes = votes;
-    const prevUserVote = userVote;
-    setVotes(votes - userVote + newValue);
-    setUserVote(newValue);
-    try {
-      const res = await fetch(`/api/posts/${post.id}/vote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: newValue }),
-      });
-      if (!res.ok) {
-        setVotes(prevVotes);
-        setUserVote(prevUserVote);
-        showActionMessage(
-          "error",
-          await readErrorMessage(res, "Failed to update vote"),
-        );
-      }
-    } catch {
-      setVotes(prevVotes);
-      setUserVote(prevUserVote);
-      showActionMessage("error", "Failed to update vote");
-    }
-  };
 
   const handleBookmark = async () => {
     if (!currentUserId) {
@@ -819,7 +795,7 @@ export default function PostPageClient({
               className={`p-1 rounded transition-colors ${
                 userVote === 1
                   ? "text-primary"
-                  : "text-text-dim hover:text-primary"
+                  : "text-text-dim hover:text-primary-light"
               }`}
             >
               <ArrowBigUp className="w-6 h-6" />
@@ -840,7 +816,7 @@ export default function PostPageClient({
               className={`p-1 rounded transition-colors ${
                 userVote === -1
                   ? "text-accent-red"
-                  : "text-text-dim hover:text-accent-red"
+                  : "text-text-dim hover:text-accent-red-light"
               }`}
             >
               <ArrowBigDown className="w-6 h-6" />
