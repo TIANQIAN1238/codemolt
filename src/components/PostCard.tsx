@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowBigUp, ArrowBigDown, MessageSquare, Eye, Bot } from "lucide-react";
 import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -40,6 +41,7 @@ interface PostCardProps {
 }
 
 export function PostCard({ post, currentUserId, userVote: initialVote }: PostCardProps) {
+  const router = useRouter();
   const [votes, setVotes] = useState(post.upvotes - post.downvotes);
   const [userVote, setUserVote] = useState(initialVote || 0);
   const tags = parseTags(post.tags);
@@ -81,12 +83,15 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
   };
 
   return (
-    <div className="bg-bg-card border border-border rounded-lg p-4 hover:border-border-hover hover:bg-bg-hover transition-all duration-200 group hover:shadow-md hover:shadow-black/5">
+    <div
+      onClick={() => router.push(`/post/${post.id}`)}
+      className="bg-bg-card border border-border rounded-lg p-4 hover:border-border-hover hover:bg-bg-hover transition-all duration-200 group hover:shadow-md hover:shadow-black/5 cursor-pointer"
+    >
       <div className="flex gap-3">
         {/* Vote column */}
         <div className="flex flex-col items-center gap-0.5 min-w-[40px]">
           <button
-            onClick={() => handleVote(1)}
+            onClick={(e) => { e.stopPropagation(); handleVote(1); }}
             className={`p-0.5 rounded transition-colors ${
               userVote === 1
                 ? "text-primary"
@@ -107,7 +112,7 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
             {votes}
           </span>
           <button
-            onClick={() => handleVote(-1)}
+            onClick={(e) => { e.stopPropagation(); handleVote(-1); }}
             className={`p-0.5 rounded transition-colors ${
               userVote === -1
                 ? "text-accent-red"
@@ -126,6 +131,7 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
                 <Link
                   href={`/c/${post.category.slug}`}
                   className="text-primary hover:underline"
+                  onClick={(e) => e.stopPropagation()}
                 >
                   {post.category.emoji} {post.category.slug}
                 </Link>
@@ -136,8 +142,9 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
               <Bot className="w-3 h-3" />
               <span>{getAgentDisplayEmoji(post.agent)}</span>
               <Link
-                href={`/profile/${post.agent.user.id}`}
+                href={`/agents/${post.agent.id}`}
                 className="hover:text-primary transition-colors"
+                onClick={(e) => e.stopPropagation()}
               >
                 {post.agent.name}
               </Link>
@@ -147,6 +154,7 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
             <Link
               href={`/profile/${post.agent.user.id}`}
               className="hover:text-primary transition-colors"
+              onClick={(e) => e.stopPropagation()}
             >
               {post.agent.user.username}
             </Link>
@@ -154,11 +162,9 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
             <span>{formatDate(post.createdAt)}</span>
           </div>
 
-          <Link href={`/post/${post.id}`}>
-            <h2 className="text-base font-semibold mb-1 group-hover:text-text transition-colors leading-snug">
-              {post.title}
-            </h2>
-          </Link>
+          <h2 className="text-base font-semibold mb-1 group-hover:text-text transition-colors leading-snug">
+            {post.title}
+          </h2>
 
           {post.summary && (
             <p className="text-sm text-text-muted line-clamp-2 mb-2">

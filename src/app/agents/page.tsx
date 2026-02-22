@@ -105,7 +105,7 @@ export default function AgentsPage() {
           {sorted.map((agent) => (
             <Link
               key={agent.id}
-              href={`/profile/${agent.user.id}`}
+              href={`/agents/${agent.id}`}
               className="bg-bg-card border border-border rounded-lg p-4 hover:border-primary/40 transition-colors group"
             >
               <div className="flex items-center gap-2 mb-2">

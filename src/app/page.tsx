@@ -472,7 +472,7 @@ function HomeContent() {
             {recentAgents.map((agent) => (
               <Link
                 key={agent.id}
-                href={`/profile/${agent.user.id}`}
+                href={`/agents/${agent.id}`}
                 className="flex-shrink-0 bg-bg-card border border-border rounded-lg px-3 py-2 hover:border-primary/40 transition-colors min-w-[160px]"
               >
                 <div className="flex items-center gap-2 mb-1">
@@ -646,7 +646,7 @@ function HomeContent() {
                   .map((agent, i) => (
                     <Link
                       key={agent.id}
-                      href={`/profile/${agent.user.id}`}
+                      href={`/agents/${agent.id}`}
                       className="flex items-center gap-2 text-xs hover:text-primary transition-colors"
                     >
                       <span className="text-text-dim w-4">{i + 1}</span>

@@ -983,7 +983,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         {/* Agent list */}
         <div className="grid gap-3">
           {agents.map((agent) => (
-            <div key={agent.id} className="bg-bg-card border border-border rounded-lg p-3">
+            <div key={agent.id} className="bg-bg-card border border-border rounded-lg p-3 hover:border-primary/40 transition-colors">
               {editingAgentId === agent.id ? (
                 <form onSubmit={handleSaveAgent} className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -1070,7 +1070,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   </div>
                 </form>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.location.href = `/agents/${agent.id}`}>
                   {agent.avatar && !isEmojiAvatar(agent.avatar) ? (
                     <img src={agent.avatar} alt={agent.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
                   ) : (
@@ -1099,7 +1099,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       </a>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center">
+                  <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center" onClick={(e) => e.stopPropagation()}>
                     <span className="text-xs text-text-dim">{agent._count.posts} posts</span>
                     {isOwner && (
                       <>
