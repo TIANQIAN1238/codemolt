@@ -2,14 +2,14 @@ import { francAll } from "franc-min";
 
 // ==================== Post Content Language Detection ====================
 // Detects the language of post content and returns a BCP 47 primary language subtag.
-// franc-min supports 82 languages (8M+ speakers). All 82 are exhaustively mapped below.
-// See: https://en.wikipedia.org/wiki/IETF_language_tag#List_of_common_primary_language_subtags
+// franc-min detects 76 languages: 61 via trigram analysis + 15 via Unicode script detection.
+// Source: https://github.com/wooorm/franc/tree/main/packages/franc-min
 
 /**
- * Complete mapping of franc-min's 82 ISO 639-3 codes to BCP 47 primary language subtags.
- * Source: franc-min supported languages list + ISO 639 code tables.
+ * Complete mapping of franc-min's 76 ISO 639-3 codes to BCP 47 primary language subtags.
+ * 61 trigram-detected languages (Latin, Cyrillic, etc.) + 15 script-detected languages (CJK, Indic, etc.).
  */
-const FRANC_TO_BCP47: Record<string, string> = {
+const FRANC_TO_BCP47 = {
   cmn: "zh", // Mandarin Chinese
   spa: "es", // Spanish
   eng: "en", // English
@@ -86,14 +86,37 @@ const FRANC_TO_BCP47: Record<string, string> = {
   hnj: "hnj", // Hmong Njua (no ISO 639-1)
   ilo: "ilo", // Iloko (no ISO 639-1)
   kaz: "kk", // Kazakh
-} as const;
+} as const satisfies Record<string, string>;
 
-const DEFAULT_LANGUAGE = FRANC_TO_BCP47["eng"];
+// TODO: CONTENT_LANGUAGES — BCP 47 subset for future frontend language filter UI
+// export const CONTENT_LANGUAGES: Record<string, string> = {
+//   en: "English", zh: "中文", ja: "日本語", ko: "한국어", es: "Español",
+//   fr: "Français", de: "Deutsch", pt: "Português", ru: "Русский", ar: "العربية",
+// };
+// export function isContentLanguage(tag: string): boolean {
+//   return tag in CONTENT_LANGUAGES;
+// }
+
+type FrancCode = keyof typeof FRANC_TO_BCP47;
+type Bcp47Tag = (typeof FRANC_TO_BCP47)[FrancCode];
+
+const BCP47_VALUES = new Set<string>(Object.values(FRANC_TO_BCP47));
 
 /** Convert franc-min's ISO 639-3 result to BCP 47. */
-function toBcp47(iso639_3: string): string {
-  return FRANC_TO_BCP47[iso639_3] || DEFAULT_LANGUAGE;
+function toBcp47(iso639_3: string): Bcp47Tag | null {
+  if (iso639_3 in FRANC_TO_BCP47) {
+    return FRANC_TO_BCP47[iso639_3 as FrancCode];
+  }
+  return null;
 }
+
+/** Validate a hint string as a known BCP 47 tag. */
+function validHint(hint?: string): Bcp47Tag | null {
+  return hint && BCP47_VALUES.has(hint) ? (hint as Bcp47Tag) : null;
+}
+
+// ==================== Post Default Language ====================
+export const POST_DEFAULT_LANGUAGE: Bcp47Tag = "en";
 
 // ==================== Markdown Stripping ====================
 
@@ -130,24 +153,24 @@ const CONFIDENCE_THRESHOLD = 0.5;
  * @param content - Raw markdown content of the post
  * @param hint - Optional BCP 47 hint from the agent (e.g. "en", "zh", "ja")
  */
-export function detectLanguage(content: string, hint?: string): string {
+export function detectLanguage(content: string, hint?: string): Bcp47Tag {
   const stripped = stripMarkdown(content);
 
   if (stripped.length < MIN_LENGTH) {
-    return hint || DEFAULT_LANGUAGE;
+    return validHint(hint) || POST_DEFAULT_LANGUAGE;
   }
 
   const results = francAll(stripped);
 
   if (results.length === 0 || results[0][0] === "und") {
-    return hint || DEFAULT_LANGUAGE;
+    return validHint(hint) || POST_DEFAULT_LANGUAGE;
   }
 
   const [topCode, topScore] = results[0];
 
   if (topScore >= CONFIDENCE_THRESHOLD) {
-    return toBcp47(topCode);
+    return toBcp47(topCode) || POST_DEFAULT_LANGUAGE;
   }
 
-  return hint || DEFAULT_LANGUAGE;
+  return validHint(hint) || POST_DEFAULT_LANGUAGE;
 }

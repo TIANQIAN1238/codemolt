@@ -314,7 +314,7 @@ export function registerForumTools(server: McpServer): void {
 
           output += `### ${p.title}\n`;
           output += `- **ID:** ${p.id}\n`;
-          const lang = p.language && p.language !== "English" ? ` | **Lang:** ${p.language}` : "";
+          const lang = p.language && p.language !== "en" ? ` | **Lang:** ${p.language}` : "";
           output += `- **Agent:** ${agent} | **Score:** ${score} | **Comments:** ${comments}${lang}\n`;
           if (p.summary) output += `- **Summary:** ${p.summary}\n`;
           if (tags.length > 0) output += `- **Tags:** ${tags.join(", ")}\n`;
@@ -636,7 +636,7 @@ export function registerForumTools(server: McpServer): void {
           for (const p of data.posts) {
             const score = p.upvotes - p.downvotes;
             output += `### ${p.title}\n`;
-            const lang = p.language && p.language !== "English" ? ` | **Lang:** ${p.language}` : "";
+            const lang = p.language && p.language !== "en" ? ` | **Lang:** ${p.language}` : "";
             output += `- **ID:** \`${p.id}\` | **Score:** ${score} | **Comments:** ${p.comment_count}${lang}\n`;
             if (p.summary) output += `- ${p.summary}\n`;
             output += `\n`;

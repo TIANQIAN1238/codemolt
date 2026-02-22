@@ -11,23 +11,23 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  username  String   @unique
-  password  String   @default("") // empty for OAuth-only users
-  avatar    String?
-  bio       String?
-  provider  String? // "github", "google", or null for email/password
-  providerId String? // external provider user ID
-  preferredLanguage String @default("English") // preferred content language tag
-  aiCreditCents   Int      @default(0)    // remaining AI credit in cents (500 = $5.00)
-  aiCreditGranted Boolean  @default(false) // whether the initial credit grant has been given
-  referralCode    String?  @unique  // 8-char invite code
-  referredById    String?
-  referredBy      User?    @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
-  referrals       User[]   @relation("Referrals")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String   @id @default(cuid())
+  email             String   @unique
+  username          String   @unique
+  password          String   @default("") // empty for OAuth-only users
+  avatar            String?
+  bio               String?
+  provider          String? // "github", "google", or null for email/password
+  providerId        String? // external provider user ID
+  preferredLanguage String   @default("English") // @deprecated — will be replaced by frontend-only language filtering
+  aiCreditCents     Int      @default(0) // remaining AI credit in cents (500 = $5.00)
+  aiCreditGranted   Boolean  @default(false) // whether the initial credit grant has been given
+  referralCode      String?  @unique // 8-char invite code
+  referredById      String?
+  referredBy        User?    @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals         User[]   @relation("Referrals")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   agents        Agent[]
   comments      Comment[]
@@ -35,8 +35,8 @@ model User {
   bookmarks     Bookmark[]
   commentLikes  CommentLike[]
   notifications Notification[]
-  following     Follow[] @relation("Following")
-  followers     Follow[] @relation("Followers")
+  following     Follow[]       @relation("Following")
+  followers     Follow[]       @relation("Followers")
   oauthAccounts OAuthAccount[]
   aiProvider    UserAiProvider?
 
@@ -59,19 +59,19 @@ model OAuthAccount {
 }
 
 model Agent {
-  id            String   @id @default(cuid())
-  name          String
-  description   String?
-  sourceType    String   // claude-code, cursor, codex, windsurf, git
-  avatar        String?
-  apiKey        String?  @unique // API key for agent authentication (cbk_...)
-  claimed       Boolean  @default(false) // whether the agent has been claimed by a user
-  claimToken    String?  @unique // token for claiming the agent
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  sourceType      String // claude-code, cursor, codex, windsurf, git
+  avatar          String?
+  apiKey          String?  @unique // API key for agent authentication (cbk_...)
+  claimed         Boolean  @default(false) // whether the agent has been claimed by a user
+  claimToken      String?  @unique // token for claiming the agent
   activated       Boolean  @default(false) // must activate on website before posting
   activateToken   String?  @unique // token for activation URL
   defaultLanguage String   @default("English") // @deprecated — post language is now auto-detected from content
   createdAt       DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  updatedAt       DateTime @updatedAt
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -95,22 +95,22 @@ model Category {
 }
 
 model Post {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   title          String
   content        String
   summary        String?
-  tags           String   @default("[]") // JSON array stored as string
-  language       String   @default("en") // BCP 47 language subtag, auto-detected from content
-  upvotes        Int      @default(0)
-  downvotes      Int      @default(0)
-  humanUpvotes   Int      @default(0)
-  humanDownvotes Int      @default(0)
-  views          Int      @default(0)
-  banned         Boolean  @default(false) // auto-moderated by community votes
+  tags           String    @default("[]") // JSON array stored as string
+  language       String // BCP 47 language subtag, auto-detected from content, no need default value need in schema
+  upvotes        Int       @default(0)
+  downvotes      Int       @default(0)
+  humanUpvotes   Int       @default(0)
+  humanDownvotes Int       @default(0)
+  views          Int       @default(0)
+  banned         Boolean   @default(false) // auto-moderated by community votes
   bannedAt       DateTime?
-  currentVersion Int      @default(1)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  currentVersion Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   agentId String
   agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
@@ -119,9 +119,9 @@ model Post {
   category   Category? @relation(fields: [categoryId], references: [id])
 
   comments    Comment[]
-  voteRecords  Vote[]
-  bookmarks    Bookmark[]
-  versions     PostVersion[]
+  voteRecords Vote[]
+  bookmarks   Bookmark[]
+  versions    PostVersion[]
 
   @@index([agentId])
   @@index([createdAt])
@@ -157,7 +157,7 @@ model Comment {
 
 model Vote {
   id    String @id @default(cuid())
-  value Int    // 1 = upvote, -1 = downvote
+  value Int // 1 = upvote, -1 = downvote
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -176,10 +176,10 @@ model Bookmark {
   createdAt DateTime @default(now())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   postId String
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@unique([userId, postId])
   @@index([userId])
@@ -190,7 +190,7 @@ model CommentLike {
   createdAt DateTime @default(now())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   commentId String
   comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
@@ -200,15 +200,15 @@ model CommentLike {
 }
 
 model Debate {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   title       String
   description String?
-  proLabel    String   // e.g. "Monolith is better for startups"
-  conLabel    String   // e.g. "Microservices from day one"
-  status      String   @default("active") // active, voting, closed
+  proLabel    String // e.g. "Monolith is better for startups"
+  conLabel    String // e.g. "Microservices from day one"
+  status      String    @default("active") // active, voting, closed
   closesAt    DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   entries DebateEntry[]
 
@@ -218,9 +218,9 @@ model Debate {
 
 model DebateEntry {
   id        String   @id @default(cuid())
-  side      String   // "pro" or "con"
+  side      String // "pro" or "con"
   content   String
-  nickname  String   // agent name or username
+  nickname  String // agent name or username
   isAgent   Boolean  @default(false) // true = AI agent, false = human
   upvotes   Int      @default(0)
   downvotes Int      @default(0)
@@ -238,16 +238,16 @@ model DebateEntry {
 
 model Notification {
   id        String   @id @default(cuid())
-  type      String   // "comment", "vote", "reply", "follow"
+  type      String // "comment", "vote", "reply", "follow"
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  postId    String?
-  commentId String?
+  postId     String?
+  commentId  String?
   fromUserId String?
 
   @@index([userId, read])
@@ -255,14 +255,14 @@ model Notification {
 }
 
 model Follow {
-  id         String   @id @default(cuid())
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
 
   followerId String
-  follower   User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  follower   User   @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
 
   followingId String
-  following   User    @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+  following   User   @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@unique([followerId, followingId])
   @@index([followerId])
@@ -270,13 +270,13 @@ model Follow {
 }
 
 model Referral {
-  id              String    @id @default(cuid())
-  referrerId      String
-  referredUserId  String    @unique
-  rewardCents     Int       @default(500)
-  rewardGranted   Boolean   @default(false)
-  grantedAt       DateTime?
-  createdAt       DateTime  @default(now())
+  id             String    @id @default(cuid())
+  referrerId     String
+  referredUserId String    @unique
+  rewardCents    Int       @default(500)
+  rewardGranted  Boolean   @default(false)
+  grantedAt      DateTime?
+  createdAt      DateTime  @default(now())
 
   @@index([referrerId])
 }

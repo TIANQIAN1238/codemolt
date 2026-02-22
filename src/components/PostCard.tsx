@@ -2,11 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowBigUp, ArrowBigDown, MessageSquare, Eye, Bot } from "lucide-react";
+import {
+  ArrowBigUp,
+  ArrowBigDown,
+  MessageSquare,
+  Eye,
+  Bot,
+} from "lucide-react";
 import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
 
 import { showSelfLikeEmoji } from "@/lib/self-like";
 import { useVote } from "@/lib/useVote";
+import { POST_DEFAULT_LANGUAGE } from "@/lib/detect-language";
 
 interface PostCardProps {
   post: {
@@ -42,7 +49,11 @@ interface PostCardProps {
   userVote?: number | null;
 }
 
-export function PostCard({ post, currentUserId, userVote: initialVote }: PostCardProps) {
+export function PostCard({
+  post,
+  currentUserId,
+  userVote: initialVote,
+}: PostCardProps) {
   const router = useRouter();
   const tags = parseTags(post.tags);
   const { userVote, score: votes, vote } = useVote(
@@ -72,7 +83,10 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
         {/* Vote column */}
         <div className="flex flex-col items-center gap-0.5 min-w-[40px]">
           <button
-            onClick={(e) => { e.stopPropagation(); handleVote(1); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleVote(1);
+            }}
             className={`p-0.5 rounded transition-colors ${
               userVote === 1
                 ? "text-primary"
@@ -86,14 +100,17 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
               votes > 0
                 ? "text-primary"
                 : votes < 0
-                ? "text-accent-red"
-                : "text-text-muted"
+                  ? "text-accent-red"
+                  : "text-text-muted"
             }`}
           >
             {votes}
           </span>
           <button
-            onClick={(e) => { e.stopPropagation(); handleVote(-1); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleVote(-1);
+            }}
             className={`p-0.5 rounded transition-colors ${
               userVote === -1
                 ? "text-accent-red"
@@ -155,7 +172,7 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
 
           <div className="flex items-center gap-2 sm:gap-3 text-xs text-text-dim flex-wrap">
             <div className="flex gap-1.5 flex-wrap">
-              {post.language && post.language !== "English" && (
+              {post.language && post.language !== POST_DEFAULT_LANGUAGE && (
                 <span className="bg-bg-input text-text-muted px-1.5 py-0.5 rounded">
                   {post.language}
                 </span>
@@ -170,11 +187,15 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
               ))}
             </div>
             <div className="flex items-center gap-2 sm:gap-3 ml-0 sm:ml-auto">
-              {(post.humanUpvotes !== undefined && (post.humanUpvotes > 0 || (post.humanDownvotes || 0) > 0)) && (
-                <span className="flex items-center gap-1 text-accent-blue" title="Human votes">
-                  👤 +{post.humanUpvotes}/-{post.humanDownvotes || 0}
-                </span>
-              )}
+              {post.humanUpvotes !== undefined &&
+                (post.humanUpvotes > 0 || (post.humanDownvotes || 0) > 0) && (
+                  <span
+                    className="flex items-center gap-1 text-accent-blue"
+                    title="Human votes"
+                  >
+                    👤 +{post.humanUpvotes}/-{post.humanDownvotes || 0}
+                  </span>
+                )}
               <span className="flex items-center gap-1">
                 <MessageSquare className="w-3.5 h-3.5" />
                 {post._count.comments}

@@ -411,7 +411,7 @@ export function registerPostingTools(server: McpServer): void {
           .string()
           .optional()
           .describe(
-            "Content language hint (BCP 47, e.g. 'en', 'zh', 'ja'). Auto-detected from content.",
+            "Post language tag (BCP 47, e.g. 'en', 'zh', 'ja'). Optional.",
           ),
       },
     },
@@ -669,7 +669,7 @@ export function registerPostingTools(server: McpServer): void {
           .string()
           .optional()
           .describe(
-            "Content language hint (BCP 47, e.g. 'en', 'zh', 'ja'). Auto-detected from content; only used as fallback when detection confidence is low.",
+            "Post language tag (BCP 47, e.g. 'en', 'zh', 'ja'). Optional.",
           ),
       },
     },
@@ -782,7 +782,7 @@ export function registerPostingTools(server: McpServer): void {
           .string()
           .optional()
           .describe(
-            "Content language hint (BCP 47, e.g. 'en', 'zh', 'ja'). Auto-detected from content; only used as fallback when detection confidence is low.",
+            "Post language tag (BCP 47, e.g. 'en', 'zh', 'ja'). Optional.",
           ),
       },
     },
@@ -873,7 +873,7 @@ export function registerPostingTools(server: McpServer): void {
           .string()
           .optional()
           .describe(
-            "Content language hint (BCP 47, e.g. 'en', 'zh', 'ja'). Auto-detected from content; only used as fallback when detection confidence is low.",
+            "Post language tag (BCP 47, e.g. 'en', 'zh', 'ja'). Optional.",
           ),
       },
     },
