@@ -26,6 +26,15 @@ function newestFirst(a: { createdAt: Date; id: string }, b: { createdAt: Date; i
   return b.id.localeCompare(a.id);
 }
 
+function postMatchesTag(post: { tags: string }, tag: string): boolean {
+  try {
+    const tags = JSON.parse(post.tags) as string[];
+    return tags.some((t) => t.toLowerCase().trim() === tag);
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -36,6 +45,7 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * limit;
 
     const q = searchParams.get("q")?.trim() || "";
+    const tag = searchParams.get("tag")?.trim().toLowerCase() || "";
 
     const showBanned = searchParams.get("show_banned") === "true";
 
@@ -73,15 +83,14 @@ export async function GET(req: NextRequest) {
         ...where,
         createdAt: { gte: new Date(Date.now() - 7 * 24 * 3600000) },
       };
-      const [recentPosts, recentTotal] = await Promise.all([
-        prisma.post.findMany({
-          where: recentWhere,
-          take: 200,
-          orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
-          include,
-        }),
-        prisma.post.count({ where: recentWhere }),
-      ]);
+      let recentPosts = await prisma.post.findMany({
+        where: recentWhere,
+        take: 200,
+        orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+        include,
+      });
+
+      if (tag) recentPosts = recentPosts.filter((p) => postMatchesTag(p, tag));
 
       recentPosts.sort((a, b) => {
         const scoreDiff = hotScore(b.upvotes, b.downvotes, b._count.comments, b.createdAt) -
@@ -91,17 +100,19 @@ export async function GET(req: NextRequest) {
       });
 
       posts = recentPosts.slice(skip, skip + limit);
-      total = recentTotal;
+      total = recentPosts.length;
     } else if (sort === "controversial") {
       const controversialWhere = {
         ...where,
         createdAt: { gte: new Date(Date.now() - 30 * 24 * 3600000) },
       };
 
-      const recentPosts = await prisma.post.findMany({
+      let recentPosts = await prisma.post.findMany({
         where: controversialWhere,
         include,
       });
+
+      if (tag) recentPosts = recentPosts.filter((p) => postMatchesTag(p, tag));
 
       recentPosts.sort((a, b) => {
         const scoreDiff = controversialScore(b.upvotes, b.downvotes, b._count.comments) -
@@ -114,15 +125,14 @@ export async function GET(req: NextRequest) {
       total = recentPosts.length;
     } else if (sort === "top") {
       // Top: sort by net votes (upvotes - downvotes), computed in memory
-      const [allPosts, allTotal] = await Promise.all([
-        prisma.post.findMany({
-          where,
-          take: 300,
-          orderBy: [{ upvotes: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
-          include,
-        }),
-        prisma.post.count({ where }),
-      ]);
+      let allPosts = await prisma.post.findMany({
+        where,
+        take: 300,
+        orderBy: [{ upvotes: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
+        include,
+      });
+
+      if (tag) allPosts = allPosts.filter((p) => postMatchesTag(p, tag));
 
       allPosts.sort((a, b) => {
         const scoreDiff = (b.upvotes - b.downvotes) - (a.upvotes - a.downvotes);
@@ -130,22 +140,35 @@ export async function GET(req: NextRequest) {
         return newestFirst(a, b);
       });
       posts = allPosts.slice(skip, skip + limit);
-      total = allTotal;
+      total = allPosts.length;
     } else {
       // Default: newest first
-      const [allNew, newTotal] = await Promise.all([
-        prisma.post.findMany({
+      if (tag) {
+        // Tags are stored as JSON strings; must filter in memory
+        let allPosts = await prisma.post.findMany({
           where,
-          take: limit,
-          skip,
+          take: 1000,
           orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
           include,
-        }),
-        prisma.post.count({ where }),
-      ]);
+        });
+        allPosts = allPosts.filter((p) => postMatchesTag(p, tag));
+        posts = allPosts.slice(skip, skip + limit);
+        total = allPosts.length;
+      } else {
+        const [allNew, newTotal] = await Promise.all([
+          prisma.post.findMany({
+            where,
+            take: limit,
+            skip,
+            orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
+            include,
+          }),
+          prisma.post.count({ where }),
+        ]);
 
-      posts = allNew;
-      total = newTotal;
+        posts = allNew;
+        total = newTotal;
+      }
     }
 
     const userId = await getCurrentUser();
