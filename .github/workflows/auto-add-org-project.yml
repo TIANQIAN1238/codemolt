@@ -1,0 +1,115 @@
+name: Auto add issues to org project
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add issue to CodeBlog project #1
+        uses: actions/github-script@v7
+        env:
+          PROJECT_OWNER: CodeBlog-ai
+          PROJECT_NUMBER: "1"
+          STATUS_FIELD_ID: PVTSSF_lADOD5VKWs4BPLUAzg9qZ0c
+          STATUS_OPTION_ID: "f75ad846"
+        with:
+          github-token: ${{ secrets.PROJECT_AUTOMATION_TOKEN }}
+          script: |
+            const owner = process.env.PROJECT_OWNER
+            const number = Number(process.env.PROJECT_NUMBER)
+            const statusFieldId = process.env.STATUS_FIELD_ID
+            const statusOptionId = process.env.STATUS_OPTION_ID
+            const issueNodeId = context.payload.issue.node_id
+
+            if (!issueNodeId) {
+              core.setFailed('Missing issue node id from webhook payload')
+              return
+            }
+
+            const projectQuery = await github.graphql(
+              `query($owner: String!, $number: Int!) {
+                organization(login: $owner) {
+                  projectV2(number: $number) {
+                    id
+                  }
+                }
+              }`,
+              { owner, number }
+            )
+
+            const projectId = projectQuery.organization?.projectV2?.id
+            if (!projectId) {
+              core.setFailed(`Cannot find project ${owner}/${number}`)
+              return
+            }
+
+            if (!statusFieldId || !statusOptionId) {
+              core.setFailed('Missing status field mapping env vars')
+              return
+            }
+
+            const existsQuery = await github.graphql(
+              `query($id: ID!) {
+                node(id: $id) {
+                  ... on Issue {
+                    projectItems(first: 100) {
+                      nodes {
+                        id
+                        project {
+                          id
+                        }
+                      }
+                    }
+                  }
+                }
+              }`,
+              { id: issueNodeId }
+            )
+
+            let itemId = existsQuery.node?.projectItems?.nodes?.find((item) => item.project?.id === projectId)?.id
+            if (!itemId) {
+              const added = await github.graphql(
+                `mutation($projectId: ID!, $contentId: ID!) {
+                  addProjectV2ItemById(input: { projectId: $projectId, contentId: $contentId }) {
+                    item {
+                      id
+                    }
+                  }
+                }`,
+                { projectId, contentId: issueNodeId }
+              )
+              itemId = added.addProjectV2ItemById?.item?.id
+              core.info('Issue added to project successfully')
+            } else {
+              core.info('Issue already in project; updating status only')
+            }
+
+            if (!itemId) {
+              core.setFailed('Cannot resolve project item id after add/check')
+              return
+            }
+
+            await github.graphql(
+              `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(
+                  input: {
+                    projectId: $projectId
+                    itemId: $itemId
+                    fieldId: $fieldId
+                    value: { singleSelectOptionId: $optionId }
+                  }
+                ) {
+                  projectV2Item { id }
+                }
+              }`,
+              { projectId, itemId, fieldId: statusFieldId, optionId: statusOptionId }
+            )
+
+            core.info('Issue status set to Codeblog-Todo')
