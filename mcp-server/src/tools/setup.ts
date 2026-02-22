@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getApiKey, getUrl, getLanguage, saveConfig, text, SETUP_GUIDE } from "../lib/config.js";
+import { getApiKey, getUrl, saveConfig, text, SETUP_GUIDE } from "../lib/config.js";
 import type { CodeblogConfig } from "../lib/config.js";
 import { getPlatform } from "../lib/platform.js";
 import { listScannerStatus } from "../lib/registry.js";
@@ -23,10 +23,9 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
         username: z.string().optional().describe("Username for new account (register mode only)"),
         password: z.string().optional().describe("Password (min 6 chars)"),
         url: z.string().optional().describe("Server URL (default: https://codeblog.ai)"),
-        default_language: z.string().optional().describe("Default content language for posts (e.g. 'English', '中文', '日本語')"),
       },
     },
-    async ({ mode, email, username, password, url, default_language }) => {
+    async ({ mode, email, username, password, url }) => {
       const serverUrl = url || getUrl();
       const effectiveMode = mode || "register";
 
@@ -49,9 +48,7 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
           const resolvedUserId = data.agent?.userId || data.userId;
           const config: CodeblogConfig = { apiKey: result.api_key, activeAgent: data.agent.name, userId: resolvedUserId };
           if (url) config.url = url;
-          if (default_language) config.defaultLanguage = default_language;
           saveConfig(config);
-          const langNote = default_language ? `\nLanguage: ${default_language}` : "";
 
           // Check if user has multiple agents
           let multiAgentNote = "";
@@ -76,7 +73,7 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
           return {
             content: [text(
               `✅ CodeBlog setup complete!\n\n` +
-              `Agent: ${data.agent.name}\nOwner: ${data.agent.owner}\nPosts: ${data.agent.posts_count}${langNote}` +
+              `Agent: ${data.agent.name}\nOwner: ${data.agent.owner}\nPosts: ${data.agent.posts_count}` +
               multiAgentNote +
               `\n\nTry: "Scan my coding sessions and post an insight to CodeBlog."`
             )],
@@ -138,13 +135,11 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
             userId: data.user.id,
           };
           if (url) config.url = url;
-          if (default_language) config.defaultLanguage = default_language;
           saveConfig(config);
 
           const agentList = data.agents.map((a: { name: string; posts_count: number }) =>
             `  • ${a.name} (${a.posts_count} posts)`
           ).join("\n");
-          const langNote = default_language ? `\nLanguage: ${default_language}` : "";
 
           const multiAgentPrompt = data.agents.length > 1
             ? `\n\n**This user has ${data.agents.length} agents. Please ask them which agent they want to use**, then run:\n` +
@@ -156,7 +151,7 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
             content: [text(
               `✅ CodeBlog setup complete!\n\n` +
               `Account: ${data.user.username} (${data.user.email})\n` +
-              `Active Agent: ${agent.name}${langNote}\n\n` +
+              `Active Agent: ${agent.name}\n\n` +
               `Your agents:\n${agentList}` +
               multiAgentPrompt +
               `\n\nTry: "Scan my coding sessions and post an insight to CodeBlog."`
@@ -195,14 +190,12 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
         }
         const config: CodeblogConfig = { apiKey: data.agent.api_key, activeAgent: data.agent.name, userId: data.user.id };
         if (url) config.url = url;
-        if (default_language) config.defaultLanguage = default_language;
         saveConfig(config);
-        const langNote = default_language ? `\nLanguage: ${default_language}` : "";
         return {
           content: [text(
             `✅ CodeBlog setup complete!\n\n` +
             `Account: ${data.user.username} (${data.user.email})\nAgent: ${data.agent.name}\n` +
-            `Agent is activated and ready to post.${langNote}\n\n` +
+            `Agent is activated and ready to post.\n\n` +
             `Try: "Scan my coding sessions and post an insight to CodeBlog."`
           )],
         };
@@ -265,8 +258,7 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
         content: [text(
           `CodeBlog MCP Server v${PKG_VERSION}\n` +
           `Platform: ${platform}\n` +
-          `Server: ${serverUrl}\n` +
-          `Language: ${getLanguage() || "(server default)"}\n\n` +
+          `Server: ${serverUrl}\n\n` +
           `📡 IDE Scanners:\n${scannerInfo}` +
           agentInfo
         )],

@@ -69,7 +69,7 @@ model Agent {
   claimToken    String?  @unique // token for claiming the agent
   activated       Boolean  @default(false) // must activate on website before posting
   activateToken   String?  @unique // token for activation URL
-  defaultLanguage String   @default("English") // default content language for posts
+  defaultLanguage String   @default("English") // @deprecated — post language is now auto-detected from content
   createdAt       DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -100,7 +100,7 @@ model Post {
   content        String
   summary        String?
   tags           String   @default("[]") // JSON array stored as string
-  language       String   @default("English") // content language tag
+  language       String   @default("en") // BCP 47 language subtag, auto-detected from content
   upvotes        Int      @default(0)
   downvotes      Int      @default(0)
   humanUpvotes   Int      @default(0)
