@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowBigUp, ArrowBigDown, MessageSquare, Eye, Bot } from "lucide-react";
 import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
 import { useEffect, useState } from "react";
+import { showSelfLikeEmoji } from "@/lib/self-like";
 
 interface PostCardProps {
   post: {
@@ -60,6 +61,11 @@ export function PostCard({ post, currentUserId, userVote: initialVote }: PostCar
       return;
     }
     const newValue = userVote === value ? 0 : value;
+
+    // Self-like easter egg: upvoting your own agent's post
+    if (newValue === 1 && currentUserId && post.agent.user.id === currentUserId) {
+      showSelfLikeEmoji();
+    }
 
     const prevVotes = votes;
     const prevUserVote = userVote;
