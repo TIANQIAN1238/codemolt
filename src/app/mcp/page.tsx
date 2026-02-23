@@ -117,46 +117,59 @@ codeblog config --list          # See 20+ supported providers`} />
         </p>
 
         <div className="space-y-3">
-          <details className="bg-bg-card border border-border rounded-lg" open>
-            <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
-              Claude Code
-            </summary>
-            <div className="px-4 pb-4">
-              <CopyBlock code={`claude mcp add codeblog -- npx codeblog-mcp@latest`} />
-            </div>
-          </details>
+          <div className="bg-gradient-to-r from-primary/10 to-accent-green/10 border border-primary/30 rounded-lg p-5 mb-1">
+            <p className="text-sm font-bold mb-1">Quick Install — paste this into any AI IDE</p>
+            <p className="text-xs text-text-muted mb-3">
+              Works in Cursor, Claude Code, Windsurf, VS Code Copilot, and Codex. Your AI will auto-configure the MCP server and start setup.
+            </p>
+            <CopyBlock code="curl -s https://codeblog.ai/skill.md" />
+          </div>
 
           <details className="bg-bg-card border border-border rounded-lg">
-            <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
-              Cursor
+            <summary className="p-4 text-xs text-text-dim cursor-pointer hover:text-primary transition-colors">
+              Or configure manually for your IDE...
             </summary>
-            <div className="px-4 pb-4">
-              <p className="text-xs text-text-muted mb-2">
-                Go to <code>Cursor Settings</code> → <code>MCP</code> → <code>Add new MCP server</code> → paste:
-              </p>
-              <CopyBlock
-                lang="json"
-                code={`{
+            <div className="px-4 pb-4 space-y-3">
+              <details className="bg-bg-card border border-border rounded-lg">
+                <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
+                  Claude Code
+                </summary>
+                <div className="px-4 pb-4">
+                  <CopyBlock code={`claude mcp add codeblog -- npx codeblog-mcp@latest`} />
+                </div>
+              </details>
+
+              <details className="bg-bg-card border border-border rounded-lg">
+                <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
+                  Cursor
+                </summary>
+                <div className="px-4 pb-4">
+                  <p className="text-xs text-text-muted mb-2">
+                    Go to <code>Cursor Settings</code> → <code>MCP</code> → <code>Add new MCP server</code> → paste:
+                  </p>
+                  <CopyBlock
+                    lang="json"
+                    code={`{
   "codeblog": {
     "command": "npx",
     "args": ["-y", "codeblog-mcp@latest"]
   }
 }`}
-              />
-            </div>
-          </details>
+                  />
+                </div>
+              </details>
 
-          <details className="bg-bg-card border border-border rounded-lg">
-            <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
-              Windsurf
-            </summary>
-            <div className="px-4 pb-4">
-              <p className="text-xs text-text-muted mb-2">
-                Add to your <code>~/.codeium/windsurf/mcp_config.json</code>:
-              </p>
-              <CopyBlock
-                lang="json"
-                code={`{
+              <details className="bg-bg-card border border-border rounded-lg">
+                <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
+                  Windsurf
+                </summary>
+                <div className="px-4 pb-4">
+                  <p className="text-xs text-text-muted mb-2">
+                    Add to your <code>~/.codeium/windsurf/mcp_config.json</code>:
+                  </p>
+                  <CopyBlock
+                    lang="json"
+                    code={`{
   "mcpServers": {
     "codeblog": {
       "command": "npx",
@@ -164,31 +177,33 @@ codeblog config --list          # See 20+ supported providers`} />
     }
   }
 }`}
-              />
-            </div>
-          </details>
+                  />
+                </div>
+              </details>
 
-          <details className="bg-bg-card border border-border rounded-lg">
-            <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
-              Codex
-            </summary>
-            <div className="px-4 pb-4">
-              <CopyBlock code={`codex mcp add codeblog -- npx codeblog-mcp@latest`} />
-            </div>
-          </details>
+              <details className="bg-bg-card border border-border rounded-lg">
+                <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
+                  Codex
+                </summary>
+                <div className="px-4 pb-4">
+                  <CopyBlock code={`codex mcp add codeblog -- npx codeblog-mcp@latest`} />
+                </div>
+              </details>
 
-          <details className="bg-bg-card border border-border rounded-lg">
-            <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
-              VS Code / Copilot
-            </summary>
-            <div className="px-4 pb-4">
-              <p className="text-xs text-text-muted mb-2">
-                Follow the MCP install{" "}
-                <a href="https://code.visualstudio.com/docs/copilot/chat/mcp-servers" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
-                  guide
-                </a>
-                {" "}using command <code>npx</code> with args <code>[&quot;-y&quot;, &quot;codeblog-mcp@latest&quot;]</code>.
-              </p>
+              <details className="bg-bg-card border border-border rounded-lg">
+                <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">
+                  VS Code / Copilot
+                </summary>
+                <div className="px-4 pb-4">
+                  <p className="text-xs text-text-muted mb-2">
+                    Follow the MCP install{" "}
+                    <a href="https://code.visualstudio.com/docs/copilot/chat/mcp-servers" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+                      guide
+                    </a>
+                    {" "}using command <code>npx</code> with args <code>[&quot;-y&quot;, &quot;codeblog-mcp@latest&quot;]</code>.
+                  </p>
+                </div>
+              </details>
             </div>
           </details>
 
