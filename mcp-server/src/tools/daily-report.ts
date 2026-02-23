@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { text } from "../lib/config.js";
+import { loadClientConfig, saveClientConfig } from "../lib/client-config.js";
 import { withAuth } from "../lib/auth-guard.js";
 import {
   collectDailyUsage,
@@ -50,7 +51,10 @@ export function registerDailyReportTools(server: McpServer): void {
         "  Use tables for: overall stats, model usage breakdown, IDE breakdown, project breakdown.\n" +
         "  But tables should NOT be the main structure — the narrative story comes first.\n" +
         "- If there were multiple projects, tell each project's story separately with depth.\n" +
-        "- If blog posts were published today, mention them naturally in the narrative.\n" +
+        "- If blog posts were published today (provided in todaysPosts), review them and decide which ones\n" +
+        "  are relevant to the day's work. For relevant posts, reference them naturally in the narrative\n" +
+        "  using markdown links: [Post Title](url). You don't have to mention every post — only those\n" +
+        "  that relate to what was worked on. If none of the posts are relevant, skip them entirely.\n" +
         "- End with a reflection: what did you learn? what's next?\n\n" +
         "BAD example (DO NOT write like this):\n" +
         "  '## 数据一览\\n编码会话：7\\nToken：73M\\n花费：$200'\n" +
@@ -302,9 +306,82 @@ export function registerDailyReportTools(server: McpServer): void {
       }
     }),
   );
-}
 
-// ─── Helpers ─────────────────────────────────────────────────────────
+  // ─── configure_daily_report ──────────────────────────────────────
+  server.registerTool(
+    "configure_daily_report",
+    {
+      description:
+        "Configure daily report preferences.\n" +
+        "Supports setting the auto-trigger hour (0-23) for the TUI client.\n" +
+        "Set auto_hour to -1 to disable auto-trigger entirely.\n" +
+        "Use get=true to read current settings without changing anything.",
+      inputSchema: {
+        auto_hour: z
+          .number()
+          .int()
+          .min(-1)
+          .max(23)
+          .optional()
+          .describe(
+            "Hour (0-23) to auto-trigger daily report. Default is 22 (10 PM). Set to -1 to disable auto-trigger.",
+          ),
+        get: z
+          .boolean()
+          .optional()
+          .describe(
+            "If true, return current settings without changing anything.",
+          ),
+      },
+    },
+    async ({ auto_hour, get }) => {
+      if (get) {
+        const cfg = loadClientConfig();
+        const hour = normalizeDailyReportHour(cfg.dailyReportHour);
+        const enabled = hour >= 0;
+        return {
+          content: [
+            text(
+              JSON.stringify({
+                auto_hour: hour,
+                enabled,
+                message: enabled
+                  ? `Daily report auto-triggers at ${String(hour).padStart(2, "0")}:00 local time.`
+                  : "Daily report auto-trigger is disabled.",
+              }),
+            ),
+          ],
+        };
+      }
+
+      if (auto_hour === undefined) {
+        return {
+          content: [
+            text(
+              "No changes made. Provide auto_hour (0-23, or -1 to disable) to update settings.",
+            ),
+          ],
+        };
+      }
+
+      saveClientConfig({ dailyReportHour: auto_hour });
+      const enabled = auto_hour >= 0;
+      return {
+        content: [
+          text(
+            JSON.stringify({
+              auto_hour,
+              enabled,
+              message: enabled
+                ? `Daily report auto-trigger set to ${String(auto_hour).padStart(2, "0")}:00 local time. The TUI will pick up this change on next check cycle.`
+                : "Daily report auto-trigger has been disabled.",
+            }),
+          ),
+        ],
+      };
+    },
+  );
+}
 
 function getActiveHoursRange(hourly: Record<number, number>): string {
   const hours = Object.keys(hourly)
@@ -319,11 +396,20 @@ interface TodayPost {
   id: string;
   title: string;
   upvotes: number;
+  tags: string[];
+  url: string;
 }
 
 interface ReserveConflictResponse {
   reason?: "already_exists" | "in_progress";
   report?: { post_id?: string };
+}
+
+function normalizeDailyReportHour(raw: unknown): number {
+  if (typeof raw !== "number") return 22;
+  if (!Number.isInteger(raw)) return 22;
+  if (raw < -1 || raw > 23) return 22;
+  return raw;
 }
 
 type ReserveStatus =
@@ -388,11 +474,19 @@ async function fetchTodaysPosts(
         created_at: string;
       }>;
     };
-    return data.posts.filter((p) => {
-      const postDate = toLocalDate(p.created_at, timezone);
-      if (p.tags?.includes("day-in-code")) return false;
-      return postDate === targetDate;
-    });
+    return data.posts
+      .filter((p) => {
+        const postDate = toLocalDate(p.created_at, timezone);
+        if (p.tags?.includes("day-in-code")) return false;
+        return postDate === targetDate;
+      })
+      .map((p) => ({
+        id: p.id,
+        title: p.title,
+        upvotes: p.upvotes,
+        tags: p.tags || [],
+        url: `${serverUrl}/post/${p.id}`,
+      }));
   } catch {
     return [];
   }
