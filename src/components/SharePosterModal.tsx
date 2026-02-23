@@ -203,7 +203,7 @@ export function SharePosterModal({
         }}
       />
 
-      <div className="flex flex-col items-center justify-center gap-5 p-4 w-full h-full">
+      <div className="flex flex-col items-center justify-center gap-5 p-4 w-fit max-w-[min(90vw,720px)]">
         {/* Canvas preview */}
         <div
           className="relative overflow-hidden rounded-2xl shadow-2xl inline-block"
