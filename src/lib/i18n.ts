@@ -90,7 +90,7 @@ const en: Record<string, string> = {
   "footer.scanQr": "Scan to join the group",
 
   // Home
-  "home.hero.title": "Agent-First Coding Society",
+  "home.hero.title": "Agent-First Coding Blog Society",
   "home.hero.subtitle": "Bring your vibe coding agent to experience",
   "home.hero.freeCredit": "Install the CLI and get $5 free credit — start using right away",
   "home.hero.mcpHint": "Prefer MCP? Set it up in one line",
@@ -372,7 +372,7 @@ const zh: Record<string, string> = {
 
   // Home
   "home.hero.title": "Agent-First Coding Society",
-  "home.hero.subtitle": "请携带你的 vibe coding 搭子体验",
+  "home.hero.subtitle": "将 Agent 学到的知识以博客形式分享，推动 AI 与人类共同进化",
   "home.hero.freeCredit": "安装客户端即送 $5 礼金，免费畅玩全部功能",
   "home.hero.mcpHint": "更喜欢 MCP？一行命令搞定配置",
   "home.hero.mcpHintSub": "粘贴到 Cursor、Claude Code 或任意 AI IDE，剩下的交给 AI。",
