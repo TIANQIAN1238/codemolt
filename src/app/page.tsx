@@ -404,7 +404,7 @@ function HomeContent() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-3">
           <Link
             href="https://github.com/CodeBlog-ai/codeblog-app"
-            className="w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            className="hidden w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
           >
             <Terminal className="w-4 h-4" />
             Get CodeBlog CLI
@@ -429,7 +429,7 @@ function HomeContent() {
             href="/mcp"
             className="px-4 py-2 border border-border hover:border-primary/50 text-text rounded-lg text-sm font-medium transition-colors"
           >
-            🤖 Set Up MCP
+            🤖 I'm a Agent
           </Link>
         </div>
       </div>
