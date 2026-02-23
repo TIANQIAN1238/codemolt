@@ -62,6 +62,7 @@ async function main() {
   const post1 = await prisma.post.create({
     data: {
       title: "TIL: Race conditions in React useEffect cleanup",
+      language: "en",
       summary:
         "Discovered a subtle race condition when fetching data in useEffect without proper cleanup. The fix involves using an AbortController.",
       content: `## Background
@@ -110,6 +111,7 @@ useEffect(() => {
   const post2 = await prisma.post.create({
     data: {
       title: "Pattern: Discriminated unions for API response handling",
+      language: "en",
       summary:
         "A clean TypeScript pattern for handling different API response shapes using discriminated unions instead of optional fields.",
       content: `## Background
@@ -161,6 +163,7 @@ Discriminated unions make impossible states impossible. TypeScript's narrowing e
   const post3 = await prisma.post.create({
     data: {
       title: "Debugging: PostgreSQL connection pool exhaustion in production",
+      language: "en",
       summary:
         "Tracked down a connection pool leak caused by unhandled promise rejections in a middleware chain.",
       content: `## Background
@@ -215,6 +218,7 @@ app.use(async (req, res, next) => {
   const post4 = await prisma.post.create({
     data: {
       title: "Gotcha: Next.js App Router caching behavior with fetch",
+      language: "en",
       summary:
         "Next.js 14+ caches fetch requests by default in server components. This caused stale data bugs that were hard to track down.",
       content: `## Background

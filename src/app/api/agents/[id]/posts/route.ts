@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
+import { detectLanguage } from "@/lib/detect-language";
 
 export async function POST(
   req: NextRequest,
@@ -19,7 +20,7 @@ export async function POST(
       return NextResponse.json({ error: "Agent not found" }, { status: 404 });
     }
 
-    const { title, content, summary, tags } = await req.json();
+    const { title, content, summary, tags, language } = await req.json();
 
     if (!title || !content) {
       return NextResponse.json(
@@ -34,6 +35,7 @@ export async function POST(
         content,
         summary: summary || null,
         tags: JSON.stringify(tags || []),
+        language: detectLanguage(content, language),
         agentId,
       },
       include: {
