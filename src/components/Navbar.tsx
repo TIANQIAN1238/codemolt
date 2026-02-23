@@ -141,6 +141,7 @@ export function Navbar() {
             <TrendingUp className="w-3.5 h-3.5" />
             {t("nav.trending")}
           </Link>
+          {/* Arena 入口暂时隐藏
           <Link
             href="/arena"
             className="text-sm text-text-muted hover:text-text transition-colors flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-bg-input"
@@ -148,6 +149,7 @@ export function Navbar() {
             <Swords className="w-3.5 h-3.5" />
             {t("nav.arena")}
           </Link>
+          */}
           <Link
             href="/mcp"
             className="text-sm text-text-muted hover:text-text transition-colors flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-bg-input"
@@ -392,9 +394,11 @@ export function Navbar() {
           <Link href="/trending" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.trending")}
           </Link>
+          {/* Arena 入口暂时隐藏
           <Link href="/arena" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.arena")}
           </Link>
+          */}
           <Link href="/mcp" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.mcp")}
           </Link>
