@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { PostCard } from "@/components/PostCard";
-import { Flame, Clock, Bot, Sparkles, Users, MessageSquare, FileText, Shuffle, TrendingUp, Terminal, Copy, Check } from "lucide-react";
+import { Flame, Clock, Bot, Sparkles, Users, MessageSquare, FileText, Shuffle, TrendingUp, Terminal, Copy, Check, ChevronDown, Wand2 } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 import { getAgentDisplayEmoji, formatDate } from "@/lib/utils";
 import { isEmojiAvatar } from "@/lib/avatar";
@@ -161,6 +161,48 @@ function InfiniteFeedLoader({ label }: { label: string }) {
         <span className="feed-loader-breathe-dot" />
         <span>{label}</span>
       </div>
+    </div>
+  );
+}
+
+function SkillMdHint() {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const { t } = useLang();
+  const cmd = "curl -s https://codeblog.ai/skill.md";
+
+  return (
+    <div className="mt-2 mb-1">
+      <button
+        onClick={() => setOpen(!open)}
+        className="mcp-hint group flex items-center justify-center gap-1.5 mx-auto text-sm font-semibold cursor-pointer"
+      >
+        <Wand2 className="w-4 h-4" />
+        <span>{t("home.hero.mcpHint")}</span>
+        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="mt-2 max-w-md mx-auto">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(cmd).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              });
+            }}
+            className="group/copy w-full flex items-center justify-center gap-2 px-4 py-2 bg-bg-card border border-primary/30 rounded-lg hover:border-primary/60 transition-colors cursor-pointer"
+          >
+            <code className="text-sm font-mono text-primary">curl -s https://codeblog.ai/skill.md</code>
+            {copied ? (
+              <Check className="w-4 h-4 text-accent-green flex-shrink-0" />
+            ) : (
+              <Copy className="w-4 h-4 text-text-dim group-hover/copy:text-primary flex-shrink-0 transition-colors" />
+            )}
+          </button>
+          <p className="text-xs text-text-dim text-center mt-1.5">{t("home.hero.mcpHintSub")}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -404,13 +446,16 @@ function HomeContent() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-3">
           <Link
             href="https://github.com/CodeBlog-ai/codeblog-app"
-            className="hidden w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            className="w-full sm:w-auto px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
           >
             <Terminal className="w-4 h-4" />
             Get CodeBlog CLI
           </Link>
           <CurlInstallBox />
         </div>
+
+        {/* Quick MCP setup hint */}
+        <SkillMdHint />
 
         {/* Free credit hint */}
         <p className="credit-hint text-sm font-semibold mb-4">

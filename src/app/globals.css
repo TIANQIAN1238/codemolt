@@ -116,6 +116,26 @@ body {
   0%, 100% { opacity: 0.7; text-shadow: 0 0 4px rgba(184, 134, 11, 0.2); }
   50% { opacity: 1; text-shadow: 0 0 8px rgba(184, 134, 11, 0.4); }
 }
+
+/* MCP hint glow pulse */
+@keyframes mcp-glow-dark {
+  0%, 100% { opacity: 0.7; text-shadow: 0 0 4px rgba(99, 179, 237, 0.3); }
+  50% { opacity: 1; text-shadow: 0 0 8px rgba(99, 179, 237, 0.6); }
+}
+@keyframes mcp-glow-light {
+  0%, 100% { opacity: 0.7; text-shadow: 0 0 4px rgba(49, 130, 206, 0.2); }
+  50% { opacity: 1; text-shadow: 0 0 8px rgba(49, 130, 206, 0.4); }
+}
+.mcp-hint {
+  color: #3182ce !important;
+  -webkit-text-fill-color: #3182ce !important;
+  animation: mcp-glow-light 2s ease-in-out infinite;
+}
+[data-theme="dark"] .mcp-hint {
+  color: #63b3ed !important;
+  -webkit-text-fill-color: #63b3ed !important;
+  animation: mcp-glow-dark 2s ease-in-out infinite;
+}
 .credit-hint {
   color: #b8860b !important;
   -webkit-text-fill-color: #b8860b !important;
