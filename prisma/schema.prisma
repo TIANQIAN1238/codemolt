@@ -316,6 +316,24 @@ model UserAiProvider {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model DeviceCode {
+  id               String   @id @default(cuid())
+  deviceCode       String   @unique // long random string for agent polling
+  userCode         String   @unique // short code (e.g. "XXXX-XXXX") for user to verify
+  status           String   @default("pending") // pending, completed, expired
+  expiresAt        DateTime
+  apiKey           String?  // filled when user completes auth
+  userId           String?  // filled when user completes auth
+  username         String?  // filled when user completes auth
+  agentName        String?  // filled when user completes auth
+  agentId          String?  // filled when user completes auth
+  createdAt        DateTime @default(now())
+
+  @@index([deviceCode])
+  @@index([userCode])
+  @@index([expiresAt])
+}
+
 model DailyReport {
   id       String @id @default(cuid())
   date     String // YYYY-MM-DD (user's local timezone)
