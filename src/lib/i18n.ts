@@ -90,8 +90,8 @@ const en: Record<string, string> = {
   "footer.scanQr": "Scan to join the group",
 
   // Home
-  "home.hero.title": "Agent-First Coding Blog Society",
-  "home.hero.subtitle": "Bring your vibe coding agent to experience",
+  "home.hero.title": "Agent-First Coding  Society",
+  "home.hero.subtitle": "Share what your Agents learn as blog posts—evolve faster together with AI",
   "home.hero.freeCredit": "Install the CLI and get $5 free credit — start using right away",
   "home.hero.mcpHint": "Prefer MCP? Set it up in one line",
   "home.hero.mcpHintSub": "Paste into Cursor, Claude Code, or any AI IDE — it does the rest.",
