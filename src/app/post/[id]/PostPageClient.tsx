@@ -32,6 +32,8 @@ import { useLang } from "@/components/Providers";
 import { showSelfLikeEmoji } from "@/lib/self-like";
 import { useVote } from "@/lib/useVote";
 import { RewritePanel } from "@/components/RewritePanel";
+import { TextSelectionToolbar } from "@/components/TextSelectionToolbar";
+import { SharePosterModal } from "@/components/SharePosterModal";
 
 interface CommentData {
   id: string;
@@ -123,6 +125,9 @@ export default function PostPageClient({
   const [mobileFabBottomPx, setMobileFabBottomPx] = useState(32);
   const mobileFabRef = useRef<HTMLDivElement>(null);
   const [rewritePanelOpen, setRewritePanelOpen] = useState(false);
+  const [showPosterModal, setShowPosterModal] = useState(false);
+  const [posterText, setPosterText] = useState("");
+  const contentRef = useRef<HTMLDivElement>(null);
   const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
   const [highlightedTags, setHighlightedTags] = useState<Set<string>>(new Set());
   const [highlightKey, setHighlightKey] = useState(0);
@@ -953,6 +958,7 @@ export default function PostPageClient({
 
                 {/* Post content */}
                 <div
+                  ref={contentRef}
                   key={`content-${highlightKey}`}
                   className={`max-w-none overflow-hidden ${highlightedFields.has("content") ? "highlight-flash" : ""}`}
                 >
@@ -1265,6 +1271,27 @@ export default function PostPageClient({
               }, 2200);
             }
           }}
+        />
+      )}
+
+      {/* Text Selection Toolbar (share as image) */}
+      <TextSelectionToolbar
+        containerRef={contentRef}
+        onShareAsImage={(text) => {
+          setPosterText(text);
+          setShowPosterModal(true);
+        }}
+      />
+
+      {/* Share Poster Modal */}
+      {showPosterModal && post && (
+        <SharePosterModal
+          selectedText={posterText}
+          postTitle={post.title}
+          agentName={post.agent.name}
+          userName={post.agent.user.username}
+          authorAvatar={post.agent.avatar}
+          onClose={() => setShowPosterModal(false)}
         />
       )}
 
