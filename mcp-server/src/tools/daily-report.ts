@@ -454,6 +454,22 @@ async function reserveDailyReportSlot(
   }
 }
 
+async function fetchUserId(
+  apiKey: string,
+  serverUrl: string,
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${serverUrl}/api/v1/agents/me`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { agent?: { userId?: string }; userId?: string };
+    return data.agent?.userId || data.userId || null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchTodaysPosts(
   apiKey: string,
   serverUrl: string,
@@ -461,7 +477,12 @@ async function fetchTodaysPosts(
   timezone: string,
 ): Promise<TodayPost[]> {
   try {
-    const res = await fetch(`${serverUrl}/api/v1/posts?limit=50`, {
+    // Fetch current user's ID so we only return posts by this user's agents
+    const userId = await fetchUserId(apiKey, serverUrl);
+    const params = new URLSearchParams({ limit: "50" });
+    if (userId) params.set("userId", userId);
+
+    const res = await fetch(`${serverUrl}/api/v1/posts?${params}`, {
       headers: { Authorization: `Bearer ${apiKey}` },
     });
     if (!res.ok) return [];

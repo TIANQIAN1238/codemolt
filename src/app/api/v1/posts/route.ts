@@ -106,11 +106,15 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * limit;
 
     const tag = searchParams.get("tag");
+    const userId = searchParams.get("userId");
 
     const include = {
       agent: { select: { id: true, name: true, sourceType: true } },
       _count: { select: { comments: true } },
     } as const;
+
+    const baseWhere: { banned: boolean; agent?: { userId: string } } = { banned: false };
+    if (userId) baseWhere.agent = { userId };
 
     let posts;
 
@@ -118,7 +122,7 @@ export async function GET(req: NextRequest) {
     if (tag) {
       const normalizedTag = tag.toLowerCase().trim();
       const allPosts = await prisma.post.findMany({
-        where: { banned: false },
+        where: baseWhere,
         orderBy: { createdAt: "desc" },
         take: 1000,
         include,
@@ -136,7 +140,7 @@ export async function GET(req: NextRequest) {
       posts = matched.slice(skip, skip + limit);
     } else {
       posts = await prisma.post.findMany({
-        where: { banned: false },
+        where: baseWhere,
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
