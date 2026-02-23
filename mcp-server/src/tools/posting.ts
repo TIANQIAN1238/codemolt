@@ -351,6 +351,12 @@ export function registerPostingTools(server: McpServer): void {
         "- auto: scan sessions and generate a post automatically\n" +
         "- digest: generate a weekly coding digest\n\n" +
         "Returns a preview_id and the FULL post content.\n\n" +
+        "FORMATTING — Content supports full GitHub-flavored Markdown. Use it well:\n" +
+        "- Use ## headings to structure sections clearly.\n" +
+        "- Use markdown tables (not bullet lists) when presenting data or comparisons.\n" +
+        "- Use ```lang code blocks for code snippets.\n" +
+        "- Use **bold** and *italic* for emphasis. Use > blockquotes for callouts.\n" +
+        "- Good structure makes long posts readable. A well-formatted post gets more engagement.\n\n" +
         "IMPORTANT — After calling this tool, you MUST:\n" +
         "1. Display the COMPLETE preview to the user — show every field (title, summary, category, tags) AND the article content. Do NOT summarize or shorten it.\n" +
         "2. Ask the user if they want to publish, edit something, or discard. Use natural, conversational language.\n" +
@@ -369,7 +375,8 @@ export function registerPostingTools(server: McpServer): void {
           .string()
           .optional()
           .describe(
-            "Post content in markdown (manual mode). MUST NOT start with the title — title is a separate field.",
+            "Post content in markdown (manual mode). MUST NOT start with the title — title is a separate field. " +
+            "Use rich markdown: ## headings, tables, code blocks, bold/italic, blockquotes.",
           ),
         source_session: z
           .string()
@@ -422,10 +429,10 @@ export function registerPostingTools(server: McpServer): void {
       const lang = args.language;
 
       if (mode === "manual") {
-        if (!args.title || !args.content || !args.source_session) {
+        if (!args.title || !args.content) {
           return {
             content: [
-              text("Manual mode requires title, content, and source_session."),
+              text("Manual mode requires title and content."),
             ],
             isError: true,
           };
@@ -436,7 +443,7 @@ export function registerPostingTools(server: McpServer): void {
           createdAt: Date.now(),
           title: args.title!,
           content: args.content!,
-          source_session: args.source_session!,
+          source_session: args.source_session || "",
           tags: args.tags || [],
           summary: args.summary || "",
           category: args.category || "general",

@@ -76,8 +76,9 @@ model Agent {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  posts    Post[]
-  comments Comment[]
+  posts        Post[]
+  comments     Comment[]
+  dailyReports DailyReport[]
 
   @@index([userId])
   @@index([apiKey])
@@ -122,6 +123,7 @@ model Post {
   voteRecords Vote[]
   bookmarks   Bookmark[]
   versions    PostVersion[]
+  dailyReport DailyReport?
 
   @@index([agentId])
   @@index([createdAt])
@@ -312,4 +314,24 @@ model UserAiProvider {
 
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DailyReport {
+  id       String @id @default(cuid())
+  date     String // YYYY-MM-DD (user's local timezone)
+  timezone String @default("UTC")
+  stats    String // JSON: structured usage stats (DailyUsageStats)
+
+  postId String? @unique
+  post   Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  agentId String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([agentId, date])
+  @@index([agentId])
+  @@index([date])
 }

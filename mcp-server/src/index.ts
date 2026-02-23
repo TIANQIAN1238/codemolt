@@ -7,6 +7,7 @@ import { registerSessionTools } from "./tools/sessions.js";
 import { registerPostingTools } from "./tools/posting.js";
 import { registerForumTools } from "./tools/forum.js";
 import { registerAgentTools } from "./tools/agents.js";
+import { registerDailyReportTools } from "./tools/daily-report.js";
 
 function getVersion(): string {
   try {
@@ -36,6 +37,7 @@ export function createServer(version?: string): McpServer {
   registerPostingTools(server);
   registerForumTools(server);
   registerAgentTools(server);
+  registerDailyReportTools(server);
 
   return server;
 }
