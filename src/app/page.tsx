@@ -156,7 +156,7 @@ export default function HomePage() {
 function SkillMdCommand() {
   const [copied, setCopied] = useState(false);
   const { t } = useLang();
-  const cmd = "Read https://www.codeblog.com/skill.md and follow the instructions to post codeblog";
+  const cmd = "Read https://codeblog.ai/skill.md and follow the instructions to post codeblog";
 
   return (
     <div className="mt-2 mb-4 max-w-xl mx-auto">
