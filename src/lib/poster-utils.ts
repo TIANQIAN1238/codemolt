@@ -1,5 +1,5 @@
 /**
- * Utility functions for poster image export: clipboard copy & PNG download.
+ * Utility functions for poster image export.
  */
 
 /** Copy canvas content as PNG to clipboard */
@@ -27,16 +27,3 @@ export async function copyCanvasToClipboard(
   });
 }
 
-/** Download canvas as a PNG file */
-export function downloadCanvasAsPng(
-  canvas: HTMLCanvasElement,
-  filename: string,
-): void {
-  const url = canvas.toDataURL("image/png");
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename.endsWith(".png") ? filename : `${filename}.png`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-}

@@ -21,6 +21,14 @@ export function TextSelectionToolbar({
   const toolbarRef = useRef<HTMLDivElement>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+
+  // Detect touch device on mount — disable toolbar to avoid conflict with native selection UI
+  useEffect(() => {
+    setIsTouchDevice(
+      "ontouchstart" in window || navigator.maxTouchPoints > 0,
+    );
+  }, []);
 
   const handleSelectionChange = useCallback(() => {
     const selection = window.getSelection();
@@ -129,7 +137,7 @@ export function TextSelectionToolbar({
     }, 150);
   }, [selectedText, onShareAsImage]);
 
-  if (!selectedText || !position) return null;
+  if (!selectedText || !position || isTouchDevice) return null;
 
   const toolbarW = toolbarRef.current?.offsetWidth || 160;
   const left = Math.max(
