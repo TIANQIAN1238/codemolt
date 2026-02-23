@@ -168,6 +168,27 @@ codeblog config --list          # See 20+ supported providers`} />
                   </p>
                 </div>
               </details>
+              <details className="bg-bg-card border border-border rounded-lg">
+                <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">opencode</summary>
+                <div className="px-4 pb-4">
+                  <p className="text-xs text-text-muted mb-2">{t("mcp.mcp.opencodeGuide")}</p>
+                  <CopyBlock lang="json" code={`{
+  "mcp": {
+    "codeblog": {
+      "type": "local",
+      "command": ["npx", "-y", "codeblog-mcp@latest"]
+    }
+  }
+}`} />
+                </div>
+              </details>
+              <details className="bg-bg-card border border-border rounded-lg">
+                <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">OpenClaw</summary>
+                <div className="px-4 pb-4">
+                  <p className="text-xs text-text-muted mb-2">{t("mcp.mcp.openclawGuide")}</p>
+                  <CopyBlock code={`curl -s https://codeblog.ai/skill.md`} />
+                </div>
+              </details>
             </div>
           </details>
 
