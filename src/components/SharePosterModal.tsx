@@ -196,14 +196,21 @@ export function SharePosterModal({
     >
       {/* Backdrop — separate div so we can animate it */}
       <div
-        className="fixed inset-0 -z-10"
+        className="fixed inset-0"
         style={{
           backgroundColor: closing ? "rgba(0,0,0,0)" : "rgba(0,0,0,0.6)",
           transition: "background-color 200ms ease-out",
         }}
+        onClick={triggerClose}
       />
 
-      <div className="flex flex-col items-center justify-center gap-5 p-4 w-fit max-w-[min(90vw,720px)]">
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+      <div
+        className="relative z-10 flex flex-col items-center justify-center gap-5 p-4 w-fit max-w-[min(90vw,720px)]"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) triggerClose();
+        }}
+      >
         {/* Canvas preview */}
         <div
           className="relative overflow-hidden rounded-2xl shadow-2xl inline-block"
@@ -229,9 +236,9 @@ export function SharePosterModal({
           />
         </div>
 
-        {/* Bottom toolbar */}
+        {/* Bottom toolbar + close button */}
         <div
-          className="flex items-center gap-2 rounded-full border border-border/50 bg-bg-card/95 backdrop-blur-xl shadow-lg px-2 py-1.5"
+          className="flex items-center gap-2"
           style={{
             opacity: show ? 1 : 0,
             transform: show ? "translateY(0)" : "translateY(12px)",
@@ -240,71 +247,78 @@ export function SharePosterModal({
               : "opacity 250ms ease-out 80ms, transform 250ms ease-out 80ms",
           }}
         >
-          {/* Theme toggle */}
-          <button
-            onClick={toggleTheme}
-            className="flex items-center justify-center w-8 h-8 rounded-full text-text-secondary hover:text-text hover:bg-border/60 cursor-pointer transition-colors"
-            title={
-              posterTheme === "dark" ? "Switch to light" : "Switch to dark"
-            }
-          >
-            {posterTheme === "dark" ? (
-              <Sun className="w-4 h-4" />
-            ) : (
-              <Moon className="w-4 h-4" />
-            )}
-          </button>
-
-          <div className="w-px h-4 bg-border/100" />
-
-          {/* Share to X */}
-          <button
-            onClick={handleShareToX}
-            className="flex items-center justify-center w-8 h-8 rounded-full text-text-secondary hover:text-text hover:bg-border/60 cursor-pointer transition-colors"
-            title="Share to X"
-          >
-            <svg
-              className="w-3.5 h-3.5"
-              viewBox="0 0 24 24"
-              fill="currentColor"
+          <div className="flex items-center gap-2 rounded-full border border-border/50 bg-bg-card/95 backdrop-blur-xl shadow-lg px-2 py-1.5">
+            {/* Theme toggle */}
+            <button
+              onClick={toggleTheme}
+              className="flex items-center justify-center w-8 h-8 rounded-full text-text-secondary hover:text-text hover:bg-border/60 cursor-pointer transition-colors"
+              title={
+                posterTheme === "dark" ? "Switch to light" : "Switch to dark"
+              }
             >
-              <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-            </svg>
-          </button>
-
-          <div className="w-px h-4 bg-border/100" />
-
-          <div className="flex items-center gap-1.5 pl-1">
-            {/* Close */}
-            <button onClick={triggerClose} className={secondaryBtn}>
-              <X className="w-3.5 h-3.5" />
-              {t("post.close")}
+              {posterTheme === "dark" ? (
+                <Sun className="w-4 h-4" />
+              ) : (
+                <Moon className="w-4 h-4" />
+              )}
             </button>
 
-            {/* Copy link (text fragment) */}
+            <div className="w-px h-4 bg-border/100" />
+
+            {/* Share to X */}
             <button
-              onClick={handleCopyLink}
-              className={`${secondaryBtn} justify-center`}
+              onClick={handleShareToX}
+              className="flex items-center justify-center w-8 h-8 rounded-full text-text-secondary hover:text-text hover:bg-border/60 cursor-pointer transition-colors"
+              title="Share to X"
             >
-              {linkSuccess ? (
-                <Check className="w-3.5 h-3.5" />
-              ) : (
-                <Link2 className="w-3.5 h-3.5" />
-              )}
-              {linkSuccess ? t("post.copied") : t("post.copyLink")}
+              <svg
+                className="w-3.5 h-3.5"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>
             </button>
 
-            {/* Copy image */}
+            <div className="w-px h-4 bg-border/100" />
+
+            <div className="flex items-center gap-1.5 pl-1">
+              {/* Copy link (text fragment) */}
+              <button
+                onClick={handleCopyLink}
+                className={`${secondaryBtn} justify-center`}
+              >
+                {linkSuccess ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <Link2 className="w-3.5 h-3.5" />
+                )}
+                {linkSuccess ? t("post.copied") : t("post.copyLink")}
+              </button>
+
+              {/* Copy image */}
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary hover:bg-primary-dark px-3.5 py-1.5 text-xs font-semibold text-white cursor-pointer transition-all active:scale-95"
+              >
+                {copySuccess ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <Copy className="w-3.5 h-3.5" />
+                )}
+                {copySuccess ? t("post.imageCopied") : t("post.copyImage")}
+              </button>
+            </div>
+          </div>
+
+          {/* Standalone close button */}
+          <div className="rounded-full border border-border/50 bg-bg-card/95 backdrop-blur-xl shadow-lg">
             <button
-              onClick={handleCopy}
-              className="flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary hover:bg-primary-dark px-3.5 py-1.5 text-xs font-semibold text-white cursor-pointer transition-all active:scale-95"
+              onClick={triggerClose}
+              className="flex items-center justify-center w-8 h-8 rounded-full text-text-secondary hover:text-text hover:bg-border/60 cursor-pointer transition-colors active:scale-95"
+              aria-label={t("post.close")}
             >
-              {copySuccess ? (
-                <Check className="w-3.5 h-3.5" />
-              ) : (
-                <Copy className="w-3.5 h-3.5" />
-              )}
-              {copySuccess ? t("post.imageCopied") : t("post.copyImage")}
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
