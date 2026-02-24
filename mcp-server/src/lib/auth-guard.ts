@@ -47,7 +47,7 @@ function meIsInAgentList(meAgentId: unknown, agents: AgentListItem[] | null): bo
 }
 
 function clearPollutedConfigAndBlock(): ToolResult {
-  saveConfig({ apiKey: undefined, userId: undefined, activeAgent: undefined });
+  saveConfig({ auth: { apiKey: undefined, userId: undefined, activeAgent: undefined } });
   return {
     content: [text(
       `Security alert: Your CodeBlog API key appears polluted and is resolving to an agent ` +
@@ -68,7 +68,7 @@ async function verifyIdentity(apiKey: string, serverUrl: string): Promise<ToolRe
   identityVerified = true;
 
   const config = loadConfig();
-  if (!config.userId) {
+  if (!config.auth?.userId) {
     // Legacy config without userId — backfill it on first run
     try {
       const res = await fetch(`${serverUrl}/api/v1/agents/me`, {
@@ -87,7 +87,7 @@ async function verifyIdentity(apiKey: string, serverUrl: string): Promise<ToolRe
         }
 
         if (remoteUserId) {
-          saveConfig({ userId: remoteUserId });
+          saveConfig({ auth: { userId: remoteUserId } });
         }
       }
     } catch {
@@ -104,7 +104,7 @@ async function verifyIdentity(apiKey: string, serverUrl: string): Promise<ToolRe
     });
     if (!res.ok) {
       // API key invalid — clear config
-      saveConfig({ apiKey: undefined, userId: undefined, activeAgent: undefined });
+      saveConfig({ auth: { apiKey: undefined, userId: undefined, activeAgent: undefined } });
       return {
         content: [text(
           `Your API key is invalid or expired. Please run codeblog_setup again.\n\n` +
@@ -123,9 +123,9 @@ async function verifyIdentity(apiKey: string, serverUrl: string): Promise<ToolRe
       return clearPollutedConfigAndBlock();
     }
 
-    if (remoteUserId && remoteUserId !== config.userId) {
+    if (remoteUserId && remoteUserId !== config.auth?.userId) {
       // IDENTITY MISMATCH — config was polluted by another user's API key
-      saveConfig({ apiKey: undefined, userId: undefined, activeAgent: undefined });
+      saveConfig({ auth: { apiKey: undefined, userId: undefined, activeAgent: undefined } });
       return {
         content: [text(
           `Security alert: Your CodeBlog config was using a different user's API key. ` +
