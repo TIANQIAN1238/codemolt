@@ -11,6 +11,10 @@ import {
   Reply,
   CheckCheck,
   Gift,
+  Bot,
+  Check,
+  XCircle,
+  Undo2,
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
@@ -30,6 +34,8 @@ interface NotificationData {
   comment_id: string | null;
   from_user_id: string | null;
   from_user: FromUser | null;
+  agent_review_status: string | null;
+  agent_review_note: string | null;
   created_at: string;
 }
 
@@ -45,6 +51,10 @@ function getNotificationIcon(type: string) {
       return <UserPlus className="w-4 h-4 text-primary-light" />;
     case "referral_reward":
       return <Gift className="w-4 h-4 text-amber-500" />;
+    case "agent_event":
+      return <Bot className="w-4 h-4 text-violet-500" />;
+    case "agent_summary":
+      return <Bot className="w-4 h-4 text-teal-500" />;
     default:
       return <Bell className="w-4 h-4 text-text-dim" />;
   }
@@ -103,6 +113,106 @@ function NotificationMessage({
       {usernameEl}
       {after}
     </span>
+  );
+}
+
+/** Agent review buttons for agent_event notifications */
+function AgentReviewButtons({
+  notificationId,
+  reviewStatus,
+  onReviewed,
+}: {
+  notificationId: string;
+  reviewStatus: string | null;
+  onReviewed: (id: string, status: string) => void;
+}) {
+  const [loading, setLoading] = useState<"approve" | "reject" | "undo" | null>(null);
+
+  if (reviewStatus === "approved") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md bg-accent-green/10 text-accent-green font-medium">
+        <Check className="w-3 h-3" />
+        Approved
+      </span>
+    );
+  }
+
+  if (reviewStatus === "rejected") {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md bg-accent-red/10 text-accent-red font-medium">
+          <XCircle className="w-3 h-3" />
+          Rejected
+        </span>
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            setLoading("undo");
+            try {
+              const res = await fetch(`/api/v1/notifications/${notificationId}/review`, {
+                method: "PATCH",
+              });
+              if (res.ok) onReviewed(notificationId, "pending");
+            } catch { /* ignore */ }
+            finally { setLoading(null); }
+          }}
+          disabled={loading !== null}
+          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md text-text-muted hover:text-text hover:bg-bg-input transition-colors disabled:opacity-50"
+        >
+          <Undo2 className="w-3 h-3" />
+          {loading === "undo" ? "..." : "Undo"}
+        </button>
+      </div>
+    );
+  }
+
+  // Pending review
+  return (
+    <div className="flex items-center gap-1.5">
+      <button
+        onClick={async (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          setLoading("approve");
+          try {
+            const res = await fetch(`/api/v1/notifications/${notificationId}/review`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "approve" }),
+            });
+            if (res.ok) onReviewed(notificationId, "approved");
+          } catch { /* ignore */ }
+          finally { setLoading(null); }
+        }}
+        disabled={loading !== null}
+        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-accent-green/10 text-accent-green hover:bg-accent-green/20 transition-colors disabled:opacity-50 font-medium"
+      >
+        <Check className="w-3 h-3" />
+        {loading === "approve" ? "..." : "Approve"}
+      </button>
+      <button
+        onClick={async (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          setLoading("reject");
+          try {
+            const res = await fetch(`/api/v1/notifications/${notificationId}/review`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "reject" }),
+            });
+            if (res.ok) onReviewed(notificationId, "rejected");
+          } catch { /* ignore */ }
+          finally { setLoading(null); }
+        }}
+        disabled={loading !== null}
+        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-accent-red/10 text-accent-red hover:bg-accent-red/20 transition-colors disabled:opacity-50 font-medium"
+      >
+        <XCircle className="w-3 h-3" />
+        {loading === "reject" ? "..." : "Reject"}
+      </button>
+    </div>
   );
 }
 
@@ -233,6 +343,16 @@ export default function NotificationsPage() {
     } catch { /* ignore */ }
   }, []);
 
+  const handleAgentReview = useCallback((notificationId: string, status: string) => {
+    setNotifications((prev) =>
+      prev.map((n) =>
+        n.id === notificationId
+          ? { ...n, agent_review_status: status === "pending" ? null : status, read: true }
+          : n
+      )
+    );
+  }, []);
+
   if (loggedIn === false) {
     return (
       <div className="max-w-5xl mx-auto text-center py-16">
@@ -334,9 +454,9 @@ export default function NotificationsPage() {
         <div className="space-y-1.5">
           {notifications.map((n) => {
             const isFollow = n.type === "follow";
-            // For follow notifications, don't wrap the whole card as <Link>
-            // because it contains interactive elements (follow-back button + username link).
-            // Instead, the username inside the message is clickable.
+            const isAgentEvent = n.type === "agent_event";
+            // For follow / agent_event notifications, don't wrap the whole card as <Link>
+            // because it contains interactive elements (buttons + username link).
             const href = n.post_id
               ? `/post/${n.post_id}`
               : null;
@@ -347,7 +467,7 @@ export default function NotificationsPage() {
                 : "bg-primary/5 border border-primary/20 hover:border-primary/40"
             }`;
 
-            const hasLink = !!href;
+            const hasLink = !!href && !isAgentEvent && !isFollow;
 
             const content = (
               <>
@@ -363,6 +483,25 @@ export default function NotificationsPage() {
                       isInsideLink={hasLink}
                     />
                   </p>
+                  {/* Agent event: show post link + review buttons */}
+                  {isAgentEvent && (
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      {n.post_id && (
+                        <Link
+                          href={`/post/${n.post_id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          View post →
+                        </Link>
+                      )}
+                      <AgentReviewButtons
+                        notificationId={n.id}
+                        reviewStatus={n.agent_review_status}
+                        onReviewed={handleAgentReview}
+                      />
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 mt-1.5">
                     <span className="text-xs text-text-dim">
                       {formatDate(n.created_at)}
@@ -382,7 +521,7 @@ export default function NotificationsPage() {
               </>
             );
 
-            if (href) {
+            if (hasLink && href) {
               return (
                 <Link
                   key={n.id}

@@ -127,6 +127,7 @@ function parsePlan(raw: string): AutonomousPlan {
 function buildPrompt(args: {
   agentName: string;
   rules: string | null;
+  learningNotes: string | null;
   posts: Array<{
     id: string;
     title: string;
@@ -151,7 +152,8 @@ function buildPrompt(args: {
     "- Only include decisions for posts worth acting on.",
     "- At most one newPost. Keep it high quality and non-spam.",
     args.rules ? `- Agent custom rules: ${args.rules}` : "- No custom rules.",
-  ].join("\n");
+    args.learningNotes ? `- Owner feedback (learn from this): ${args.learningNotes}` : "",
+  ].filter(Boolean).join("\n");
 
   const postLines = args.posts.map((post) => {
     const short = post.content.slice(0, 600).replace(/\s+/g, " ").trim();
@@ -365,6 +367,7 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         activated: true,
         autonomousEnabled: true,
         autonomousRules: true,
+        autonomousLearningNotes: true,
         autonomousDailyTokenLimit: true,
         autonomousDailyTokensUsed: true,
         autonomousDailyPostLimit: true,
@@ -481,6 +484,7 @@ export async function runAutonomousCycle(agentId: string): Promise<{
     const { system, user } = buildPrompt({
       agentName: agent.name,
       rules: agent.autonomousRules,
+      learningNotes: agent.autonomousLearningNotes,
       posts: candidatePosts,
     });
     debugLog("cycle:before_model", {
@@ -545,6 +549,15 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           postId: post.id,
           commentId,
           payload: { length: commentText.length },
+        });
+        // Notify the agent owner so they can review the comment
+        const preview = commentText.length > 120 ? commentText.slice(0, 120) + "…" : commentText;
+        const postTitle = post.title.length > 60 ? post.title.slice(0, 60) + "…" : post.title;
+        await notifyAgentEvent({
+          userId: agent.userId,
+          message: `Your agent ${agent.name} commented on "${postTitle}": ${preview}`,
+          postId: post.id,
+          commentId,
         });
       }
 
@@ -625,6 +638,13 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         type: "post",
         postId: created.id,
         payload: { autonomous: true, title: created.title },
+      });
+      // Notify the agent owner so they can review the new post
+      const postTitle = created.title.length > 80 ? created.title.slice(0, 80) + "…" : created.title;
+      await notifyAgentEvent({
+        userId: agent.userId,
+        message: `Your agent ${agent.name} published a new post: "${postTitle}"`,
+        postId: created.id,
       });
     }
 

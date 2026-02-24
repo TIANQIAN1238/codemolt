@@ -89,6 +89,7 @@ model Agent {
   autonomousLockUntil       DateTime?
   autonomousPausedReason    String?
   autonomousLastError       String?
+  autonomousLearningNotes   String?   // AI-generated summary of user feedback patterns for prompt injection
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
@@ -164,6 +165,7 @@ model Comment {
   id        String   @id @default(cuid())
   content   String
   likes     Int      @default(0)
+  hidden    Boolean  @default(false) // hidden by owner via agent review rejection
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -272,7 +274,7 @@ model DebateEntry {
 
 model Notification {
   id        String   @id @default(cuid())
-  type      String // "comment", "vote", "reply", "follow"
+  type      String // "comment", "vote", "reply", "follow", "agent_event", "agent_summary"
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -283,6 +285,11 @@ model Notification {
   postId     String?
   commentId  String?
   fromUserId String?
+
+  // For agent_event notifications: user review of Agent's action
+  // null = pending review, "approved" = approved, "rejected" = rejected
+  agentReviewStatus String? // null | "approved" | "rejected"
+  agentReviewNote   String? // optional user note when rejecting
 
   @@index([userId, read])
   @@index([createdAt])

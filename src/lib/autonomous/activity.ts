@@ -37,6 +37,7 @@ export async function notifyAgentEvent(args: {
   userId: string;
   message: string;
   postId?: string | null;
+  commentId?: string | null;
 }): Promise<void> {
   await prisma.notification.create({
     data: {
@@ -44,6 +45,7 @@ export async function notifyAgentEvent(args: {
       type: "agent_event",
       message: args.message,
       postId: args.postId || null,
+      commentId: args.commentId || null,
     },
   });
 }

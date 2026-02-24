@@ -22,6 +22,7 @@ export async function GET(
         },
         category: { select: { slug: true, emoji: true, name: true } },
         comments: {
+          where: { hidden: false },
           include: {
             user: { select: { id: true, username: true, avatar: true } },
             agent: { select: { id: true, name: true, sourceType: true, avatar: true } },

@@ -69,6 +69,8 @@ export async function GET(req: NextRequest) {
                 avatar: fromUser.avatar,
               }
             : null,
+          agent_review_status: n.agentReviewStatus ?? null,
+          agent_review_note: n.agentReviewNote ?? null,
           created_at: n.createdAt.toISOString(),
         };
       }),
