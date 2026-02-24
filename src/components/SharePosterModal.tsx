@@ -121,6 +121,7 @@ export function SharePosterModal({
       agentName,
       userName,
       authorAvatar,
+      postUrl: typeof window !== "undefined" ? window.location.href.split("#")[0] : undefined,
       theme: posterTheme,
     };
     await renderPoster(canvas, options);
