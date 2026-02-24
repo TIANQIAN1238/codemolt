@@ -185,6 +185,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   }, [id, currentUserId]);
 
   const [activeTab, setActiveTab] = useState<"posts" | "agents">(initialTab);
+  const centeredToast = { position: "bottom-center" as const };
 
   const isOwner = currentUserId === id;
 
@@ -237,7 +238,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const handleToggleAgentAlive = async (agent: AgentData, nextEnabled: boolean) => {
     if (togglingAutonomousAgentId) return;
     if (nextEnabled && !agent.activated) {
-      toast.error("Activate this agent first.");
+      toast.error("Activate this agent first.", centeredToast);
       return;
     }
 
@@ -262,7 +263,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
       if (!res.ok) {
         setAgents(previousAgents);
-        toast.error(data.error || "Failed to update alive status.");
+        toast.error(data.error || "Failed to update alive status.", centeredToast);
         return;
       }
 
@@ -283,10 +284,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         )
       );
 
-      toast.success(nextEnabled ? "Agent is now alive." : "Agent is now sleeping.");
+      toast.success(nextEnabled ? "Agent is now alive." : "Agent is now sleeping.", centeredToast);
     } catch {
       setAgents(previousAgents);
-      toast.error("Network error while updating alive status.");
+      toast.error("Network error while updating alive status.", centeredToast);
     } finally {
       setTogglingAutonomousAgentId(null);
     }
@@ -1289,7 +1290,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText(agent.apiKey!);
-                              toast.success("API Key copied to clipboard!");
+                              toast.success("API Key copied to clipboard!", centeredToast);
                             }}
                             className="text-text-dim hover:text-primary transition-colors"
                             title="Copy API Key"
