@@ -3,12 +3,15 @@
  * from selected text in a blog post.
  */
 
+import QRCode from "qrcode";
+
 export interface PosterOptions {
   selectedText: string;
   postTitle: string;
   agentName: string;
   userName: string;
   authorAvatar?: string | null;
+  postUrl?: string;
   theme: "light" | "dark";
 }
 
@@ -183,6 +186,38 @@ function getLogoImage(): Promise<HTMLImageElement | null> {
 }
 
 /**
+ * Draw a QR code onto an existing canvas context at the given position.
+ * No background — modules are drawn directly onto the poster.
+ */
+function drawQRCode(
+  ctx: CanvasRenderingContext2D,
+  url: string,
+  x: number,
+  y: number,
+  size: number,
+  fgColor: string,
+) {
+  const qr = QRCode.create(url, { errorCorrectionLevel: "L" });
+  const modules = qr.modules;
+  const moduleCount = modules.size;
+  const moduleSize = size / moduleCount;
+
+  ctx.fillStyle = fgColor;
+  for (let row = 0; row < moduleCount; row++) {
+    for (let col = 0; col < moduleCount; col++) {
+      if (modules.get(row, col)) {
+        ctx.fillRect(
+          x + col * moduleSize,
+          y + row * moduleSize,
+          moduleSize,
+          moduleSize,
+        );
+      }
+    }
+  }
+}
+
+/**
  * Determine adaptive font size and max lines based on text length.
  * Longer text → smaller font, more lines shown.
  */
@@ -203,8 +238,15 @@ export async function renderPoster(
   canvas: HTMLCanvasElement,
   options: PosterOptions,
 ): Promise<void> {
-  const { selectedText, postTitle, agentName, userName, authorAvatar, theme } =
-    options;
+  const {
+    selectedText,
+    postTitle,
+    agentName,
+    userName,
+    authorAvatar,
+    postUrl,
+    theme,
+  } = options;
   const colors = THEMES[theme];
 
   const ctx = canvas.getContext("2d");
@@ -246,7 +288,8 @@ export async function renderPoster(
   const titleToAuthor = 20;
   const authorHeight = 36;
   const authorToFooter = 28;
-  const footerHeight = 24;
+  const qrSize = 64;
+  const footerHeight = postUrl ? qrSize : 24;
   const bottomPadding = PADDING_Y;
 
   const minHeight = selectedText.length > 300 ? 960 : 600;
@@ -377,14 +420,17 @@ export async function renderPoster(
 
   cursorY += authorHeight + authorToFooter;
 
-  // 6. Footer — full logo SVG (icon + text), bottom-right
-  const logoHeight = 24;
+  // 6. Footer — logo (left) + QR code (right)
+  const footerY = totalHeight - bottomPadding - footerHeight;
+
+  // Logo (left)
+  const logoHeight = selectedText.length > 300 ? 28 : 24;
   const logoImg = await getLogoImage();
   if (logoImg) {
     const logoWidth =
       (logoImg.naturalWidth / logoImg.naturalHeight) * logoHeight;
-    const logoX = width - PADDING_X - logoWidth;
-    const logoY = totalHeight - bottomPadding - logoHeight;
+    const logoX = PADDING_X;
+    const logoY = footerY + (footerHeight - logoHeight) / 2;
 
     if (theme === "dark") {
       // SVG is black — tint to white for dark mode
@@ -403,5 +449,17 @@ export async function renderPoster(
       // Light mode — draw directly (black on white)
       ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
     }
+  }
+
+  // QR code (right)
+  if (postUrl) {
+    drawQRCode(
+      ctx,
+      postUrl,
+      width - PADDING_X - qrSize,
+      footerY,
+      qrSize,
+      theme === "dark" ? "#d0d0d6" : "#2a2a2e",
+    );
   }
 }
