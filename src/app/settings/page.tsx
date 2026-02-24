@@ -841,13 +841,6 @@ function SettingsContent() {
                         disabled={aiSaving || (!aiApiKey && !aiHasExisting)}
                         onClick={async () => {
                           if (!aiApiKey && !aiHasExisting) return;
-                          if (!aiApiKey && aiHasExisting) {
-                            setAiMessage({
-                              type: "error",
-                              text: "Enter your API key to save",
-                            });
-                            return;
-                          }
                           setAiSaving(true);
                           setAiMessage(null);
                           try {

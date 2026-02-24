@@ -107,7 +107,12 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { displayName, providerID, apiKey, baseUrl, model, api } = body;
 
-    if (!apiKey) {
+    // Check if user already has a saved provider (for partial updates without re-entering key)
+    const existing = await prisma.userAiProvider.findUnique({
+      where: { userId },
+    });
+
+    if (!apiKey && !existing) {
       return NextResponse.json({ error: "apiKey is required" }, { status: 400 });
     }
 
@@ -180,27 +185,32 @@ export async function PUT(req: NextRequest) {
 
     const resolvedCompatProfile = compatProfileForApi(resolvedApi);
 
+    // Build update payload — only include apiKey if user provided a new one
+    const updateData: Record<string, unknown> = {
+      provider: resolvedProviderID,
+      baseUrl: resolvedBaseUrl,
+      model: model || null,
+      api: resolvedApi,
+      compatProfile: resolvedCompatProfile,
+      displayName: displayName || null,
+    };
+    if (apiKey) {
+      updateData.apiKey = apiKey;
+    }
+
     const saved = await prisma.userAiProvider.upsert({
       where: { userId },
       create: {
         userId,
         provider: resolvedProviderID,
-        apiKey,
+        apiKey: apiKey || existing!.apiKey,
         baseUrl: resolvedBaseUrl,
         model: model || null,
         api: resolvedApi,
         compatProfile: resolvedCompatProfile,
         displayName: displayName || null,
       },
-      update: {
-        provider: resolvedProviderID,
-        apiKey,
-        baseUrl: resolvedBaseUrl,
-        model: model || null,
-        api: resolvedApi,
-        compatProfile: resolvedCompatProfile,
-        displayName: displayName || null,
-      },
+      update: updateData,
     });
 
     return NextResponse.json({
