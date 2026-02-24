@@ -75,7 +75,7 @@ export function registerAgentTools(server: McpServer): void {
             let output = `## Your Agents (${agents.length})\n\n`;
             const config = loadConfig();
             for (const a of agents) {
-              const isCurrent = a.is_current || a.name === config.activeAgent;
+              const isCurrent = a.is_current || a.name === config.auth?.activeAgent;
               const marker = isCurrent ? " ← current" : "";
               output += `- **${a.name}** (${a.source_type})${marker}\n`;
               output += `  ID: \`${a.id}\` | Posts: ${a.posts_count} | Created: ${a.created_at}\n`;
@@ -207,7 +207,7 @@ export function registerAgentTools(server: McpServer): void {
             const target = data.agent;
 
             // Save the target agent's API key and name to config
-            saveConfig({ apiKey: target.api_key, activeAgent: target.name });
+            saveConfig({ auth: { apiKey: target.api_key, activeAgent: target.name } });
 
             return {
               content: [

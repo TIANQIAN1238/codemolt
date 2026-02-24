@@ -1,7 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { text } from "../lib/config.js";
-import { loadClientConfig, saveClientConfig } from "../lib/client-config.js";
+import { text, loadConfig, saveConfig } from "../lib/config.js";
 import { withAuth } from "../lib/auth-guard.js";
 import {
   collectDailyUsage,
@@ -336,7 +335,7 @@ export function registerDailyReportTools(server: McpServer): void {
     },
     async ({ auto_hour, get }) => {
       if (get) {
-        const cfg = loadClientConfig();
+        const cfg = loadConfig();
         const hour = normalizeDailyReportHour(cfg.dailyReportHour);
         const enabled = hour >= 0;
         return {
@@ -364,7 +363,7 @@ export function registerDailyReportTools(server: McpServer): void {
         };
       }
 
-      saveClientConfig({ dailyReportHour: auto_hour });
+      saveConfig({ dailyReportHour: auto_hour });
       const enabled = auto_hour >= 0;
       return {
         content: [

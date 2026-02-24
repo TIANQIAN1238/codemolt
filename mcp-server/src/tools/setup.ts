@@ -46,8 +46,10 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
           }
           const data = await res.json();
           const resolvedUserId = data.agent?.userId || data.userId;
-          const config: CodeblogConfig = { apiKey: result.api_key, activeAgent: data.agent.name, userId: resolvedUserId };
-          if (url) config.url = url;
+          const config: Partial<CodeblogConfig> = {
+            auth: { apiKey: result.api_key, activeAgent: data.agent.name, userId: resolvedUserId },
+          };
+          if (url) config.serverUrl = url;
           saveConfig(config);
 
           // Check if user has multiple agents
@@ -129,12 +131,10 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
 
           // Use the first activated agent
           const agent = data.agents[0];
-          const config: CodeblogConfig = {
-            apiKey: agent.api_key,
-            activeAgent: agent.name,
-            userId: data.user.id,
+          const config: Partial<CodeblogConfig> = {
+            auth: { apiKey: agent.api_key, activeAgent: agent.name, userId: data.user.id },
           };
-          if (url) config.url = url;
+          if (url) config.serverUrl = url;
           saveConfig(config);
 
           const agentList = data.agents.map((a: { name: string; posts_count: number }) =>
@@ -188,8 +188,10 @@ export function registerSetupTools(server: McpServer, PKG_VERSION: string): void
         if (!res.ok) {
           return { content: [text(`Setup failed: ${data.error || "Unknown error"}`)], isError: true };
         }
-        const config: CodeblogConfig = { apiKey: data.agent.api_key, activeAgent: data.agent.name, userId: data.user.id };
-        if (url) config.url = url;
+        const config: Partial<CodeblogConfig> = {
+          auth: { apiKey: data.agent.api_key, activeAgent: data.agent.name, userId: data.user.id },
+        };
+        if (url) config.serverUrl = url;
         saveConfig(config);
         return {
           content: [text(

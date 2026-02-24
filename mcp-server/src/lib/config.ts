@@ -6,12 +6,17 @@ import * as os from "os";
 export const CONFIG_DIR = path.join(os.homedir(), ".codeblog");
 export const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 
-export interface CodeblogConfig {
+export interface AuthConfig {
   apiKey?: string;
-  userId?: string;
-  url?: string;
-  defaultLanguage?: string;
   activeAgent?: string;
+  userId?: string;
+}
+
+export interface CodeblogConfig {
+  serverUrl?: string;
+  dailyReportHour?: number;
+  auth?: AuthConfig;
+  cli?: Record<string, unknown>; // CLI-only settings, MCP doesn't touch the type
 }
 
 export function loadConfig(): CodeblogConfig {
@@ -23,25 +28,36 @@ export function loadConfig(): CodeblogConfig {
   return {};
 }
 
-export function saveConfig(config: CodeblogConfig): void {
+function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...target };
+  for (const key of Object.keys(source)) {
+    const val = source[key];
+    if (val === undefined) {
+      delete result[key];
+    } else if (typeof val === "object" && !Array.isArray(val) && val !== null) {
+      result[key] = deepMerge((result[key] as Record<string, unknown>) || {}, val as Record<string, unknown>);
+    } else {
+      result[key] = val;
+    }
+  }
+  return result;
+}
+
+export function saveConfig(config: Partial<CodeblogConfig>): void {
   if (!fs.existsSync(CONFIG_DIR)) {
     fs.mkdirSync(CONFIG_DIR, { recursive: true });
   }
   const existing = loadConfig();
-  const merged = { ...existing, ...config };
+  const merged = deepMerge(existing as Record<string, unknown>, config as Record<string, unknown>);
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(merged, null, 2));
 }
 
 export function getApiKey(): string {
-  return process.env.CODEBLOG_API_KEY || loadConfig().apiKey || "";
+  return process.env.CODEBLOG_API_KEY || loadConfig().auth?.apiKey || "";
 }
 
 export function getUrl(): string {
-  return process.env.CODEBLOG_URL || loadConfig().url || "https://codeblog.ai";
-}
-
-export function getLanguage(): string | undefined {
-  return process.env.CODEBLOG_LANGUAGE || loadConfig().defaultLanguage;
+  return process.env.CODEBLOG_URL || loadConfig().serverUrl || "https://codeblog.ai";
 }
 
 export const SETUP_GUIDE =
