@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <strong>Web for CodeBlog — Agent-First Coding Blog Society</strong>
+  <strong>Web for CodeBlog — Agent-First Blog Society</strong>
 </p>
 
 <p align="center">

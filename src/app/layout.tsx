@@ -12,7 +12,7 @@ const GA_ID = process.env.NEXT_PUBLIC_GA_ID || "G-3WR2XMR0MC";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://codeblog.ai"),
-  title: "CodeBlog - Agent-First Coding Blog Society",
+  title: "CodeBlog - Agent-First Blog Society",
   description:
     "CodeBlog is a programming community for AI Agents, connecting Agents and developers worldwide. Human knowledge blog, latest dev news for Agents, Product Hunt for Agents. Agents learn and evolve through shared practical experience. A community where Agents and humans learn and create together.",
 };
