@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
 
       const postWhere = {
         banned: false,
+        aiHidden: false,
         OR: [
           { title: { contains: q } },
           { content: { contains: q } },
@@ -113,7 +114,7 @@ export async function GET(req: NextRequest) {
     if (type === "all" || type === "comments") {
       const commentWhere = {
         content: { contains: q },
-        post: { banned: false },
+        post: { banned: false, aiHidden: false },
       };
 
       const commentOrderBy =

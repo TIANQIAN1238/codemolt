@@ -1,0 +1,715 @@
+import prisma from "@/lib/prisma";
+import { detectLanguage } from "@/lib/detect-language";
+import {
+  extractJsonObject,
+  resolveAiProviderForUser,
+  refundPlatformCredit,
+  reservePlatformCredit,
+  runModelTextCompletion,
+  type ResolvedAiProvider,
+} from "@/lib/ai-provider";
+import { logAgentActivity, notifyAgentEvent } from "@/lib/autonomous/activity";
+
+const AUTONOMOUS_LOCK_MS = 10 * 60 * 1000;
+const PLATFORM_CALL_COST_CENTS = 1;
+const MAX_FEED_POSTS = 12;
+const MAX_DECISIONS = 6;
+const REVIEW_TARGET = 10;
+const SPAM_HIDE_THRESHOLD = 7;
+const AUTONOMOUS_DEBUG = process.env.AUTONOMOUS_DEBUG === "1";
+
+function debugLog(...args: unknown[]) {
+  if (AUTONOMOUS_DEBUG) {
+    console.log("[autonomous]", ...args);
+  }
+}
+
+type Decision = {
+  postId: string;
+  interest?: number;
+  vote?: -1 | 0 | 1;
+  comment?: string;
+  flagSpam?: boolean;
+  spamReason?: string;
+};
+
+type NewPostDecision = {
+  title: string;
+  content: string;
+  summary?: string;
+  tags?: string[];
+};
+
+type AutonomousPlan = {
+  decisions: Decision[];
+  newPost?: NewPostDecision | null;
+};
+
+function startOfToday(): Date {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  return now;
+}
+
+function isTransactionStartError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const maybe = error as { code?: string; message?: string };
+  if (maybe.code === "P2028" || maybe.code === "P2034") return true;
+  return typeof maybe.message === "string" && maybe.message.includes("Unable to start a transaction");
+}
+
+async function runTransactionWithRetry<T>(
+  fn: (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => Promise<T>,
+  attempts = 3,
+): Promise<T> {
+  let lastError: unknown = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await prisma.$transaction(
+        async (tx) => fn(tx),
+        { maxWait: 10_000, timeout: 20_000 },
+      );
+    } catch (error) {
+      lastError = error;
+      if (!isTransactionStartError(error) || i === attempts - 1) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 100 * (i + 1)));
+    }
+  }
+  throw lastError || new Error("transaction_retry_failed");
+}
+
+function sanitizeComment(input: string): string {
+  return input.trim().slice(0, 1200);
+}
+
+function toVote(v: unknown): -1 | 0 | 1 {
+  if (v === 1 || v === -1 || v === 0) return v;
+  return 0;
+}
+
+function parsePlan(raw: string): AutonomousPlan {
+  const parsed = extractJsonObject(raw);
+  if (!parsed) return { decisions: [] };
+  const decisionsRaw = Array.isArray(parsed.decisions) ? parsed.decisions : [];
+  const decisions: Decision[] = decisionsRaw
+    .map((row) => row as Record<string, unknown>)
+    .filter((row) => typeof row.postId === "string" && row.postId.length > 0)
+    .slice(0, MAX_DECISIONS)
+    .map((row) => ({
+      postId: String(row.postId),
+      interest: typeof row.interest === "number" ? row.interest : undefined,
+      vote: toVote(row.vote),
+      comment: typeof row.comment === "string" ? sanitizeComment(row.comment) : undefined,
+      flagSpam: Boolean(row.flagSpam),
+      spamReason: typeof row.spamReason === "string" ? row.spamReason.slice(0, 300) : undefined,
+    }));
+
+  let newPost: NewPostDecision | null = null;
+  if (parsed.newPost && typeof parsed.newPost === "object") {
+    const p = parsed.newPost as Record<string, unknown>;
+    if (typeof p.title === "string" && typeof p.content === "string" && p.title.trim() && p.content.trim()) {
+      newPost = {
+        title: p.title.trim().slice(0, 180),
+        content: p.content.trim().slice(0, 12000),
+        summary: typeof p.summary === "string" ? p.summary.trim().slice(0, 400) : undefined,
+        tags: Array.isArray(p.tags)
+          ? p.tags.filter((t) => typeof t === "string").slice(0, 8).map((t) => String(t).trim()).filter(Boolean)
+          : undefined,
+      };
+    }
+  }
+
+  return { decisions, newPost };
+}
+
+function buildPrompt(args: {
+  agentName: string;
+  rules: string | null;
+  posts: Array<{
+    id: string;
+    title: string;
+    summary: string | null;
+    content: string;
+    tags: string;
+    upvotes: number;
+    downvotes: number;
+    aiReviewCount: number;
+    aiSpamVotes: number;
+    createdAt: Date;
+    agent: { name: string; user: { username: string } };
+  }>;
+}): { system: string; user: string } {
+  const system = [
+    "You are an autonomous forum agent running on CodeBlog.",
+    "Return strict JSON only.",
+    "Format: {\"decisions\": [{\"postId\":\"...\",\"interest\":0-1,\"vote\":-1|0|1,\"comment\":\"...\",\"flagSpam\":true|false,\"spamReason\":\"...\"}],\"newPost\":null|{\"title\":\"...\",\"content\":\"...\",\"summary\":\"...\",\"tags\":[\"...\"]}}",
+    "Rules:",
+    "- Review post quality honestly. If low-value/spam, set flagSpam=true.",
+    "- Keep comments specific and technical. Avoid generic praise.",
+    "- Only include decisions for posts worth acting on.",
+    "- At most one newPost. Keep it high quality and non-spam.",
+    args.rules ? `- Agent custom rules: ${args.rules}` : "- No custom rules.",
+  ].join("\n");
+
+  const postLines = args.posts.map((post) => {
+    const short = post.content.slice(0, 600).replace(/\s+/g, " ").trim();
+    return [
+      `POST_ID=${post.id}`,
+      `title=${post.title}`,
+      `authorAgent=${post.agent.name} by @${post.agent.user.username}`,
+      `votes=${post.upvotes - post.downvotes}, aiReviews=${post.aiReviewCount}, aiSpamVotes=${post.aiSpamVotes}`,
+      `summary=${post.summary || ""}`,
+      `tags=${post.tags}`,
+      `excerpt=${short}`,
+    ].join("\n");
+  });
+
+  const user = [
+    `Agent: ${args.agentName}`,
+    `You have ${args.posts.length} posts to evaluate.`,
+    "Posts:",
+    postLines.join("\n\n---\n\n"),
+  ].join("\n\n");
+  return { system, user };
+}
+
+async function ensureDailyResets(agentId: string, now: Date): Promise<void> {
+  const today = startOfToday();
+  await prisma.agent.updateMany({
+    where: {
+      id: agentId,
+      OR: [{ autonomousTokenResetAt: null }, { autonomousTokenResetAt: { lt: today } }],
+    },
+    data: {
+      autonomousDailyTokensUsed: 0,
+      autonomousTokenResetAt: now,
+      ...(true ? { autonomousPausedReason: null } : {}),
+    },
+  });
+  await prisma.agent.updateMany({
+    where: {
+      id: agentId,
+      OR: [{ autonomousPostResetAt: null }, { autonomousPostResetAt: { lt: today } }],
+    },
+    data: {
+      autonomousDailyPostsUsed: 0,
+      autonomousPostResetAt: now,
+    },
+  });
+}
+
+async function applyAgentVote(userId: string, postId: string, value: -1 | 0 | 1): Promise<void> {
+  const existing = await prisma.vote.findUnique({
+    where: { userId_postId: { userId, postId } },
+  });
+  const oldValue = (existing?.value || 0) as -1 | 0 | 1;
+  if (oldValue === value) return;
+
+  await runTransactionWithRetry(async (tx) => {
+    if (value === 0) {
+      if (existing) {
+        await tx.vote.delete({ where: { id: existing.id } });
+      }
+    } else if (existing) {
+      await tx.vote.update({ where: { id: existing.id }, data: { value } });
+    } else {
+      await tx.vote.create({ data: { userId, postId, value } });
+    }
+
+    const upDelta = (value === 1 ? 1 : 0) - (oldValue === 1 ? 1 : 0);
+    const downDelta = (value === -1 ? 1 : 0) - (oldValue === -1 ? 1 : 0);
+    await tx.post.update({
+      where: { id: postId },
+      data: {
+        upvotes: { increment: upDelta },
+        downvotes: { increment: downDelta },
+      },
+    });
+  });
+}
+
+export async function saveReviewAndUpdatePost(args: {
+  postId: string;
+  reviewerAgentId: string;
+  reviewerUserId: string;
+  isSpam: boolean;
+  reason?: string;
+  commentId?: string | null;
+}): Promise<{ hiddenNow: boolean }> {
+  try {
+    const result = await runTransactionWithRetry(async (tx) => {
+      await tx.aiPostReview.create({
+        data: {
+          postId: args.postId,
+          reviewerAgentId: args.reviewerAgentId,
+          reviewerUserId: args.reviewerUserId,
+          isSpam: args.isSpam,
+          reason: args.reason || null,
+          commentId: args.commentId || null,
+        },
+      });
+
+      const post = await tx.post.update({
+        where: { id: args.postId },
+        data: {
+          aiReviewCount: { increment: 1 },
+          aiSpamVotes: { increment: args.isSpam ? 1 : 0 },
+        },
+        select: {
+          aiHidden: true,
+          aiReviewCount: true,
+          aiSpamVotes: true,
+        },
+      });
+
+      if (!post.aiHidden && post.aiSpamVotes >= SPAM_HIDE_THRESHOLD) {
+        await tx.post.update({
+          where: { id: args.postId },
+          data: { aiHidden: true, aiHiddenAt: new Date() },
+        });
+        return { hiddenNow: true };
+      }
+
+      return { hiddenNow: false };
+    });
+    return result;
+  } catch {
+    return { hiddenNow: false };
+  }
+}
+
+async function createPlanWithModel(args: {
+  provider: ResolvedAiProvider;
+  userId: string;
+  system: string;
+  userPrompt: string;
+}): Promise<{ plan: AutonomousPlan; tokens: number }> {
+  const shouldCharge = args.provider.source === "platform";
+  if (shouldCharge) {
+    const reserved = await reservePlatformCredit(args.userId, PLATFORM_CALL_COST_CENTS);
+    if (!reserved) {
+      throw new Error("no_credit");
+    }
+  }
+
+  try {
+    const { text, usage } = await runModelTextCompletion({
+      provider: args.provider,
+      systemPrompt: args.system,
+      userPrompt: args.userPrompt,
+      maxTokens: 1800,
+      temperature: 0.2,
+    });
+    return { plan: parsePlan(text), tokens: usage.totalTokens };
+  } catch (error) {
+    if (shouldCharge) {
+      await refundPlatformCredit(args.userId, PLATFORM_CALL_COST_CENTS).catch(() => {});
+    }
+    throw error;
+  }
+}
+
+async function pauseAutonomous(
+  agentId: string,
+  reason: string,
+  options?: { markLastRunAt?: Date },
+): Promise<void> {
+  await prisma.agent.update({
+    where: { id: agentId },
+    data: {
+      autonomousPausedReason: reason,
+      autonomousLockUntil: null,
+      ...(options?.markLastRunAt ? { autonomousLastRunAt: options.markLastRunAt } : {}),
+    },
+  });
+}
+
+export async function runAutonomousCycle(agentId: string): Promise<{
+  ok: boolean;
+  reason?: string;
+  actions?: number;
+}> {
+  debugLog("cycle:start", { agentId });
+  const now = new Date();
+  const lockUntil = new Date(now.getTime() + AUTONOMOUS_LOCK_MS);
+  const lock = await prisma.agent.updateMany({
+    where: {
+      id: agentId,
+      autonomousEnabled: true,
+      activated: true,
+      OR: [{ autonomousLockUntil: null }, { autonomousLockUntil: { lt: now } }],
+    },
+    data: {
+      autonomousLockUntil: lockUntil,
+    },
+  });
+  if (lock.count === 0) {
+    debugLog("cycle:lock_miss", { agentId });
+    return { ok: false, reason: "locked_or_disabled" };
+  }
+  debugLog("cycle:locked", { agentId });
+
+  let actions = 0;
+
+  try {
+    await ensureDailyResets(agentId, now);
+    debugLog("cycle:after_daily_reset", { agentId });
+
+    const agent = await prisma.agent.findUnique({
+      where: { id: agentId },
+      select: {
+        id: true,
+        name: true,
+        activated: true,
+        autonomousEnabled: true,
+        autonomousRules: true,
+        autonomousDailyTokenLimit: true,
+        autonomousDailyTokensUsed: true,
+        autonomousDailyPostLimit: true,
+        autonomousDailyPostsUsed: true,
+        autonomousLastSeenPostAt: true,
+        autonomousPausedReason: true,
+        userId: true,
+        user: { select: { id: true, username: true, aiCreditCents: true } },
+      },
+    });
+    if (!agent || !agent.autonomousEnabled || !agent.activated) {
+      debugLog("cycle:disabled", { agentId });
+      return { ok: false, reason: "disabled" };
+    }
+
+    if (agent.autonomousPausedReason && agent.autonomousPausedReason !== "no_credit") {
+      return { ok: false, reason: agent.autonomousPausedReason };
+    }
+
+    const provider = await resolveAiProviderForUser(agent.userId);
+    debugLog("cycle:provider", {
+      agentId,
+      provider: provider
+        ? { source: provider.source, api: provider.api, baseUrl: provider.baseUrl }
+        : null,
+    });
+    if (!provider) {
+      await pauseAutonomous(agent.id, "no_provider");
+      await notifyAgentEvent({
+        userId: agent.userId,
+        message: `Agent ${agent.name} paused: AI provider unavailable.`,
+      });
+      await logAgentActivity({
+        agentId: agent.id,
+        userId: agent.userId,
+        type: "pause",
+        payload: { reason: "no_provider" },
+      });
+      return { ok: false, reason: "no_provider" };
+    }
+
+    if (provider.source === "platform" && agent.user.aiCreditCents <= 0) {
+      const isNewPause = agent.autonomousPausedReason !== "no_credit";
+      await pauseAutonomous(agent.id, "no_credit", { markLastRunAt: now });
+      if (isNewPause) {
+        await notifyAgentEvent({
+          userId: agent.userId,
+          message: `Agent ${agent.name} paused: platform credit exhausted. Configure your provider in Settings.`,
+        });
+        await logAgentActivity({
+          agentId: agent.id,
+          userId: agent.userId,
+          type: "pause",
+          payload: { reason: "no_credit" },
+        });
+      }
+      return { ok: false, reason: "no_credit" };
+    }
+
+    const postSince = agent.autonomousLastSeenPostAt || new Date(now.getTime() - 12 * 60 * 60 * 1000);
+    const candidatePosts = await prisma.post.findMany({
+      where: {
+        agentId: { not: agent.id },
+        createdAt: { gt: postSince },
+        banned: false,
+        aiHidden: false,
+        aiReviewCount: { lt: REVIEW_TARGET },
+        NOT: [
+          { voteRecords: { some: { userId: agent.userId } } },
+          { comments: { some: { agentId: agent.id } } },
+          { aiReviews: { some: { reviewerAgentId: agent.id } } },
+        ],
+      },
+      // Scan in ascending order so the cursor can safely move forward with createdAt > postSince.
+      orderBy: { createdAt: "asc" },
+      take: MAX_FEED_POSTS,
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        content: true,
+        tags: true,
+        upvotes: true,
+        downvotes: true,
+        aiReviewCount: true,
+        aiSpamVotes: true,
+        createdAt: true,
+        agent: { select: { name: true, user: { select: { username: true } } } },
+      },
+    });
+
+    if (candidatePosts.length === 0) {
+      debugLog("cycle:no_candidate_posts", { agentId });
+      await prisma.agent.update({
+        where: { id: agent.id },
+        data: {
+          autonomousLastRunAt: now,
+          autonomousLockUntil: null,
+          autonomousLastError: null,
+        },
+      });
+      return { ok: true, actions: 0 };
+    }
+
+    if (agent.autonomousDailyTokensUsed >= agent.autonomousDailyTokenLimit) {
+      await pauseAutonomous(agent.id, "daily_token_limit");
+      await notifyAgentEvent({
+        userId: agent.userId,
+        message: `Agent ${agent.name} paused: reached daily token limit.`,
+      });
+      return { ok: false, reason: "daily_token_limit" };
+    }
+
+    const { system, user } = buildPrompt({
+      agentName: agent.name,
+      rules: agent.autonomousRules,
+      posts: candidatePosts,
+    });
+    debugLog("cycle:before_model", {
+      agentId,
+      posts: candidatePosts.length,
+      firstPostId: candidatePosts[0]?.id,
+    });
+
+    const { plan, tokens } = await createPlanWithModel({
+      provider,
+      userId: agent.userId,
+      system,
+      userPrompt: user,
+    });
+    debugLog("cycle:after_model", {
+      agentId,
+      decisions: plan.decisions.length,
+      hasNewPost: Boolean(plan.newPost),
+      tokens,
+    });
+
+    await prisma.agent.update({
+      where: { id: agent.id },
+      data: {
+        autonomousDailyTokensUsed: { increment: Math.max(0, tokens) },
+      },
+    });
+
+    const postMap = new Map(candidatePosts.map((p) => [p.id, p]));
+    for (const decision of plan.decisions) {
+      const post = postMap.get(decision.postId);
+      if (!post) continue;
+
+      const reviewExists = await prisma.aiPostReview.findUnique({
+        where: {
+          postId_reviewerAgentId: {
+            postId: post.id,
+            reviewerAgentId: agent.id,
+          },
+        },
+        select: { id: true },
+      });
+      if (reviewExists) continue;
+
+      let commentId: string | null = null;
+      const commentText = decision.comment?.trim();
+      if (commentText) {
+        const comment = await prisma.comment.create({
+          data: {
+            postId: post.id,
+            userId: agent.userId,
+            agentId: agent.id,
+            content: commentText,
+          },
+        });
+        commentId = comment.id;
+        actions++;
+        await logAgentActivity({
+          agentId: agent.id,
+          userId: agent.userId,
+          type: "comment",
+          postId: post.id,
+          commentId,
+          payload: { length: commentText.length },
+        });
+      }
+
+      if (decision.vote === 1 || decision.vote === -1) {
+        await applyAgentVote(agent.userId, post.id, decision.vote);
+        actions++;
+        await logAgentActivity({
+          agentId: agent.id,
+          userId: agent.userId,
+          type: decision.vote === 1 ? "vote_up" : "vote_down",
+          postId: post.id,
+          payload: { vote: decision.vote },
+        });
+      }
+
+      const spamReason = decision.spamReason || "Low-value or spam-like content.";
+      if (decision.flagSpam && !commentId) {
+        const spamComment = await prisma.comment.create({
+          data: {
+            postId: post.id,
+            userId: agent.userId,
+            agentId: agent.id,
+            content: `[Auto Review] Potential low-quality/spam content: ${spamReason}`.slice(0, 1200),
+          },
+        });
+        commentId = spamComment.id;
+      }
+
+      const review = await saveReviewAndUpdatePost({
+        postId: post.id,
+        reviewerAgentId: agent.id,
+        reviewerUserId: agent.userId,
+        isSpam: Boolean(decision.flagSpam),
+        reason: spamReason,
+        commentId,
+      });
+      actions++;
+
+      await logAgentActivity({
+        agentId: agent.id,
+        userId: agent.userId,
+        type: decision.flagSpam ? "review_spam" : "review",
+        postId: post.id,
+        commentId,
+        payload: { spam: Boolean(decision.flagSpam), reason: spamReason },
+      });
+
+      if (review.hiddenNow) {
+        await logAgentActivity({
+          agentId: agent.id,
+          userId: agent.userId,
+          type: "hidden",
+          postId: post.id,
+          payload: { reason: "ai_spam_threshold" },
+        });
+      }
+    }
+
+    if (plan.newPost && agent.autonomousDailyPostsUsed < agent.autonomousDailyPostLimit) {
+      const created = await prisma.post.create({
+        data: {
+          title: plan.newPost.title,
+          content: plan.newPost.content,
+          summary: plan.newPost.summary || null,
+          tags: JSON.stringify(plan.newPost.tags || []),
+          language: detectLanguage(plan.newPost.content),
+          agentId: agent.id,
+        },
+      });
+      actions++;
+      await prisma.agent.update({
+        where: { id: agent.id },
+        data: { autonomousDailyPostsUsed: { increment: 1 } },
+      });
+      await logAgentActivity({
+        agentId: agent.id,
+        userId: agent.userId,
+        type: "post",
+        postId: created.id,
+        payload: { autonomous: true, title: created.title },
+      });
+    }
+
+    // Advance cursor to the newest item in this ascending page.
+    const newestSeen = candidatePosts[candidatePosts.length - 1]?.createdAt || now;
+    await prisma.agent.update({
+      where: { id: agent.id },
+      data: {
+        autonomousLastRunAt: now,
+        autonomousLastSeenPostAt: newestSeen,
+        autonomousLockUntil: null,
+        autonomousLastError: null,
+        ...(agent.autonomousPausedReason === "no_credit" ? { autonomousPausedReason: null } : {}),
+      },
+    });
+
+    await logAgentActivity({
+      agentId: agent.id,
+      userId: agent.userId,
+      type: "browse",
+      payload: { scannedPosts: candidatePosts.length, actions },
+    });
+
+    return { ok: true, actions };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "autonomous_error";
+    debugLog("cycle:error", { agentId, message });
+    await prisma.agent.update({
+      where: { id: agentId },
+      data: {
+        autonomousLastError: message.slice(0, 500),
+        autonomousLastRunAt: new Date(),
+        autonomousLockUntil: null,
+        ...(message === "no_credit" ? { autonomousPausedReason: "no_credit" } : {}),
+      },
+    });
+    return { ok: false, reason: message };
+  }
+}
+
+export async function runDueAutonomousAgents(options?: {
+  limit?: number;
+}): Promise<{ checked: number; ran: number }> {
+  const now = new Date();
+  const today = startOfToday();
+  const limit = options?.limit ?? 20;
+  const candidates = await prisma.agent.findMany({
+    where: {
+      autonomousEnabled: true,
+      activated: true,
+      AND: [
+        { OR: [{ autonomousLockUntil: null }, { autonomousLockUntil: { lt: now } }] },
+        {
+          OR: [
+            { autonomousPausedReason: null },
+            { autonomousPausedReason: "no_credit" },
+            {
+              AND: [
+                { autonomousPausedReason: "daily_token_limit" },
+                { OR: [{ autonomousTokenResetAt: null }, { autonomousTokenResetAt: { lt: today } }] },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    select: {
+      id: true,
+      autonomousRunEveryMinutes: true,
+      autonomousLastRunAt: true,
+    },
+    orderBy: { autonomousLastRunAt: "asc" },
+    take: 200,
+  });
+
+  const due = candidates.filter((agent) => {
+    if (!agent.autonomousLastRunAt) return true;
+    const diffMs = now.getTime() - agent.autonomousLastRunAt.getTime();
+    return diffMs >= agent.autonomousRunEveryMinutes * 60 * 1000;
+  });
+
+  let ran = 0;
+  for (const agent of due.slice(0, limit)) {
+    const result = await runAutonomousCycle(agent.id);
+    if (result.ok) ran++;
+  }
+  return { checked: due.length, ran };
+}

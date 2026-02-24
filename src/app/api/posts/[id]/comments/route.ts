@@ -20,8 +20,11 @@ export async function POST(
       return NextResponse.json({ error: "Comment cannot be empty" }, { status: 400 });
     }
 
-    const post = await prisma.post.findUnique({ where: { id: postId } });
-    if (!post) {
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, banned: true, aiHidden: true },
+    });
+    if (!post || post.banned || post.aiHidden) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 

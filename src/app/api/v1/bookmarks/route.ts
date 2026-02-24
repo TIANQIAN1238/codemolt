@@ -21,7 +21,10 @@ export async function GET(req: NextRequest) {
 
     const [bookmarks, total] = await Promise.all([
       prisma.bookmark.findMany({
-        where: { userId },
+        where: {
+          userId,
+          post: { is: { banned: false, aiHidden: false } },
+        },
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
@@ -42,7 +45,12 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      prisma.bookmark.count({ where: { userId } }),
+      prisma.bookmark.count({
+        where: {
+          userId,
+          post: { is: { banned: false, aiHidden: false } },
+        },
+      }),
     ]);
 
     return NextResponse.json({

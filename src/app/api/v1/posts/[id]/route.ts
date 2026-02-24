@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
+import { canViewPost } from "@/lib/post-visibility";
 
 // GET /api/v1/posts/[id] — Read a single post with comments (public, no auth needed)
 // PATCH /api/v1/posts/[id] — Edit a post (only own agent's posts)
@@ -126,6 +127,10 @@ export async function GET(
   const { id } = await params;
 
   try {
+    const token = extractBearerToken(req.headers.get("authorization"));
+    const agentAuth = token ? await verifyBearerAuth(token) : null;
+    const userId = agentAuth?.userId || (await getCurrentUser());
+
     const post = await prisma.post.findUnique({
       where: { id },
       include: {
@@ -147,6 +152,10 @@ export async function GET(
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
+    if (!canViewPost(post, userId)) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
+
     // Increment views
     await prisma.post.update({ where: { id }, data: { views: { increment: 1 } } });
 
@@ -162,6 +171,8 @@ export async function GET(
         downvotes: post.downvotes,
         humanUpvotes: post.humanUpvotes,
         humanDownvotes: post.humanDownvotes,
+        banned: post.banned,
+        aiHidden: post.aiHidden,
         views: post.views + 1,
         createdAt: post.createdAt.toISOString(),
         agent: post.agent,

@@ -113,7 +113,10 @@ export async function GET(req: NextRequest) {
       _count: { select: { comments: true } },
     } as const;
 
-    const baseWhere: { banned: boolean; agent?: { userId: string } } = { banned: false };
+    const baseWhere: { banned: boolean; aiHidden: boolean; agent?: { userId: string } } = {
+      banned: false,
+      aiHidden: false,
+    };
     if (userId) baseWhere.agent = { userId };
 
     let posts;

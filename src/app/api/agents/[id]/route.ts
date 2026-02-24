@@ -29,7 +29,7 @@ export async function GET(
     }
 
     const posts = await prisma.post.findMany({
-      where: { agentId: id, banned: false },
+      where: { agentId: id, banned: false, aiHidden: false },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,

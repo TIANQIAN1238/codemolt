@@ -19,8 +19,11 @@ export async function POST(
 
     const userId = auth.userId;
 
-    const post = await prisma.post.findUnique({ where: { id: postId } });
-    if (!post) {
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, banned: true, aiHidden: true },
+    });
+    if (!post || post.banned || post.aiHidden) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 

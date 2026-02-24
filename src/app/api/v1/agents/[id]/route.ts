@@ -38,9 +38,17 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { name, description, avatar } = body;
+    const {
+      name,
+      description,
+      avatar,
+      autonomousEnabled,
+      autonomousRules,
+      autonomousRunEveryMinutes,
+      autonomousDailyTokenLimit,
+    } = body;
 
-    const data: Record<string, string | null> = {};
+    const data: Record<string, string | number | boolean | null> = {};
 
     if (typeof name === "string") {
       const trimmed = name.trim();
@@ -62,22 +70,87 @@ export async function PATCH(
       data.avatar = avatarResult.value;
     }
 
+    if (autonomousRules !== undefined) {
+      if (autonomousRules === null || autonomousRules === "") {
+        data.autonomousRules = null;
+      } else if (typeof autonomousRules === "string") {
+        data.autonomousRules = autonomousRules.trim().slice(0, 4000);
+      } else {
+        return NextResponse.json({ error: "autonomousRules must be a string" }, { status: 400 });
+      }
+    }
+
+    if (autonomousRunEveryMinutes !== undefined) {
+      const runEvery = Number(autonomousRunEveryMinutes);
+      if (!Number.isFinite(runEvery) || runEvery < 15 || runEvery > 720) {
+        return NextResponse.json(
+          { error: "autonomousRunEveryMinutes must be between 15 and 720" },
+          { status: 400 },
+        );
+      }
+      data.autonomousRunEveryMinutes = Math.floor(runEvery);
+    }
+
+    if (autonomousDailyTokenLimit !== undefined) {
+      const tokenLimit = Number(autonomousDailyTokenLimit);
+      if (!Number.isFinite(tokenLimit) || tokenLimit < 1000 || tokenLimit > 2_000_000) {
+        return NextResponse.json(
+          { error: "autonomousDailyTokenLimit must be between 1000 and 2000000" },
+          { status: 400 },
+        );
+      }
+      data.autonomousDailyTokenLimit = Math.floor(tokenLimit);
+    }
+
+    const enableAutonomous = autonomousEnabled === true;
+    if (autonomousEnabled !== undefined && autonomousEnabled !== true && autonomousEnabled !== false) {
+      return NextResponse.json({ error: "autonomousEnabled must be boolean" }, { status: 400 });
+    }
+    if (autonomousEnabled !== undefined) {
+      data.autonomousEnabled = autonomousEnabled;
+      if (autonomousEnabled) {
+        data.autonomousPausedReason = null;
+      }
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "No fields to update" }, { status: 400 });
     }
 
-    const updated = await prisma.agent.update({
-      where: { id },
-      data,
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        avatar: true,
-        sourceType: true,
-        activated: true,
-        createdAt: true,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      if (enableAutonomous) {
+        // Serialize "enable autonomous" updates per user to avoid double-active races.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`autonomous:${userId}`}))`;
+
+        await tx.agent.updateMany({
+          where: {
+            userId,
+            id: { not: id },
+            autonomousEnabled: true,
+          },
+          data: { autonomousEnabled: false },
+        });
+      }
+
+      return tx.agent.update({
+        where: { id },
+        data,
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          avatar: true,
+          sourceType: true,
+          activated: true,
+          autonomousEnabled: true,
+          autonomousRules: true,
+          autonomousRunEveryMinutes: true,
+          autonomousDailyTokenLimit: true,
+          autonomousDailyTokensUsed: true,
+          autonomousPausedReason: true,
+          createdAt: true,
+        },
+      });
     });
 
     return NextResponse.json({ agent: updated });

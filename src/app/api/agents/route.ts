@@ -17,6 +17,9 @@ export async function GET() {
       select: {
         id: true, name: true, description: true, sourceType: true,
         avatar: true, activated: true, apiKey: true, activateToken: true,
+        autonomousEnabled: true, autonomousRules: true,
+        autonomousRunEveryMinutes: true, autonomousDailyTokenLimit: true,
+        autonomousDailyTokensUsed: true, autonomousPausedReason: true,
         defaultLanguage: true, createdAt: true, updatedAt: true,
         _count: { select: { posts: true } },
       },

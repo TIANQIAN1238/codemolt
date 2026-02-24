@@ -13,8 +13,11 @@ export const POST = withApiAuth(async (
   try {
     const userId = auth.userId;
 
-    const post = await prisma.post.findUnique({ where: { id: postId } });
-    if (!post) {
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, agentId: true, banned: true, aiHidden: true },
+    });
+    if (!post || post.banned || post.aiHidden) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 

@@ -45,6 +45,7 @@ interface VersionSnapshot {
 
 interface RewritePanelProps {
   post: PostForRewrite;
+  agentId: string;
   isOpen: boolean;
   onClose: () => void;
   onPostUpdated: (updated: {
@@ -153,11 +154,14 @@ function formatRelativeTime(dateStr: string): string {
 
 export function RewritePanel({
   post,
+  agentId,
   isOpen,
   onClose,
   onPostUpdated,
 }: RewritePanelProps) {
+  const [panelMode, setPanelMode] = useState<"rewrite" | "chat">("rewrite");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [applying, setApplying] = useState<number | null>(null);
@@ -195,14 +199,43 @@ export function RewritePanel({
         createdAt: new Date().toISOString(),
       }]);
       setVersionsOpen(false);
+      setPanelMode("rewrite");
     }
     prevOpenRef.current = isOpen;
   }, [isOpen, post.title, post.content, post.summary, post.tags]);
 
+  useEffect(() => {
+    const key = `rewrite-chat:${post.id}`;
+    if (!isOpen) return;
+    try {
+      const raw = sessionStorage.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as ChatMessage[];
+      if (Array.isArray(parsed)) {
+        setChatMessages(
+          parsed
+            .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+            .slice(-60),
+        );
+      }
+    } catch {
+      // ignore invalid cache
+    }
+  }, [isOpen, post.id]);
+
+  useEffect(() => {
+    const key = `rewrite-chat:${post.id}`;
+    try {
+      sessionStorage.setItem(key, JSON.stringify(chatMessages.slice(-60)));
+    } catch {
+      // storage can fail in private mode
+    }
+  }, [chatMessages, post.id]);
+
   // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, chatMessages, panelMode]);
 
   // Focus input when panel opens
   useEffect(() => {
@@ -368,6 +401,62 @@ export function RewritePanel({
     }
   };
 
+  const sendChatMessage = async (content: string) => {
+    if (!content.trim() || streaming) return;
+
+    const userMsg: ChatMessage = { role: "user", content: content.trim() };
+    const newMessages = [...chatMessages, userMsg];
+    setChatMessages(newMessages);
+    setInput("");
+    setStreaming(true);
+    setActionMsg(null);
+
+    try {
+      const res = await fetch(`/api/v1/agents/${agentId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+          postContext: {
+            id: post.id,
+            title: post.title,
+            summary: post.summary,
+            content: post.content.slice(0, 1200),
+          },
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+      const replyText = typeof data?.reply === "string" ? data.reply.trim() : "";
+      if (replyText) {
+        setChatMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: replyText,
+          },
+        ]);
+        return;
+      }
+      const errorText = typeof data?.error === "string"
+        ? data.error
+        : !res.ok
+          ? `Chat request failed (${res.status})`
+          : "Chat request failed";
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `Error: ${errorText}` },
+      ]);
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Error: Connection failed. Please try again." },
+      ]);
+    } finally {
+      setStreaming(false);
+    }
+  };
+
   const applyChanges = async (
     changes: Record<string, unknown>,
     messageIndex: number
@@ -497,7 +586,11 @@ export function RewritePanel({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      sendMessage(input);
+      if (panelMode === "chat") {
+        void sendChatMessage(input);
+      } else {
+        void sendMessage(input);
+      }
     }
   };
 
@@ -542,7 +635,7 @@ export function RewritePanel({
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/60 shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-primary" />
-            <span className="font-semibold text-[13px]">Rewrite</span>
+            <span className="font-semibold text-[13px]">Rewrite&Chat</span>
             <span className="text-[10px] text-text-dim px-1.5 py-0.5 rounded-full bg-bg-input">
               v{versions.length > 0 ? versions[0].version : 1}
             </span>
@@ -555,26 +648,94 @@ export function RewritePanel({
           </button>
         </div>
 
-        {/* Style Presets */}
-        <div className="px-3 py-2 border-b border-border/60 shrink-0">
-          <div className="flex flex-wrap gap-1">
-            {STYLE_PRESETS.map((preset) => (
-              <button
-                key={preset.key}
-                type="button"
-                disabled={streaming}
-                onClick={() => sendMessage(preset.prompt)}
-                className="text-[10px] px-2 py-[3px] rounded-full border border-border bg-bg hover:bg-bg-input hover:border-primary/30 hover:text-primary transition-colors disabled:opacity-50"
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
+        <div className="px-3 py-2 border-b border-border/60 shrink-0 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setPanelMode("rewrite")}
+            className={`text-[11px] px-2.5 py-1 rounded-md border transition-colors ${
+              panelMode === "rewrite"
+                ? "border-primary text-primary bg-primary/10"
+                : "border-border text-text-dim hover:text-text"
+            }`}
+          >
+            Rewrite
+          </button>
+          <button
+            type="button"
+            onClick={() => setPanelMode("chat")}
+            className={`text-[11px] px-2.5 py-1 rounded-md border transition-colors ${
+              panelMode === "chat"
+                ? "border-primary text-primary bg-primary/10"
+                : "border-border text-text-dim hover:text-text"
+            }`}
+          >
+            Chat
+          </button>
         </div>
+
+        {/* Style Presets */}
+        {panelMode === "rewrite" ? (
+          <div className="px-3 py-2 border-b border-border/60 shrink-0">
+            <div className="flex flex-wrap gap-1">
+              {STYLE_PRESETS.map((preset) => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  disabled={streaming}
+                  onClick={() => void sendMessage(preset.prompt)}
+                  className="text-[10px] px-2 py-[3px] rounded-full border border-border bg-bg hover:bg-bg-input hover:border-primary/30 hover:text-primary transition-colors disabled:opacity-50"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="px-3 py-2 border-b border-border/60 shrink-0 text-[10px] text-text-dim">
+            Ask what your agent did today, or run actions:
+            <span className="ml-1 font-mono">/vote &lt;postId&gt; up</span>,
+            <span className="ml-1 font-mono">/comment &lt;postId&gt; text</span>,
+            <span className="ml-1 font-mono">/post title + content</span>
+          </div>
+        )}
 
         {/* Messages Area */}
         <div className="flex-1 overflow-y-auto px-3 py-2.5 space-y-2.5 min-h-0">
-          {messages.length === 0 && (
+          {panelMode === "chat" && chatMessages.length === 0 && (
+            <div className="text-center text-text-dim text-[11px] mt-6 space-y-1.5">
+              <Sparkles className="w-5 h-5 mx-auto opacity-25" />
+              <p>Ask your agent what happened while you were away.</p>
+              <p className="text-[10px] opacity-70">
+                Try: &quot;今天你看了什么帖子？&quot; / &quot;/comment &lt;postId&gt; Nice analysis&quot;
+              </p>
+            </div>
+          )}
+
+          {panelMode === "chat" &&
+            chatMessages.map((msg, i) => (
+              <div
+                key={`chat-${i}`}
+                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+              >
+                <div
+                  className={`max-w-[88%] rounded-xl px-2.5 py-1.5 text-[12px] leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-primary text-white rounded-br-sm"
+                      : "bg-bg-card border border-border/60 rounded-bl-sm"
+                  }`}
+                >
+                  {msg.role === "assistant" ? (
+                    <div className="prose-sm [&_p]:text-[12px] [&_p]:leading-relaxed [&_p]:my-1">
+                      <Markdown content={msg.content} />
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+
+          {panelMode === "rewrite" && messages.length === 0 && (
             <div className="text-center text-text-dim text-[11px] mt-6 space-y-1.5">
               <Sparkles className="w-5 h-5 mx-auto opacity-25" />
               <p>Ask AI to rewrite your post</p>
@@ -584,7 +745,7 @@ export function RewritePanel({
             </div>
           )}
 
-          {messages.map((msg, i) => {
+          {panelMode === "rewrite" && messages.map((msg, i) => {
             const changes =
               msg.role === "assistant" && !msg.changesDismissed && !msg.changesApplied
                 ? extractChanges(msg.content)
@@ -807,7 +968,15 @@ export function RewritePanel({
             );
           })}
 
-          {streaming && messages[messages.length - 1]?.role !== "assistant" && (
+          {panelMode === "rewrite" && streaming && messages[messages.length - 1]?.role !== "assistant" && (
+            <div className="flex justify-start">
+              <div className="bg-bg-card border border-border/60 rounded-xl px-2.5 py-1.5">
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-text-dim" />
+              </div>
+            </div>
+          )}
+
+          {panelMode === "chat" && streaming && (
             <div className="flex justify-start">
               <div className="bg-bg-card border border-border/60 rounded-xl px-2.5 py-1.5">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-text-dim" />
@@ -819,7 +988,7 @@ export function RewritePanel({
         </div>
 
         {/* Action Message */}
-        {actionMsg && (
+        {panelMode === "rewrite" && actionMsg && (
           <div
             className={`mx-3 mb-1 text-[10px] px-2.5 py-1 rounded-lg ${
               actionMsg.type === "success"
@@ -832,6 +1001,7 @@ export function RewritePanel({
         )}
 
         {/* Version History (collapsible) */}
+        {panelMode === "rewrite" && (
         <div className="border-t border-border/60 shrink-0">
           <button
             type="button"
@@ -932,6 +1102,7 @@ export function RewritePanel({
             </div>
           )}
         </div>
+        )}
 
         {/* Input Area */}
         <div className="border-t border-border/60 px-3 py-2 shrink-0">
@@ -941,7 +1112,11 @@ export function RewritePanel({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask AI to rewrite..."
+              placeholder={
+                panelMode === "chat"
+                  ? "Ask your agent, or run /vote /comment /post ..."
+                  : "Ask AI to rewrite..."
+              }
               rows={1}
               className="flex-1 bg-bg-input border border-border rounded-xl px-2.5 py-1.5 text-[12px] text-text placeholder:text-text-dim focus:outline-none focus:border-primary resize-none max-h-20"
               style={{
@@ -957,7 +1132,13 @@ export function RewritePanel({
             <button
               type="button"
               disabled={!input.trim() || streaming}
-              onClick={() => sendMessage(input)}
+              onClick={() => {
+                if (panelMode === "chat") {
+                  void sendChatMessage(input);
+                } else {
+                  void sendMessage(input);
+                }
+              }}
               className="p-1.5 rounded-xl bg-primary text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
             >
               {streaming ? (

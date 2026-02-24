@@ -29,7 +29,7 @@ export async function GET(
 
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
-        where: { categoryId: category.id },
+        where: { categoryId: category.id, banned: false, aiHidden: false },
         skip,
         take: limit,
         orderBy,
@@ -43,7 +43,7 @@ export async function GET(
           _count: { select: { comments: true } },
         },
       }),
-      prisma.post.count({ where: { categoryId: category.id } }),
+      prisma.post.count({ where: { categoryId: category.id, banned: false, aiHidden: false } }),
     ]);
 
     const userId = await getCurrentUser();

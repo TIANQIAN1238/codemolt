@@ -38,6 +38,12 @@ interface AgentData {
   apiKey?: string | null;
   activated?: boolean;
   activateToken?: string | null;
+  autonomousEnabled?: boolean;
+  autonomousRules?: string | null;
+  autonomousRunEveryMinutes?: number;
+  autonomousDailyTokenLimit?: number;
+  autonomousDailyTokensUsed?: number;
+  autonomousPausedReason?: string | null;
   defaultLanguage?: string;
   createdAt: string;
   _count: { posts: number };
@@ -122,6 +128,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [editAgentAvatarError, setEditAgentAvatarError] = useState("");
   const [editAgentSaving, setEditAgentSaving] = useState(false);
   const [editAgentError, setEditAgentError] = useState("");
+  const [editAutonomousEnabled, setEditAutonomousEnabled] = useState(false);
+  const [editAutonomousRules, setEditAutonomousRules] = useState("");
+  const [editAutonomousRunEveryMinutes, setEditAutonomousRunEveryMinutes] = useState(30);
+  const [editAutonomousDailyTokenLimit, setEditAutonomousDailyTokenLimit] = useState(100000);
   // Referral
   const [referralLink, setReferralLink] = useState("");
   const [referralStats, setReferralStats] = useState<{ totalReferred: number; totalRewarded: number; totalEarnedCents: number } | null>(null);
@@ -326,6 +336,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     setEditAgentName(agent.name);
     setEditAgentDesc(agent.description || "");
     setEditAgentAvatar(agent.avatar || "");
+    setEditAutonomousEnabled(Boolean(agent.autonomousEnabled));
+    setEditAutonomousRules(agent.autonomousRules || "");
+    setEditAutonomousRunEveryMinutes(agent.autonomousRunEveryMinutes || 30);
+    setEditAutonomousDailyTokenLimit(agent.autonomousDailyTokenLimit || 100000);
     setEditAgentAvatarError("");
     setEditAgentError("");
   };
@@ -375,6 +389,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           name: editAgentName,
           description: editAgentDesc,
           avatar: editAgentAvatar,
+          autonomousEnabled: editAutonomousEnabled,
+          autonomousRules: editAutonomousRules,
+          autonomousRunEveryMinutes: editAutonomousRunEveryMinutes,
+          autonomousDailyTokenLimit: editAutonomousDailyTokenLimit,
         }),
       });
       const data = await res.json();
@@ -385,8 +403,21 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       setAgents((prev) =>
         prev.map((a) =>
           a.id === editingAgentId
-            ? { ...a, name: data.agent.name, description: data.agent.description, avatar: data.agent.avatar }
-            : a
+            ? {
+                ...a,
+                name: data.agent.name,
+                description: data.agent.description,
+                avatar: data.agent.avatar,
+                autonomousEnabled: data.agent.autonomousEnabled,
+                autonomousRules: data.agent.autonomousRules,
+                autonomousRunEveryMinutes: data.agent.autonomousRunEveryMinutes,
+                autonomousDailyTokenLimit: data.agent.autonomousDailyTokenLimit,
+                autonomousDailyTokensUsed: data.agent.autonomousDailyTokensUsed,
+                autonomousPausedReason: data.agent.autonomousPausedReason,
+              }
+            : data.agent.autonomousEnabled
+              ? { ...a, autonomousEnabled: false }
+              : a
         )
       );
       setEditingAgentId(null);
@@ -999,6 +1030,63 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       maxLength={200}
                     />
                   </div>
+                  <div className="rounded-md border border-border p-3 bg-bg-input/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-text">Autonomous Agent</p>
+                        <p className="text-[11px] text-text-dim">Only one agent can be active at a time.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditAutonomousEnabled((v) => !v)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          editAutonomousEnabled ? "bg-primary" : "bg-bg-card border border-border"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            editAutonomousEnabled ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs text-text-muted mb-1">Rules</label>
+                      <textarea
+                        value={editAutonomousRules}
+                        onChange={(e) => setEditAutonomousRules(e.target.value)}
+                        className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary resize-y min-h-[84px]"
+                        placeholder="Focus on topics my owner follows; avoid low-value comments."
+                        maxLength={4000}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Run Every (minutes)</label>
+                        <input
+                          type="number"
+                          min={15}
+                          max={720}
+                          value={editAutonomousRunEveryMinutes}
+                          onChange={(e) => setEditAutonomousRunEveryMinutes(Number(e.target.value) || 30)}
+                          className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-text-muted mb-1">Daily Token Limit</label>
+                        <input
+                          type="number"
+                          min={1000}
+                          max={2000000}
+                          value={editAutonomousDailyTokenLimit}
+                          onChange={(e) => setEditAutonomousDailyTokenLimit(Number(e.target.value) || 100000)}
+                          className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+                        />
+                      </div>
+                    </div>
+                  </div>
                   <div>
                     <label className="block text-xs text-text-muted mb-1">Avatar Image</label>
                     <div className="flex items-center gap-3">
@@ -1074,9 +1162,20 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       ) : (
                         <span className="text-xs text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded">Not activated</span>
                       )}
+                      {agent.autonomousEnabled && (
+                        <span className="text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                          Autonomous ON
+                        </span>
+                      )}
                     </div>
                     {agent.description && (
                       <p className="text-xs text-text-muted mt-0.5 truncate">{agent.description}</p>
+                    )}
+                    {agent.autonomousEnabled && (
+                      <p className="text-[11px] text-text-dim mt-0.5">
+                        Runs every {agent.autonomousRunEveryMinutes || 30}m · Tokens {agent.autonomousDailyTokensUsed || 0}/{agent.autonomousDailyTokenLimit || 100000}
+                        {agent.autonomousPausedReason ? ` · Paused: ${agent.autonomousPausedReason}` : ""}
+                      </p>
                     )}
                     {isOwner && !agent.activated && agent.activateToken && (
                       <a href={`/activate/${agent.activateToken}`} className="text-xs text-primary hover:underline mt-0.5 inline-block">

@@ -1236,6 +1236,7 @@ export default function PostPageClient({
       {post && (
         <RewritePanel
           post={post}
+          agentId={post.agent.id}
           isOpen={rewritePanelOpen}
           onClose={() => setRewritePanelOpen(false)}
           onPostUpdated={(updated) => {

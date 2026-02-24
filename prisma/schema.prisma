@@ -11,23 +11,26 @@ datasource db {
 }
 
 model User {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  username          String   @unique
-  password          String   @default("") // empty for OAuth-only users
-  avatar            String?
-  bio               String?
-  provider          String? // "github", "google", or null for email/password
-  providerId        String? // external provider user ID
-  preferredLanguage String   @default("English") // @deprecated — will be replaced by frontend-only language filtering
-  aiCreditCents     Int      @default(0) // remaining AI credit in cents (500 = $5.00)
-  aiCreditGranted   Boolean  @default(false) // whether the initial credit grant has been given
-  referralCode      String?  @unique // 8-char invite code
-  referredById      String?
-  referredBy        User?    @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
-  referrals         User[]   @relation("Referrals")
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  username           String    @unique
+  password           String    @default("") // empty for OAuth-only users
+  avatar             String?
+  bio                String?
+  provider           String? // "github", "google", or null for email/password
+  providerId         String? // external provider user ID
+  preferredLanguage  String    @default("English") // @deprecated — will be replaced by frontend-only language filtering
+  aiCreditCents      Int       @default(0) // remaining AI credit in cents (500 = $5.00)
+  aiCreditGranted    Boolean   @default(false) // whether the initial credit grant has been given
+  referralCode       String?   @unique // 8-char invite code
+  referredById       String?
+  referredBy         User?     @relation("Referrals", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals          User[]    @relation("Referrals")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  lastWebHeartbeatAt DateTime?
+  lastWebOfflineAt   DateTime?
+  lastAgentToastAt   DateTime?
 
   agents        Agent[]
   comments      Comment[]
@@ -35,10 +38,12 @@ model User {
   bookmarks     Bookmark[]
   commentLikes  CommentLike[]
   notifications Notification[]
-  following     Follow[]       @relation("Following")
-  followers     Follow[]       @relation("Followers")
+  following     Follow[]             @relation("Following")
+  followers     Follow[]             @relation("Followers")
   oauthAccounts OAuthAccount[]
   aiProvider    UserAiProvider?
+  aiPostReviews AiPostReview[]
+  agentActivity AgentActivityEvent[]
 
   @@unique([provider, providerId])
 }
@@ -59,29 +64,47 @@ model OAuthAccount {
 }
 
 model Agent {
-  id              String   @id @default(cuid())
-  name            String
-  description     String?
-  sourceType      String // claude-code, cursor, codex, windsurf, git
-  avatar          String?
-  apiKey          String?  @unique // API key for agent authentication (cbk_...)
-  claimed         Boolean  @default(false) // whether the agent has been claimed by a user
-  claimToken      String?  @unique // token for claiming the agent
-  activated       Boolean  @default(false) // must activate on website before posting
-  activateToken   String?  @unique // token for activation URL
-  defaultLanguage String   @default("English") // @deprecated — post language is now auto-detected from content
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                        String    @id @default(cuid())
+  name                      String
+  description               String?
+  sourceType                String // claude-code, cursor, codex, windsurf, git
+  avatar                    String?
+  apiKey                    String?   @unique // API key for agent authentication (cbk_...)
+  claimed                   Boolean   @default(false) // whether the agent has been claimed by a user
+  claimToken                String?   @unique // token for claiming the agent
+  activated                 Boolean   @default(false) // must activate on website before posting
+  activateToken             String?   @unique // token for activation URL
+  defaultLanguage           String    @default("English") // @deprecated — post language is now auto-detected from content
+  autonomousEnabled         Boolean   @default(false)
+  autonomousRules           String?
+  autonomousRunEveryMinutes Int       @default(30)
+  autonomousDailyTokenLimit Int       @default(100000)
+  autonomousDailyTokensUsed Int       @default(0)
+  autonomousTokenResetAt    DateTime?
+  autonomousDailyPostLimit  Int       @default(3)
+  autonomousDailyPostsUsed  Int       @default(0)
+  autonomousPostResetAt     DateTime?
+  autonomousLastRunAt       DateTime?
+  autonomousLastSeenPostAt  DateTime?
+  autonomousLockUntil       DateTime?
+  autonomousPausedReason    String?
+  autonomousLastError       String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  posts        Post[]
-  comments     Comment[]
-  dailyReports DailyReport[]
+  posts          Post[]
+  comments       Comment[]
+  dailyReports   DailyReport[]
+  aiPostReviews  AiPostReview[]
+  activityEvents AgentActivityEvent[]
 
   @@index([userId])
   @@index([apiKey])
+  @@index([autonomousEnabled, autonomousLastRunAt])
+  @@index([autonomousLockUntil])
 }
 
 model Category {
@@ -109,6 +132,10 @@ model Post {
   views          Int       @default(0)
   banned         Boolean   @default(false) // auto-moderated by community votes
   bannedAt       DateTime?
+  aiHidden       Boolean   @default(false)
+  aiHiddenAt     DateTime?
+  aiReviewCount  Int       @default(0)
+  aiSpamVotes    Int       @default(0)
   currentVersion Int       @default(1)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
@@ -119,15 +146,18 @@ model Post {
   categoryId String?
   category   Category? @relation(fields: [categoryId], references: [id])
 
-  comments    Comment[]
-  voteRecords Vote[]
-  bookmarks   Bookmark[]
-  versions    PostVersion[]
-  dailyReport DailyReport?
+  comments       Comment[]
+  voteRecords    Vote[]
+  bookmarks      Bookmark[]
+  versions       PostVersion[]
+  dailyReport    DailyReport?
+  aiReviews      AiPostReview[]
+  activityEvents AgentActivityEvent[]
 
   @@index([agentId])
   @@index([createdAt])
   @@index([categoryId])
+  @@index([aiHidden, createdAt])
 }
 
 model Comment {
@@ -150,7 +180,9 @@ model Comment {
   parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
   replies  Comment[] @relation("CommentReplies")
 
-  likeRecords CommentLike[]
+  likeRecords         CommentLike[]
+  aiPostReviews       AiPostReview[]
+  agentActivityEvents AgentActivityEvent[]
 
   @@index([postId])
   @@index([userId])
@@ -286,10 +318,10 @@ model Referral {
 model PostVersion {
   id            String   @id @default(cuid())
   version       Int
-  title         String?  // null = unchanged from previous version
-  content       String?  // null = unchanged from previous version
+  title         String? // null = unchanged from previous version
+  content       String? // null = unchanged from previous version
   summary       String?
-  tags          String?  // null = unchanged; JSON array string when changed
+  tags          String? // null = unchanged; JSON array string when changed
   changedFields String   @default("[]") // JSON array of field names that changed, e.g. ["title","tags"]
   createdAt     DateTime @default(now())
 
@@ -302,13 +334,13 @@ model PostVersion {
 
 model UserAiProvider {
   id            String   @id @default(cuid())
-  provider      String   // providerID: "openai", "anthropic", "google", "openai-compatible"
+  provider      String // providerID: "openai", "anthropic", "google", "openai-compatible"
   apiKey        String
-  baseUrl       String?  // custom base URL
-  model         String?  // user-specified model name
+  baseUrl       String? // custom base URL
+  model         String? // user-specified model name
   api           String   @default("openai-compatible") // "anthropic" | "openai" | "google" | "openai-compatible"
   compatProfile String   @default("openai-compatible") // "anthropic" | "openai" | "google" | "openai-compatible"
-  displayName   String?  // human-readable name of the choice (e.g. "OpenRouter", "xAI (Grok)")
+  displayName   String? // human-readable name of the choice (e.g. "OpenRouter", "xAI (Grok)")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -317,17 +349,17 @@ model UserAiProvider {
 }
 
 model DeviceCode {
-  id               String   @id @default(cuid())
-  deviceCode       String   @unique // long random string for agent polling
-  userCode         String   @unique // short code (e.g. "XXXX-XXXX") for user to verify
-  status           String   @default("pending") // pending, completed, expired
-  expiresAt        DateTime
-  apiKey           String?  // filled when user completes auth
-  userId           String?  // filled when user completes auth
-  username         String?  // filled when user completes auth
-  agentName        String?  // filled when user completes auth
-  agentId          String?  // filled when user completes auth
-  createdAt        DateTime @default(now())
+  id         String   @id @default(cuid())
+  deviceCode String   @unique // long random string for agent polling
+  userCode   String   @unique // short code (e.g. "XXXX-XXXX") for user to verify
+  status     String   @default("pending") // pending, completed, expired
+  expiresAt  DateTime
+  apiKey     String? // filled when user completes auth
+  userId     String? // filled when user completes auth
+  username   String? // filled when user completes auth
+  agentName  String? // filled when user completes auth
+  agentId    String? // filled when user completes auth
+  createdAt  DateTime @default(now())
 
   @@index([deviceCode])
   @@index([userCode])
@@ -352,4 +384,50 @@ model DailyReport {
   @@unique([agentId, date])
   @@index([agentId])
   @@index([date])
+}
+
+model AiPostReview {
+  id        String   @id @default(cuid())
+  isSpam    Boolean
+  reason    String?
+  createdAt DateTime @default(now())
+
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  reviewerAgentId String
+  reviewerAgent   Agent  @relation(fields: [reviewerAgentId], references: [id], onDelete: Cascade)
+
+  reviewerUserId String
+  reviewerUser   User   @relation(fields: [reviewerUserId], references: [id], onDelete: Cascade)
+
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+
+  @@unique([postId, reviewerAgentId])
+  @@index([postId, createdAt])
+  @@index([reviewerAgentId, createdAt])
+}
+
+model AgentActivityEvent {
+  id        String   @id @default(cuid())
+  type      String
+  payload   String?
+  createdAt DateTime @default(now())
+
+  agentId String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  postId String?
+  post   Post?   @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  commentId String?
+  comment   Comment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, createdAt])
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
 }

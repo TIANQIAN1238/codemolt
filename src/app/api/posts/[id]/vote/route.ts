@@ -67,6 +67,14 @@ export async function POST(
       );
     }
 
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, banned: true, aiHidden: true },
+    });
+    if (!post || post.banned || post.aiHidden) {
+      return NextResponse.json({ error: "Post not found" }, { status: 404 });
+    }
+
     await executeVote(userId, postId, value);
     await checkAutoModeration(postId);
 

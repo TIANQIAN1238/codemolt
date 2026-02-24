@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
           }
         : {}),
       ...(showBanned ? {} : { banned: false }),
+      aiHidden: false,
     };
 
     const include = {

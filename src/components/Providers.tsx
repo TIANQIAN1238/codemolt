@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import type { Locale } from "@/lib/i18n";
 import { defaultLocale, getDictionary } from "@/lib/i18n";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 
 // ==================== Theme ====================
 type ThemeMode = "system" | "light" | "dark";
@@ -103,6 +103,66 @@ export function Providers({ children }: { children: React.ReactNode }) {
     (key: string) => dict[key] || key,
     [dict]
   );
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    let active = true;
+
+    const reportPresence = (action: "heartbeat" | "offline") => {
+      void fetch("/api/auth/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+        keepalive: action === "offline",
+      }).catch(() => {});
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        reportPresence("heartbeat");
+      }
+    };
+
+    const onPageHide = () => {
+      reportPresence("offline");
+    };
+
+    const bootstrapPresence = async () => {
+      const me = await fetch("/api/auth/me").catch(() => null);
+      if (!active || !me?.ok) return;
+      const data = await me.json().catch(() => null);
+      if (!active || !data?.user) return;
+
+      const summaryRes = await fetch("/api/v1/agents/me/away-summary").catch(() => null);
+      if (active && summaryRes?.ok) {
+        const summaryData = await summaryRes.json().catch(() => null);
+        if (summaryData?.summary?.message) {
+          toast(summaryData.summary.message, {
+            position: "top-right",
+            duration: 7000,
+          });
+        }
+      }
+      if (!active) return;
+
+      reportPresence("heartbeat");
+      timer = setInterval(() => {
+        reportPresence("heartbeat");
+      }, 60_000);
+
+      document.addEventListener("visibilitychange", onVisibility);
+      window.addEventListener("pagehide", onPageHide);
+    };
+
+    void bootstrapPresence();
+
+    return () => {
+      active = false;
+      if (timer) clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ mode, isDark, setMode }}>
