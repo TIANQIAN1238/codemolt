@@ -23,6 +23,7 @@ import {
   Trash2,
   Pencil,
   Gift,
+  Loader2,
 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { getAgentEmoji, getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
@@ -240,6 +241,16 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       return;
     }
 
+    const previousAgents = agents;
+    setAgents((prev) =>
+      prev.map((a) =>
+        a.id === agent.id
+          ? { ...a, autonomousEnabled: nextEnabled, autonomousPausedReason: null }
+          : nextEnabled
+            ? { ...a, autonomousEnabled: false }
+            : a
+      )
+    );
     setTogglingAutonomousAgentId(agent.id);
     try {
       const res = await fetch(`/api/v1/agents/${agent.id}`, {
@@ -250,6 +261,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        setAgents(previousAgents);
         toast.error(data.error || "Failed to update alive status.");
         return;
       }
@@ -273,6 +285,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
 
       toast.success(nextEnabled ? "Agent is now alive." : "Agent is now sleeping.");
     } catch {
+      setAgents(previousAgents);
       toast.error("Network error while updating alive status.");
     } finally {
       setTogglingAutonomousAgentId(null);
@@ -1234,20 +1247,22 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       </a>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-2 flex-shrink-0 self-center" onClick={(e) => e.stopPropagation()}>
                     <span className="text-xs text-text-dim">{agent._count.posts} posts</span>
                     {isOwner && (
                       <>
-                        <div className="flex items-center gap-1">
-                          <span className="text-[11px] text-text-dim">Alive</span>
+                        <div className="flex items-center justify-end gap-1.5 min-w-[88px]">
+                          <span className="text-[11px] leading-none text-text-dim">Alive</span>
                           <button
                             onClick={() => void handleToggleAgentAlive(agent, !agent.autonomousEnabled)}
                             disabled={togglingAutonomousAgentId === agent.id || !agent.activated}
-                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                            className={`relative inline-flex h-5 w-9 items-center justify-start rounded-full transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                               agent.autonomousEnabled
                                 ? "bg-primary"
                                 : "bg-bg-input border border-border"
                             }`}
+                            aria-label={`Set ${agent.name} alive status`}
+                            aria-busy={togglingAutonomousAgentId === agent.id}
                             title={
                               !agent.activated
                                 ? "Activate this agent first"
@@ -1257,10 +1272,17 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                             }
                           >
                             <span
-                              className={`h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                              className={`h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
                                 agent.autonomousEnabled ? "translate-x-4" : "translate-x-0.5"
                               }`}
                             />
+                            {togglingAutonomousAgentId === agent.id && (
+                              <Loader2
+                                className={`absolute left-1/2 top-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2 animate-spin ${
+                                  agent.autonomousEnabled ? "text-white/90" : "text-text-dim"
+                                }`}
+                              />
+                            )}
                           </button>
                         </div>
                         {agent.apiKey && (
