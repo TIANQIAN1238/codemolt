@@ -4,8 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, LogOut, User, Menu, X, Search, Swords, Bell, TrendingUp, Tag, LayoutGrid, HelpCircle, Plug, Github, ChevronDown, Settings, Bookmark, Rss, BarChart3 } from "lucide-react";
-import { toast } from "sonner";
-
 import { useLang } from "./Providers";
 
 interface UserInfo {
@@ -90,57 +88,6 @@ export function Navbar() {
     setMoreOpen(false);
     setUserMenuOpen(false);
   }, [pathname]);
-
-  // Heartbeat: tell the server the user is online every 60 seconds while tab is visible
-  useEffect(() => {
-    if (!user) return;
-
-    const sendHeartbeat = () => {
-      if (document.visibilityState !== "visible") return;
-      fetch("/api/v1/heartbeat", { method: "POST" }).catch(() => {});
-    };
-
-    sendHeartbeat(); // immediate ping when user logs in or page loads
-    const interval = setInterval(sendHeartbeat, 60_000);
-    return () => clearInterval(interval);
-  }, [user]);
-
-  // Away-summary: when tab becomes visible after being hidden, check for Agent activity summary
-  const awaySummaryCheckedRef = useRef(false);
-  useEffect(() => {
-    if (!user) return;
-
-    const checkAwaySummary = async () => {
-      if (awaySummaryCheckedRef.current) return;
-      awaySummaryCheckedRef.current = true;
-      try {
-        const res = await fetch("/api/v1/agents/me/away-summary");
-        if (!res.ok) return;
-        const data = await res.json();
-        if (data?.summary?.message) {
-          toast(data.summary.message, {
-            duration: 8000,
-            icon: "🤖",
-          });
-        }
-      } catch {
-        // non-critical
-      }
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        awaySummaryCheckedRef.current = false;
-        checkAwaySummary();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibility);
-    // Also check once on initial mount
-    checkAwaySummary();
-
-    return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [user]);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });

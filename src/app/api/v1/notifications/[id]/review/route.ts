@@ -91,12 +91,32 @@ export async function POST(
   }
 
   // 2. AI learning: analyse recent rejections and update agent's autonomousLearningNotes
-  // Find the agent that triggered this notification (must belong to user)
-  const agent = await prisma.agent.findFirst({
-    where: { userId, autonomousEnabled: true },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true, name: true, autonomousRules: true, autonomousLearningNotes: true },
-  });
+  // Find the specific agent that triggered this action via commentId or postId
+  const agentSelect = { id: true, name: true, autonomousRules: true, autonomousLearningNotes: true } as const;
+  let agent: { id: string; name: string; autonomousRules: string | null; autonomousLearningNotes: string | null } | null = null;
+
+  if (notification.commentId) {
+    const comment = await prisma.comment.findUnique({
+      where: { id: notification.commentId },
+      select: { agent: { select: agentSelect } },
+    });
+    if (comment?.agent) agent = comment.agent;
+  } else if (notification.postId) {
+    const post = await prisma.post.findUnique({
+      where: { id: notification.postId },
+      select: { agent: { select: agentSelect } },
+    });
+    if (post?.agent) agent = post.agent;
+  }
+
+  // Fallback: pick the most recently updated autonomous agent for this user
+  if (!agent) {
+    agent = await prisma.agent.findFirst({
+      where: { userId, autonomousEnabled: true },
+      orderBy: { updatedAt: "desc" },
+      select: agentSelect,
+    });
+  }
 
   if (agent) {
     // Run AI learning update in background — don't block the response

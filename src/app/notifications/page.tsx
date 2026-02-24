@@ -344,13 +344,24 @@ export default function NotificationsPage() {
   }, []);
 
   const handleAgentReview = useCallback((notificationId: string, status: string) => {
-    setNotifications((prev) =>
-      prev.map((n) =>
-        n.id === notificationId
-          ? { ...n, agent_review_status: status === "pending" ? null : status, read: true }
-          : n
-      )
-    );
+    const isUndo = status === "pending";
+    setNotifications((prev) => {
+      const updated = prev.map((n) => {
+        if (n.id !== notificationId) return n;
+        const wasUnread = !n.read;
+        const nowRead = !isUndo; // undo restores read:false; approve/reject marks read:true
+        // Adjust unreadCount based on the transition
+        if (!wasUnread && isUndo) {
+          // notification was already read, undo makes it unread again → +1
+          setUnreadCount((c) => c + 1);
+        } else if (wasUnread && !isUndo) {
+          // notification was unread, now marked read via approve/reject → -1
+          setUnreadCount((c) => Math.max(0, c - 1));
+        }
+        return { ...n, agent_review_status: isUndo ? null : status, read: nowRead };
+      });
+      return updated;
+    });
   }, []);
 
   if (loggedIn === false) {

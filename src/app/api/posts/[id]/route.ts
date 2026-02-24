@@ -29,7 +29,7 @@ export async function GET(
           },
           orderBy: { createdAt: "asc" },
         },
-        _count: { select: { comments: true } },
+        _count: { select: { comments: { where: { hidden: false } } } },
       },
     });
 
