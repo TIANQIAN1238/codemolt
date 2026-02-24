@@ -111,6 +111,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [followListLoading, setFollowListLoading] = useState(false);
   // Delete agent
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
+  const [togglingAutonomousAgentId, setTogglingAutonomousAgentId] = useState<string | null>(null);
 
   // Edit profile
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -230,6 +231,52 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       }
     } catch { /* ignore */ }
     finally { setDeletingAgentId(null); }
+  };
+
+  const handleToggleAgentAlive = async (agent: AgentData, nextEnabled: boolean) => {
+    if (togglingAutonomousAgentId) return;
+    if (nextEnabled && !agent.activated) {
+      toast.error("Activate this agent first.");
+      return;
+    }
+
+    setTogglingAutonomousAgentId(agent.id);
+    try {
+      const res = await fetch(`/api/v1/agents/${agent.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ autonomousEnabled: nextEnabled }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        toast.error(data.error || "Failed to update alive status.");
+        return;
+      }
+
+      setAgents((prev) =>
+        prev.map((a) =>
+          a.id === agent.id
+            ? {
+                ...a,
+                autonomousEnabled: data.agent.autonomousEnabled,
+                autonomousRunEveryMinutes: data.agent.autonomousRunEveryMinutes,
+                autonomousDailyTokenLimit: data.agent.autonomousDailyTokenLimit,
+                autonomousDailyTokensUsed: data.agent.autonomousDailyTokensUsed,
+                autonomousPausedReason: data.agent.autonomousPausedReason,
+              }
+            : data.agent.autonomousEnabled
+              ? { ...a, autonomousEnabled: false }
+              : a
+        )
+      );
+
+      toast.success(nextEnabled ? "Agent is now alive." : "Agent is now sleeping.");
+    } catch {
+      toast.error("Network error while updating alive status.");
+    } finally {
+      setTogglingAutonomousAgentId(null);
+    }
   };
 
   const handleCreateAgent = async (e: React.FormEvent) => {
@@ -1158,15 +1205,19 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                         {getSourceLabel(agent.sourceType)}
                       </span>
                       {agent.activated ? (
-                        <span className="text-xs text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">Active</span>
+                        <span className="text-xs text-accent-green bg-accent-green/10 px-1.5 py-0.5 rounded">Activated</span>
                       ) : (
                         <span className="text-xs text-accent-red bg-accent-red/10 px-1.5 py-0.5 rounded">Not activated</span>
                       )}
-                      {agent.autonomousEnabled && (
-                        <span className="text-xs text-primary bg-primary/10 px-1.5 py-0.5 rounded">
-                          Autonomous ON
-                        </span>
-                      )}
+                      <span
+                        className={`text-xs px-1.5 py-0.5 rounded ${
+                          agent.autonomousEnabled
+                            ? "text-primary bg-primary/10"
+                            : "text-text-dim bg-bg-input"
+                        }`}
+                      >
+                        {agent.autonomousEnabled ? "Alive" : "Sleeping"}
+                      </span>
                     </div>
                     {agent.description && (
                       <p className="text-xs text-text-muted mt-0.5 truncate">{agent.description}</p>
@@ -1187,6 +1238,31 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                     <span className="text-xs text-text-dim">{agent._count.posts} posts</span>
                     {isOwner && (
                       <>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[11px] text-text-dim">Alive</span>
+                          <button
+                            onClick={() => void handleToggleAgentAlive(agent, !agent.autonomousEnabled)}
+                            disabled={togglingAutonomousAgentId === agent.id || !agent.activated}
+                            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                              agent.autonomousEnabled
+                                ? "bg-primary"
+                                : "bg-bg-input border border-border"
+                            }`}
+                            title={
+                              !agent.activated
+                                ? "Activate this agent first"
+                                : agent.autonomousEnabled
+                                  ? "Set to sleeping"
+                                  : "Set to alive"
+                            }
+                          >
+                            <span
+                              className={`h-3.5 w-3.5 rounded-full bg-white transition-transform ${
+                                agent.autonomousEnabled ? "translate-x-4" : "translate-x-0.5"
+                              }`}
+                            />
+                          </button>
+                        </div>
                         {agent.apiKey && (
                           <button
                             onClick={() => {
