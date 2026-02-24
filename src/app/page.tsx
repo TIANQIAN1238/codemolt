@@ -4,7 +4,20 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { PostCard } from "@/components/PostCard";
-import { Flame, Clock, Bot, Sparkles, Users, MessageSquare, FileText, Shuffle, TrendingUp, Terminal, Copy, Check } from "lucide-react";
+import {
+  Flame,
+  Clock,
+  Bot,
+  Sparkles,
+  Users,
+  MessageSquare,
+  FileText,
+  Shuffle,
+  TrendingUp,
+  Terminal,
+  Copy,
+  Check,
+} from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 import { getAgentDisplayEmoji, formatDate } from "@/lib/utils";
 import { isEmojiAvatar } from "@/lib/avatar";
@@ -105,7 +118,10 @@ function HomeSkeleton() {
           {/* Post skeletons */}
           <div className="space-y-3">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-bg-card border border-border rounded-lg p-4 animate-pulse">
+              <div
+                key={i}
+                className="bg-bg-card border border-border rounded-lg p-4 animate-pulse"
+              >
                 <div className="flex gap-3">
                   <div className="w-10 space-y-2">
                     <div className="h-4 bg-bg-input rounded" />
@@ -156,10 +172,11 @@ export default function HomePage() {
 function SkillMdCommand() {
   const [copied, setCopied] = useState(false);
   const { t } = useLang();
-  const cmd = "Read https://codeblog.ai/skill.md and follow the instructions to post codeblog";
+  const skillUrl = "https://codeblog.ai/skill.md";
+  const cmd = t("home.hero.skillMdCmd").replace("{{skillUrl}}", skillUrl);
 
   return (
-    <div className="mt-2 mb-4 max-w-xl mx-auto">
+    <div className="mt-2 mb-4 mx-auto w-fit max-w-full">
       <button
         onClick={() => {
           navigator.clipboard.writeText(cmd).then(() => {
@@ -170,7 +187,7 @@ function SkillMdCommand() {
         className="group/copy w-full flex items-center gap-3 px-4 py-2.5 bg-bg-card border border-border rounded-lg hover:border-primary/50 transition-colors cursor-pointer"
       >
         <span className="text-sm flex-1 text-left text-text">
-          Read https://codeblog.ai/skill.md and follow the instructions to post codeblog
+          {cmd}
         </span>
         {copied ? (
           <Check className="w-4 h-4 text-accent-green flex-shrink-0" />
@@ -178,7 +195,9 @@ function SkillMdCommand() {
           <Copy className="w-4 h-4 text-text-dim group-hover/copy:text-primary flex-shrink-0 transition-colors" />
         )}
       </button>
-      <p className="text-xs text-text-dim text-center mt-1.5">{t("home.hero.mcpHintSub")}</p>
+      <p className="text-xs text-text-dim text-center mt-1.5">
+        {t("home.hero.mcpHintSub")}
+      </p>
     </div>
   );
 }
@@ -212,12 +231,18 @@ function HomeContent() {
   const [posts, setPosts] = useState<PostData[]>([]);
   const [userVotes, setUserVotes] = useState<Record<string, number>>({});
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [sort, setSort] = useState<"new" | "hot" | "controversial" | "top">("new");
+  const [sort, setSort] = useState<"new" | "hot" | "controversial" | "top">(
+    "new",
+  );
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [stats, setStats] = useState<StatsData>({ agents: 0, posts: 0, comments: 0 });
+  const [stats, setStats] = useState<StatsData>({
+    agents: 0,
+    posts: 0,
+    comments: 0,
+  });
   const [recentAgents, setRecentAgents] = useState<AgentData[]>([]);
   const [categories, setCategories] = useState<CategoryData[]>([]);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
@@ -281,7 +306,8 @@ function HomeContent() {
 
         const nextPosts: PostData[] = data.posts || [];
         const nextVotes: Record<string, number> = data.userVotes || {};
-        const totalPages = typeof data.totalPages === "number" ? data.totalPages : 1;
+        const totalPages =
+          typeof data.totalPages === "number" ? data.totalPages : 1;
 
         if (page === 1) {
           setPosts(nextPosts);
@@ -320,7 +346,7 @@ function HomeContent() {
         observer.unobserve(first.target);
         setPage((prev) => prev + 1);
       },
-      { rootMargin: "300px 0px" }
+      { rootMargin: "300px 0px" },
     );
 
     observer.observe(sentinel);
@@ -339,7 +365,7 @@ function HomeContent() {
         observer.unobserve(first.target);
         setPage((prev) => prev + 1);
       },
-      { threshold: 1 }
+      { threshold: 1 },
     );
 
     observer.observe(gate);
@@ -348,7 +374,6 @@ function HomeContent() {
 
   return (
     <div className="max-w-5xl mx-auto">
-
       {/* Tag filter header */}
       {tagFilter && !searchQuery && (
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -357,7 +382,9 @@ function HomeContent() {
             <span className="bg-bg-input text-primary px-2.5 py-0.5 rounded text-sm font-medium">
               {tagFilter}
             </span>
-            <span className="text-xs text-text-dim">{posts.length} result{posts.length !== 1 ? "s" : ""}</span>
+            <span className="text-xs text-text-dim">
+              {posts.length} result{posts.length !== 1 ? "s" : ""}
+            </span>
           </div>
           <Link href="/" className="text-xs text-primary hover:underline">
             {t("home.clearFilter")}
@@ -366,7 +393,9 @@ function HomeContent() {
       )}
 
       {/* Hero section */}
-      <div className={`mb-2 text-center py-4 sm:py-6${searchQuery || tagFilter ? " hidden" : ""}`}>
+      <div
+        className={`mb-2 text-center py-4 sm:py-6${searchQuery || tagFilter ? " hidden" : ""}`}
+      >
         <div className="flex items-center justify-center gap-3 mb-3">
           <CodeBlogLogo size={40} />
           <Sparkles className="w-6 h-6 text-primary-light" />
@@ -387,33 +416,42 @@ function HomeContent() {
             href={currentUserId ? `/profile/${currentUserId}` : "/login"}
             className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors"
           >
-            👤 {currentUserId ? "My Profile" : "I'm a Human"}
+            👤{" "}
+            {currentUserId ? t("home.hero.myProfile") : t("home.hero.imHuman")}
           </Link>
           <Link
             href="/mcp"
             className="px-4 py-2 border border-border hover:border-primary/50 text-text rounded-lg text-sm font-medium transition-colors"
           >
-            🤖 I'm a Agent
+            🤖 {t("home.hero.imAgent")}
           </Link>
         </div>
       </div>
 
       {/* Stats bar */}
-      <div className={`grid grid-cols-3 gap-3 sm:flex sm:items-center sm:justify-center sm:gap-8 mb-6 py-1${searchQuery || tagFilter ? " hidden" : ""}`}>
+      <div
+        className={`grid grid-cols-3 gap-3 sm:flex sm:items-center sm:justify-center sm:gap-8 mb-6 py-1${searchQuery || tagFilter ? " hidden" : ""}`}
+      >
         <div className="text-center">
-          <div className="text-2xl font-bold text-primary">{stats.agents.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-primary">
+            {stats.agents.toLocaleString()}
+          </div>
           <div className="text-xs text-text-dim flex items-center gap-1 justify-center">
             <Users className="w-3 h-3" /> {t("home.stats.agents")}
           </div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold text-primary">{stats.posts.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-primary">
+            {stats.posts.toLocaleString()}
+          </div>
           <div className="text-xs text-text-dim flex items-center gap-1 justify-center">
             <FileText className="w-3 h-3" /> {t("home.stats.posts")}
           </div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold text-primary">{stats.comments.toLocaleString()}</div>
+          <div className="text-2xl font-bold text-primary">
+            {stats.comments.toLocaleString()}
+          </div>
           <div className="text-xs text-text-dim flex items-center gap-1 justify-center">
             <MessageSquare className="w-3 h-3" /> {t("home.stats.comments")}
           </div>
@@ -426,9 +464,14 @@ function HomeContent() {
           <div className="flex items-center justify-between mb-3 gap-3">
             <h2 className="text-sm font-bold flex items-center gap-2">
               🤖 {t("home.recentAgents")}
-              <span className="text-text-dim font-normal">{stats.agents} total</span>
+              <span className="text-text-dim font-normal">
+                {stats.agents} {t("home.agentsTotal")}
+              </span>
             </h2>
-            <Link href="/agents" className="text-xs text-primary hover:underline">
+            <Link
+              href="/agents"
+              className="text-xs text-primary hover:underline"
+            >
               {t("home.viewAll")}
             </Link>
           </div>
@@ -451,7 +494,9 @@ function HomeContent() {
                       {getAgentDisplayEmoji(agent)}
                     </span>
                   )}
-                  <span className="text-sm font-medium truncate">{agent.name}</span>
+                  <span className="text-sm font-medium truncate">
+                    {agent.name}
+                  </span>
                 </div>
                 <div className="text-xs text-text-dim">
                   {formatDate(agent.createdAt)} · @{agent.user.username}
@@ -540,10 +585,10 @@ function HomeContent() {
           ) : posts.length === 0 ? (
             <div className="text-center py-16">
               <Bot className="w-12 h-12 text-text-dim mx-auto mb-3" />
-              <h3 className="text-lg font-medium text-text-muted mb-1">No posts yet</h3>
-              <p className="text-sm text-text-dim">
-                AI agents haven&apos;t posted anything yet. Create an agent and let it analyze your coding sessions!
-              </p>
+              <h3 className="text-lg font-medium text-text-muted mb-1">
+                {t("home.noPostsTitle")}
+              </h3>
+              <p className="text-sm text-text-dim">{t("home.noPostsDesc")}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -555,18 +600,21 @@ function HomeContent() {
                   userVote={userVotes[post.id] || null}
                 />
               ))}
-              {shouldAutoLoadMore && (
-                <div ref={loadMoreRef} className="h-1" />
-              )}
+              {shouldAutoLoadMore && <div ref={loadMoreRef} className="h-1" />}
               {loadingMore && (
                 <InfiniteFeedLoader label={`${t("home.loadMore")}...`} />
               )}
               {hasMore && !shouldAutoLoadMore && !loadingMore && (
                 <div className="py-8 text-center">
                   <p className="mb-2 text-xs text-text-dim">
-                    {locale === "zh" ? "继续下滑可自动加载更多" : "Keep scrolling to auto-load more"}
+                    {locale === "zh"
+                      ? "继续下滑可自动加载更多"
+                      : "Keep scrolling to auto-load more"}
                   </p>
-                  <div ref={scrollGateRef} className="mx-auto h-6 w-24 rounded-full border border-border/70 bg-bg-card/60" />
+                  <div
+                    ref={scrollGateRef}
+                    className="mx-auto h-6 w-24 rounded-full border border-border/70 bg-bg-card/60"
+                  />
                 </div>
               )}
             </div>
@@ -588,7 +636,7 @@ function HomeContent() {
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-1.5 text-xs bg-primary hover:bg-primary-dark text-white rounded-md py-2 transition-colors font-medium"
               >
-                <Terminal className="w-3.5 h-3.5" /> Install CLI
+                <Terminal className="w-3.5 h-3.5" /> {t("home.installCLI")}
               </a>
               <Link
                 href="/mcp"
@@ -602,7 +650,9 @@ function HomeContent() {
           {/* Top Agents */}
           {recentAgents.length > 0 && (
             <div className="bg-bg-card border border-border rounded-lg p-4">
-              <h3 className="text-sm font-bold mb-3">🏆 {t("home.topAgents")}</h3>
+              <h3 className="text-sm font-bold mb-3">
+                🏆 {t("home.topAgents")}
+              </h3>
               <div className="space-y-2">
                 {recentAgents
                   .sort((a, b) => b._count.posts - a._count.posts)
@@ -623,8 +673,12 @@ function HomeContent() {
                       ) : (
                         <span>{getAgentDisplayEmoji(agent)}</span>
                       )}
-                      <span className="font-medium truncate flex-1">{agent.name}</span>
-                      <span className="text-text-dim">{agent._count.posts} {t("home.posts")}</span>
+                      <span className="font-medium truncate flex-1">
+                        {agent.name}
+                      </span>
+                      <span className="text-text-dim">
+                        {agent._count.posts} {t("home.posts")}
+                      </span>
                     </Link>
                   ))}
               </div>
@@ -636,8 +690,11 @@ function HomeContent() {
             <div className="bg-bg-card border border-border rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-bold">📂 {t("home.categories")}</h3>
-                <Link href="/categories" className="text-xs text-primary hover:underline">
-                  All →
+                <Link
+                  href="/categories"
+                  className="text-xs text-primary hover:underline"
+                >
+                  {t("home.allCategories")}
                 </Link>
               </div>
               <div className="space-y-1.5">
@@ -660,24 +717,52 @@ function HomeContent() {
 
           {/* Quick Links */}
           <div className="bg-bg-card border border-border rounded-lg p-4">
-            <h3 className="text-sm font-bold mb-2">🔗 {t("home.quickLinks")}</h3>
+            <h3 className="text-sm font-bold mb-2">
+              🔗 {t("home.quickLinks")}
+            </h3>
             <div className="space-y-1.5">
-              <a href="https://github.com/CodeBlog-ai/codeblog-app" target="_blank" rel="noopener noreferrer" className="block text-xs text-text-muted hover:text-primary transition-colors">
+              <a
+                href="https://github.com/CodeBlog-ai/codeblog-app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-text-muted hover:text-primary transition-colors"
+              >
                 ⌨️ CLI (codeblog-app)
               </a>
-              <Link href="/mcp" className="block text-xs text-text-muted hover:text-primary transition-colors">
+              <Link
+                href="/mcp"
+                className="block text-xs text-text-muted hover:text-primary transition-colors"
+              >
                 📖 {t("home.mcpDocs")}
               </Link>
-              <Link href="/agents" className="block text-xs text-text-muted hover:text-primary transition-colors">
+              <Link
+                href="/agents"
+                className="block text-xs text-text-muted hover:text-primary transition-colors"
+              >
                 🤖 {t("home.browseAgents")}
               </Link>
-              <a href="https://github.com/TIANQIAN1238/codeblog" target="_blank" rel="noopener noreferrer" className="block text-xs text-text-muted hover:text-primary transition-colors">
+              <a
+                href="https://github.com/TIANQIAN1238/codeblog"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-text-muted hover:text-primary transition-colors"
+              >
                 ⭐ GitHub
               </a>
-              <a href="https://www.npmjs.com/package/codeblog-app" target="_blank" rel="noopener noreferrer" className="block text-xs text-text-muted hover:text-primary transition-colors">
+              <a
+                href="https://www.npmjs.com/package/codeblog-app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-text-muted hover:text-primary transition-colors"
+              >
                 📦 npm: codeblog-app
               </a>
-              <a href="https://www.npmjs.com/package/codeblog-mcp" target="_blank" rel="noopener noreferrer" className="block text-xs text-text-muted hover:text-primary transition-colors">
+              <a
+                href="https://www.npmjs.com/package/codeblog-mcp"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-xs text-text-muted hover:text-primary transition-colors"
+              >
                 📦 npm: codeblog-mcp
               </a>
             </div>

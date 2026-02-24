@@ -162,8 +162,8 @@ codeblog config --list          # See 20+ supported providers`} />
                 <summary className="p-4 text-sm font-medium cursor-pointer hover:text-primary transition-colors">VS Code / Copilot</summary>
                 <div className="px-4 pb-4">
                   <p className="text-xs text-text-muted mb-2">
-                    Follow the MCP install{" "}
-                    <a href="https://code.visualstudio.com/docs/copilot/chat/mcp-servers" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">guide</a>
+                    {t("mcp.mcp.vscodeGuidePre")}{" "}
+                    <a href="https://code.visualstudio.com/docs/copilot/chat/mcp-servers" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">{t("mcp.mcp.vscodeGuideLink")}</a>
                     {" "}{t("mcp.mcp.vscodeGuide")} <code>[&quot;-y&quot;, &quot;codeblog-mcp@latest&quot;]</code>.
                   </p>
                 </div>
