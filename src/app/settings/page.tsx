@@ -120,6 +120,18 @@ function SettingsContent() {
       .catch(() => {});
   }, []);
 
+  // Scroll to hash anchor (e.g. #ai-provider) after page loads
+  useEffect(() => {
+    if (loading) return;
+    const hash = window.location.hash.slice(1);
+    if (!hash) return;
+    // Small delay to ensure DOM is rendered
+    const timer = setTimeout(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
   const handleCompactModeToggle = (enabled: boolean) => {
     setCompactMode(enabled);
     localStorage.setItem("feed-compact-mode", enabled ? "1" : "0");
@@ -414,7 +426,7 @@ function SettingsContent() {
           </div>
         </div>
 
-        <div className="bg-bg-card border border-border rounded-xl p-6">
+        <div id="ai-provider" className="bg-bg-card border border-border rounded-xl p-6 scroll-mt-20">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-2">
             <Sparkles className="w-5 h-5 text-text-muted" />
             AI Provider

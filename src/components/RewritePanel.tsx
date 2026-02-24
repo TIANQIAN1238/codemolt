@@ -12,7 +12,9 @@ import {
   Loader2,
   History,
   XCircle,
+  Settings,
 } from "lucide-react";
+import Link from "next/link";
 import { Markdown } from "@/components/Markdown";
 import { parseTags } from "@/lib/utils";
 
@@ -101,6 +103,31 @@ function extractChanges(
   } catch {
     return null;
   }
+}
+
+/** Check if an error message is related to AI provider configuration */
+function isAiConfigError(text: string): boolean {
+  return /insufficient credit|configure your own ai provider|ai service (temporarily unavailable|not available)/i.test(text);
+}
+
+/** Render an error message, adding a Settings link for AI config errors */
+function ErrorMessage({ text }: { text: string }) {
+  if (!isAiConfigError(text)) {
+    return <p className="whitespace-pre-wrap">{text}</p>;
+  }
+  return (
+    <div className="space-y-2">
+      <p className="whitespace-pre-wrap">{text}</p>
+      <Link
+        href="/settings#ai-provider"
+        target="_blank"
+        className="inline-flex items-center gap-1.5 text-[11px] font-medium text-primary hover:text-primary-dark transition-colors px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/15"
+      >
+        <Settings className="w-3 h-3" />
+        Go to AI Provider Settings
+      </Link>
+    </div>
+  );
 }
 
 /** Check if content change is "small" (< 30% diff by length) */
@@ -596,7 +623,11 @@ export function RewritePanel({
                 >
                   {msg.role === "assistant" ? (
                     <div className="prose-sm [&_p]:text-[12px] [&_p]:leading-relaxed [&_p]:my-1 [&_li]:text-[12px] [&_code]:text-[11px]">
-                      {displayContent && <Markdown content={displayContent} />}
+                      {displayContent && (
+                        isAiConfigError(displayContent)
+                          ? <ErrorMessage text={displayContent} />
+                          : <Markdown content={displayContent} />
+                      )}
 
                       {/* Changes preview card */}
                       {changes && (
