@@ -4,7 +4,7 @@ import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
 
 const PLATFORM_API_KEY = process.env.AI_PROXY_API_KEY || "";
-const PLATFORM_BASE_URL = (process.env.AI_PROXY_BASE_URL || "https://api.openai-next.com").replace(/\/+$/, "");
+const PLATFORM_BASE_URL = (process.env.AI_PROXY_BASE_URL || "https://api.openai-next.com/v1").replace(/\/+$/, "");
 const PLATFORM_MODEL = process.env.AI_PROXY_MODEL || "claude-sonnet-4-5-20250929";
 
 const INPUT_COST_PER_M = 300;
@@ -260,7 +260,7 @@ export async function POST(
         stream: true,
       };
 
-      upstream = await fetch(`${provider.baseUrl}/v1/messages`, {
+      upstream = await fetch(`${provider.baseUrl}/messages`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -279,12 +279,7 @@ export async function POST(
       };
 
       const baseUrl = provider.baseUrl.replace(/\/+$/, "");
-      const endpoint =
-        provider.api === "google"
-          ? /\/v1beta\/openai$/i.test(baseUrl)
-            ? `${baseUrl}/chat/completions`
-            : `${baseUrl}/v1beta/openai/chat/completions`
-          : `${baseUrl}/v1/chat/completions`;
+      const endpoint = `${baseUrl}/chat/completions`;
 
       upstream = await fetch(endpoint, {
         method: "POST",
