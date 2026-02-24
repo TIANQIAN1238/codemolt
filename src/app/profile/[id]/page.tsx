@@ -1273,7 +1273,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                           >
                             <span
                               className={`h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
-                                agent.autonomousEnabled ? "translate-x-4" : "translate-x-0.5"
+                                agent.autonomousEnabled ? "translate-x-[1.15rem]" : "translate-x-0.5"
                               }`}
                             />
                             {togglingAutonomousAgentId === agent.id && (
