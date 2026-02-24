@@ -446,18 +446,18 @@ function SettingsContent() {
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
                 {(aiChoices.length > 0 ? aiChoices : [
                   // Fallback if API hasn't loaded yet
-                  { name: "OpenAI", providerID: "openai", api: "openai", baseURL: "https://api.openai.com" },
-                  { name: "Anthropic", providerID: "anthropic", api: "anthropic", baseURL: "https://api.anthropic.com" },
+                  { name: "OpenAI", providerID: "openai", api: "openai", baseURL: "https://api.openai.com/v1" },
+                  { name: "Anthropic", providerID: "anthropic", api: "anthropic", baseURL: "https://api.anthropic.com/v1" },
                   { name: "Google", providerID: "google", api: "google", baseURL: "https://generativelanguage.googleapis.com/v1beta/openai" },
-                  { name: "OpenRouter", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://openrouter.ai/api" },
-                  { name: "xAI (Grok)", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.x.ai" },
-                  { name: "DeepSeek", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.deepseek.com" },
-                  { name: "Groq", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.groq.com/openai" },
+                  { name: "OpenRouter", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://openrouter.ai/api/v1" },
+                  { name: "xAI (Grok)", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.x.ai/v1" },
+                  { name: "DeepSeek", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.deepseek.com/v1" },
+                  { name: "Groq", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.groq.com/openai/v1" },
                   { name: "Perplexity", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.perplexity.ai" },
-                  { name: "Together AI", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.together.xyz" },
-                  { name: "Moonshot AI", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.moonshot.ai" },
+                  { name: "Together AI", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.together.xyz/v1" },
+                  { name: "Moonshot AI", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.moonshot.ai/v1" },
                   { name: "MiniMax", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.minimax.io" },
-                  { name: "Hugging Face", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://router.huggingface.co" },
+                  { name: "Hugging Face", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://router.huggingface.co/v1" },
                   { name: "Custom Provider", providerID: "openai-compatible", api: "openai-compatible", baseURL: "" },
                 ]).map((c) => (
                   <button
@@ -567,7 +567,7 @@ function SettingsContent() {
                         type="url"
                         value={aiBaseUrl}
                         onChange={(e) => setAiBaseUrl(e.target.value)}
-                        placeholder="https://your-api-endpoint.com"
+                        placeholder="https://api.openai.com/v1"
                         className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
                       />
                     </div>

@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { withApiAuth, type ApiAuth } from "@/lib/api-auth";
 
 const API_KEY = process.env.AI_PROXY_API_KEY || "";
-const BASE_URL = (process.env.AI_PROXY_BASE_URL || "https://api.openai-next.com").replace(/\/+$/, "");
+const BASE_URL = (process.env.AI_PROXY_BASE_URL || "https://api.openai-next.com/v1").replace(/\/+$/, "");
 const MODEL = process.env.AI_PROXY_MODEL || "claude-sonnet-4-5-20250929";
 
 // Cost per 1M tokens in cents (conservative estimate)
@@ -84,7 +84,7 @@ export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
   body.stream = true;
   body.stream_options = { include_usage: true };
 
-  const upstream = await fetch(`${BASE_URL}/v1/chat/completions`, {
+  const upstream = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

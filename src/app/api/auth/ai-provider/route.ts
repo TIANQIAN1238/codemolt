@@ -12,24 +12,24 @@ interface ProviderChoice {
 }
 
 const PROVIDER_CHOICES: ProviderChoice[] = [
-  { name: "OpenAI", providerID: "openai", api: "openai", baseURL: "https://api.openai.com" },
-  { name: "Anthropic", providerID: "anthropic", api: "anthropic", baseURL: "https://api.anthropic.com" },
+  { name: "OpenAI", providerID: "openai", api: "openai", baseURL: "https://api.openai.com/v1" },
+  { name: "Anthropic", providerID: "anthropic", api: "anthropic", baseURL: "https://api.anthropic.com/v1" },
   { name: "Google", providerID: "google", api: "google", baseURL: "https://generativelanguage.googleapis.com/v1beta/openai" },
-  { name: "OpenRouter", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://openrouter.ai/api" },
-  { name: "xAI (Grok)", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.x.ai" },
-  { name: "DeepSeek", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.deepseek.com" },
-  { name: "Groq", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.groq.com/openai" },
+  { name: "OpenRouter", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://openrouter.ai/api/v1" },
+  { name: "xAI (Grok)", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.x.ai/v1" },
+  { name: "DeepSeek", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.deepseek.com/v1" },
+  { name: "Groq", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.groq.com/openai/v1" },
   { name: "Perplexity", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.perplexity.ai" },
-  { name: "Together AI", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.together.xyz" },
-  { name: "Moonshot AI", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.moonshot.ai" },
+  { name: "Together AI", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.together.xyz/v1" },
+  { name: "Moonshot AI", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.moonshot.ai/v1" },
   { name: "MiniMax", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://api.minimax.io" },
-  { name: "Hugging Face", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://router.huggingface.co" },
+  { name: "Hugging Face", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://router.huggingface.co/v1" },
   { name: "Qianfan", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://qianfan.baidubce.com" },
   { name: "Vercel AI Gateway", providerID: "openai-compatible", api: "openai-compatible", baseURL: "https://ai-gateway.vercel.sh" },
-  { name: "vLLM", providerID: "openai-compatible", api: "openai-compatible", baseURL: "http://127.0.0.1:8000" },
-  { name: "LiteLLM", providerID: "openai-compatible", api: "openai-compatible", baseURL: "http://localhost:4000" },
+  { name: "vLLM", providerID: "openai-compatible", api: "openai-compatible", baseURL: "http://127.0.0.1:8000/v1" },
+  { name: "LiteLLM", providerID: "openai-compatible", api: "openai-compatible", baseURL: "http://localhost:4000/v1" },
   { name: "Xiaomi", providerID: "anthropic", api: "anthropic", baseURL: "https://api.xiaomimimo.com/anthropic" },
-  { name: "Synthetic", providerID: "anthropic", api: "anthropic", baseURL: "https://api.synthetic.new" },
+  { name: "Synthetic", providerID: "anthropic", api: "anthropic", baseURL: "https://api.synthetic.new/v1" },
   { name: "Cloudflare AI Gateway", providerID: "anthropic", api: "anthropic", baseURL: "" },
   { name: "Custom Provider", providerID: "openai-compatible", api: "openai-compatible", baseURL: "" },
 ];
@@ -41,8 +41,8 @@ function compatProfileForApi(api: ModelApi): string {
 }
 
 const PROVIDER_ID_DEFAULT_BASE_URL: Record<"openai" | "anthropic" | "google", string> = {
-  openai: "https://api.openai.com",
-  anthropic: "https://api.anthropic.com",
+  openai: "https://api.openai.com/v1",
+  anthropic: "https://api.anthropic.com/v1",
   google: "https://generativelanguage.googleapis.com/v1beta/openai",
 };
 
