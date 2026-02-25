@@ -31,6 +31,12 @@ model User {
   lastWebHeartbeatAt DateTime?
   lastWebOfflineAt   DateTime?
   lastAgentToastAt   DateTime?
+  profileTechStack   String[]  @default([])
+  profileInterests   String[]  @default([])
+  profileCurrentProjects String?
+  profileWritingStyle String?
+  profileGithubUrl   String?
+  profileLastSyncedAt DateTime?
 
   agents        Agent[]
   comments      Comment[]
@@ -90,6 +96,17 @@ model Agent {
   autonomousPausedReason    String?
   autonomousLastError       String?
   autonomousLearningNotes   String?   // AI-generated summary of user feedback patterns for prompt injection
+  personaPreset             String    @default("elys-balanced")
+  personaWarmth             Int       @default(60)
+  personaHumor              Int       @default(25)
+  personaDirectness         Int       @default(70)
+  personaDepth              Int       @default(65)
+  personaChallenge          Int       @default(55)
+  personaMode               String    @default("shadow") // "shadow" | "live"
+  personaConfidence         Float     @default(0.5)
+  personaVersion            Int       @default(1)
+  personaLastLearnAt        DateTime?
+  personaLastPromotedAt     DateTime?
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
@@ -101,6 +118,11 @@ model Agent {
   dailyReports   DailyReport[]
   aiPostReviews  AiPostReview[]
   activityEvents AgentActivityEvent[]
+  memoryRules    AgentMemoryRule[]
+  systemMemoryLogs AgentSystemMemoryLog[]
+  personaSignals AgentPersonaSignal[]
+  personaSnapshots AgentPersonaSnapshot[]
+  notifications  Notification[]
 
   @@index([userId])
   @@index([apiKey])
@@ -285,14 +307,23 @@ model Notification {
   postId     String?
   commentId  String?
   fromUserId String?
+  agentId    String?
+  agentEventKind String? // "content" | "system"
+  agentStyleConfidence Float?
+  agentPersonaMode     String?
 
   // For agent_event notifications: user review of Agent's action
   // null = pending review, "approved" = approved, "rejected" = rejected
   agentReviewStatus String? // null | "approved" | "rejected"
   agentReviewNote   String? // optional user note when rejecting
 
+  agent Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  systemMemoryLogs AgentSystemMemoryLog[]
+  personaSignals AgentPersonaSignal[]
+
   @@index([userId, read])
   @@index([createdAt])
+  @@index([agentId, createdAt])
 }
 
 model Follow {
@@ -437,4 +468,83 @@ model AgentActivityEvent {
   @@index([agentId, createdAt])
   @@index([userId, createdAt])
   @@index([type, createdAt])
+}
+
+model AgentMemoryRule {
+  id            String   @id @default(cuid())
+  polarity      String   // "approved" | "rejected"
+  category      String   // "topic" | "tone" | "format" | "behavior"
+  text          String
+  key           String
+  weight        Int      @default(1)
+  evidenceCount Int      @default(1)
+  source        String   // "approve_review" | "reject_review" | "cycle_summary" | "manual"
+  lastEvidenceAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  agentId String
+  agent   Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, polarity, category, key])
+  @@index([agentId, polarity, weight])
+  @@index([agentId, updatedAt])
+}
+
+model AgentSystemMemoryLog {
+  id             String   @id @default(cuid())
+  reviewAction   String   // "approved" | "rejected" | "undo"
+  message        String?
+  note           String?
+  createdAt      DateTime @default(now())
+
+  agentId        String
+  agent          Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  notificationId String?
+  notification   Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, createdAt])
+  @@index([notificationId])
+}
+
+model AgentPersonaSignal {
+  id             String   @id @default(cuid())
+  signalType     String   // "review_approve" | "review_reject" | "review_undo" | "quick_feedback" | "manual_adjust" | "takeover"
+  direction      Int      // -1 | 0 | 1
+  dimensions     String?  // JSON array string, e.g. ["directness","depth"]
+  note           String?
+  weight         Int      @default(1)
+  source         String   // "review" | "notification_quick_feedback" | "settings" | "loop_takeover"
+  createdAt      DateTime @default(now())
+
+  agentId        String
+  agent          Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  notificationId String?
+  notification   Notification? @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, createdAt])
+  @@index([signalType, createdAt])
+  @@index([notificationId])
+}
+
+model AgentPersonaSnapshot {
+  id          String   @id @default(cuid())
+  version     Int
+  preset      String
+  warmth      Int
+  humor       Int
+  directness  Int
+  depth       Int
+  challenge   Int
+  confidence  Float
+  source      String   // "manual" | "auto_promote" | "auto_rollback"
+  createdAt   DateTime @default(now())
+
+  agentId     String
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, version])
+  @@index([agentId, createdAt])
 }

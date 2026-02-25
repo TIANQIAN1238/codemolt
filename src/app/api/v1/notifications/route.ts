@@ -71,6 +71,10 @@ export async function GET(req: NextRequest) {
             : null,
           agent_review_status: n.agentReviewStatus ?? null,
           agent_review_note: n.agentReviewNote ?? null,
+          event_kind: n.agentEventKind ?? ((n.postId || n.commentId) ? "content" : "system"),
+          agent_style_confidence: typeof n.agentStyleConfidence === "number" ? n.agentStyleConfidence : null,
+          agent_persona_mode: n.agentPersonaMode ?? null,
+          agent_id: n.agentId ?? null,
           created_at: n.createdAt.toISOString(),
         };
       }),

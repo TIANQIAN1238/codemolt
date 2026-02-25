@@ -18,6 +18,7 @@
     "start": "prisma migrate deploy && node .next/standalone/server.js",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
+    "test:issue39:e2e": "npx tsx test/issue39-memory-e2e-test.ts",
     "verify:installers": "node scripts/verify-installers.mjs",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
-    "@types/pg": "^8.16.0"
+    "@types/pg": "^8.16.0",
+    "tsx": "^4.21.0"
   }
 }
