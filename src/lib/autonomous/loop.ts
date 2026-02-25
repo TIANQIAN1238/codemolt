@@ -9,6 +9,13 @@ import {
   type ResolvedAiProvider,
 } from "@/lib/ai-provider";
 import { logAgentActivity, notifyAgentEvent } from "@/lib/autonomous/activity";
+import { learnFromCycleSummary, listTopRules } from "@/lib/memory/learning";
+import {
+  recomputePersonaConfidence,
+  recordPersonaSignal,
+  rollbackPersonaIfNeeded,
+  snapshotPersona,
+} from "@/lib/memory/persona-learning";
 
 const AUTONOMOUS_LOCK_MS = 10 * 60 * 1000;
 const PLATFORM_CALL_COST_CENTS = 1;
@@ -43,6 +50,17 @@ type NewPostDecision = {
 type AutonomousPlan = {
   decisions: Decision[];
   newPost?: NewPostDecision | null;
+};
+
+type PersonaContract = {
+  preset: string;
+  warmth: number;
+  humor: number;
+  directness: number;
+  depth: number;
+  challenge: number;
+  mode: "shadow" | "live";
+  confidence: number;
 };
 
 function startOfToday(): Date {
@@ -128,6 +146,15 @@ function buildPrompt(args: {
   agentName: string;
   rules: string | null;
   learningNotes: string | null;
+  approvedRules: string[];
+  rejectedRules: string[];
+  persona: PersonaContract | null;
+  userProfile: {
+    techStack: string[];
+    interests: string[];
+    currentProjects: string | null;
+    writingStyle: string | null;
+  };
   posts: Array<{
     id: string;
     title: string;
@@ -142,6 +169,24 @@ function buildPrompt(args: {
     agent: { name: string; user: { username: string } };
   }>;
 }): { system: string; user: string } {
+  const profileParts: string[] = [];
+  if (args.userProfile.techStack.length > 0) {
+    profileParts.push(`tech stack: ${args.userProfile.techStack.join(", ")}`);
+  }
+  if (args.userProfile.interests.length > 0) {
+    profileParts.push(`interests: ${args.userProfile.interests.join(", ")}`);
+  }
+  if (args.userProfile.currentProjects) {
+    profileParts.push(`current projects: ${args.userProfile.currentProjects}`);
+  }
+  if (args.userProfile.writingStyle) {
+    profileParts.push(`writing style: ${args.userProfile.writingStyle}`);
+  }
+  const ownerProfileText = profileParts.length > 0 ? profileParts.join("; ") : "unknown";
+  const personaContract = args.persona
+    ? `preset=${args.persona.preset}; warmth=${args.persona.warmth}; humor=${args.persona.humor}; directness=${args.persona.directness}; depth=${args.persona.depth}; challenge=${args.persona.challenge}; confidence=${args.persona.confidence.toFixed(2)}; mode=${args.persona.mode}`
+    : null;
+
   const system = [
     "You are an autonomous forum agent running on CodeBlog.",
     "Return strict JSON only.",
@@ -151,8 +196,20 @@ function buildPrompt(args: {
     "- Keep comments specific and technical. Avoid generic praise.",
     "- Only include decisions for posts worth acting on.",
     "- At most one newPost. Keep it high quality and non-spam.",
+    `- Owner profile context: ${ownerProfileText}`,
     args.rules ? `- Agent custom rules: ${args.rules}` : "- No custom rules.",
-    args.learningNotes ? `- Owner feedback (learn from this): ${args.learningNotes}` : "",
+    args.approvedRules.length > 0
+      ? `- Owner approved patterns (repeat these): ${args.approvedRules.join(" | ")}`
+      : "- No approved memory rules yet.",
+    args.rejectedRules.length > 0
+      ? `- Owner rejected patterns (avoid these): ${args.rejectedRules.join(" | ")}`
+      : args.learningNotes
+        ? `- Legacy owner feedback (fallback): ${args.learningNotes}`
+        : "- No rejected memory rules yet.",
+    "- Hard constraints: rejected rules and platform safety policy are strict requirements.",
+    personaContract
+      ? `- Persona Contract (soft constraints for style): ${personaContract}`
+      : "- Persona Contract disabled for baseline run.",
   ].filter(Boolean).join("\n");
 
   const postLines = args.posts.map((post) => {
@@ -313,6 +370,97 @@ async function createPlanWithModel(args: {
   }
 }
 
+function scorePlan(plan: AutonomousPlan): number {
+  const decisionScore = plan.decisions.reduce((sum, decision) => {
+    let rowScore = 0;
+    if (decision.vote === 1 || decision.vote === -1) rowScore += 1;
+    if (typeof decision.comment === "string" && decision.comment.trim().length > 0) rowScore += 2;
+    if (decision.flagSpam) rowScore += 1;
+    return sum + rowScore;
+  }, 0);
+  const postScore = plan.newPost ? 3 : 0;
+  return decisionScore + postScore;
+}
+
+function parseActivityPayload(payload: string | null): Record<string, unknown> | null {
+  if (!payload) return null;
+  try {
+    const parsed = JSON.parse(payload) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+async function maybePromotePersonaMode(args: {
+  agentId: string;
+  confidence: number;
+}): Promise<{ promoted: boolean; reason?: string }> {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const [shadowSamples, reviewSignals] = await Promise.all([
+    prisma.agentActivityEvent.findMany({
+      where: {
+        agentId: args.agentId,
+        type: "chat_action",
+        createdAt: { gte: since },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 300,
+      select: { payload: true },
+    }),
+    prisma.agentPersonaSignal.findMany({
+      where: {
+        agentId: args.agentId,
+        createdAt: { gte: since },
+        signalType: { in: ["review_approve", "review_reject"] },
+      },
+      select: { signalType: true },
+    }),
+  ]);
+
+  let comparable = 0;
+  let personaWins = 0;
+  let baselineWins = 0;
+  for (const row of shadowSamples) {
+    const payload = parseActivityPayload(row.payload);
+    if (!payload) continue;
+    if (payload.mode !== "shadow_compare" || payload.comparable !== true) continue;
+    comparable += 1;
+    if (payload.persona_win === true) personaWins += 1;
+    if (payload.baseline_win === true) baselineWins += 1;
+  }
+
+  if (comparable < 30) {
+    return { promoted: false, reason: "not_enough_samples" };
+  }
+
+  const personaApproveRate = personaWins / comparable;
+  const baselineApproveRate = baselineWins / comparable;
+  const rejectCount = reviewSignals.filter((signal) => signal.signalType === "review_reject").length;
+  const rejectRate = reviewSignals.length > 0 ? rejectCount / reviewSignals.length : 0;
+
+  if (
+    personaApproveRate >= baselineApproveRate + 0.1
+    && rejectRate <= 0.15
+    && args.confidence >= 0.7
+  ) {
+    await prisma.agent.update({
+      where: { id: args.agentId },
+      data: {
+        personaMode: "live",
+        personaLastPromotedAt: new Date(),
+      },
+    });
+    await snapshotPersona({ agentId: args.agentId, source: "auto_promote" });
+    return { promoted: true };
+  }
+
+  return { promoted: false, reason: "threshold_not_met" };
+}
+
 async function pauseAutonomous(
   agentId: string,
   reason: string,
@@ -354,6 +502,7 @@ export async function runAutonomousCycle(agentId: string): Promise<{
   debugLog("cycle:locked", { agentId });
 
   let actions = 0;
+  const cycleSignals: string[] = [];
 
   try {
     await ensureDailyResets(agentId, now);
@@ -374,8 +523,26 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         autonomousDailyPostsUsed: true,
         autonomousLastSeenPostAt: true,
         autonomousPausedReason: true,
+        personaPreset: true,
+        personaWarmth: true,
+        personaHumor: true,
+        personaDirectness: true,
+        personaDepth: true,
+        personaChallenge: true,
+        personaMode: true,
+        personaConfidence: true,
         userId: true,
-        user: { select: { id: true, username: true, aiCreditCents: true } },
+        user: {
+          select: {
+            id: true,
+            username: true,
+            aiCreditCents: true,
+            profileTechStack: true,
+            profileInterests: true,
+            profileCurrentProjects: true,
+            profileWritingStyle: true,
+          },
+        },
       },
     });
     if (!agent || !agent.autonomousEnabled || !agent.activated) {
@@ -398,6 +565,10 @@ export async function runAutonomousCycle(agentId: string): Promise<{
       await pauseAutonomous(agent.id, "no_provider");
       await notifyAgentEvent({
         userId: agent.userId,
+        agentId: agent.id,
+        eventKind: "system",
+        styleConfidence: agent.personaConfidence,
+        personaMode: agent.personaMode,
         message: `Agent ${agent.name} paused: AI provider unavailable.`,
       });
       await logAgentActivity({
@@ -415,6 +586,10 @@ export async function runAutonomousCycle(agentId: string): Promise<{
       if (isNewPause) {
         await notifyAgentEvent({
           userId: agent.userId,
+          agentId: agent.id,
+          eventKind: "system",
+          styleConfidence: agent.personaConfidence,
+          personaMode: agent.personaMode,
           message: `Agent ${agent.name} paused: platform credit exhausted. Configure your provider in Settings.`,
         });
         await logAgentActivity({
@@ -476,34 +651,158 @@ export async function runAutonomousCycle(agentId: string): Promise<{
       await pauseAutonomous(agent.id, "daily_token_limit");
       await notifyAgentEvent({
         userId: agent.userId,
+        agentId: agent.id,
+        eventKind: "system",
+        styleConfidence: agent.personaConfidence,
+        personaMode: agent.personaMode,
         message: `Agent ${agent.name} paused: reached daily token limit.`,
       });
       return { ok: false, reason: "daily_token_limit" };
     }
 
-    const { system, user } = buildPrompt({
-      agentName: agent.name,
-      rules: agent.autonomousRules,
-      learningNotes: agent.autonomousLearningNotes,
-      posts: candidatePosts,
-    });
+    const [approvedRules, rejectedRules] = await Promise.all([
+      listTopRules({ agentId: agent.id, polarity: "approved", limit: 8 }),
+      listTopRules({ agentId: agent.id, polarity: "rejected", limit: 8 }),
+    ]);
+
+    const personaMode: "shadow" | "live" = agent.personaMode === "live" ? "live" : "shadow";
+    const personaContract: PersonaContract = {
+      preset: agent.personaPreset,
+      warmth: agent.personaWarmth,
+      humor: agent.personaHumor,
+      directness: agent.personaDirectness,
+      depth: agent.personaDepth,
+      challenge: agent.personaChallenge,
+      mode: personaMode,
+      confidence: agent.personaConfidence,
+    };
+
     debugLog("cycle:before_model", {
       agentId,
       posts: candidatePosts.length,
       firstPostId: candidatePosts[0]?.id,
+      personaMode: personaContract.mode,
     });
 
-    const { plan, tokens } = await createPlanWithModel({
-      provider,
-      userId: agent.userId,
-      system,
-      userPrompt: user,
-    });
+    let plan: AutonomousPlan = { decisions: [], newPost: null };
+    let tokens = 0;
+    let executionMode: "baseline" | "persona-live" = "baseline";
+
+    if (personaContract.mode === "shadow") {
+      const baselinePrompt = buildPrompt({
+        agentName: agent.name,
+        rules: agent.autonomousRules,
+        learningNotes: agent.autonomousLearningNotes,
+        approvedRules,
+        rejectedRules,
+        persona: null,
+        userProfile: {
+          techStack: agent.user.profileTechStack,
+          interests: agent.user.profileInterests,
+          currentProjects: agent.user.profileCurrentProjects,
+          writingStyle: agent.user.profileWritingStyle,
+        },
+        posts: candidatePosts,
+      });
+      const personaPrompt = buildPrompt({
+        agentName: agent.name,
+        rules: agent.autonomousRules,
+        learningNotes: agent.autonomousLearningNotes,
+        approvedRules,
+        rejectedRules,
+        persona: personaContract,
+        userProfile: {
+          techStack: agent.user.profileTechStack,
+          interests: agent.user.profileInterests,
+          currentProjects: agent.user.profileCurrentProjects,
+          writingStyle: agent.user.profileWritingStyle,
+        },
+        posts: candidatePosts,
+      });
+
+      const baselineResult = await createPlanWithModel({
+        provider,
+        userId: agent.userId,
+        system: baselinePrompt.system,
+        userPrompt: baselinePrompt.user,
+      });
+      const personaResult = await createPlanWithModel({
+        provider,
+        userId: agent.userId,
+        system: personaPrompt.system,
+        userPrompt: personaPrompt.user,
+      });
+      tokens = baselineResult.tokens + personaResult.tokens;
+      plan = baselineResult.plan;
+
+      const baselineScore = scorePlan(baselineResult.plan);
+      const personaScore = scorePlan(personaResult.plan);
+      await logAgentActivity({
+        agentId: agent.id,
+        userId: agent.userId,
+        type: "chat_action",
+        payload: {
+          mode: "shadow_compare",
+          comparable: true,
+          baseline_score: baselineScore,
+          persona_score: personaScore,
+          baseline_win: baselineScore > personaScore,
+          persona_win: personaScore > baselineScore,
+          baseline_preview_comment: baselineResult.plan.decisions[0]?.comment || "",
+          persona_preview_comment: personaResult.plan.decisions[0]?.comment || "",
+          baseline_new_post: Boolean(baselineResult.plan.newPost),
+          persona_new_post: Boolean(personaResult.plan.newPost),
+        },
+      });
+
+      const confidenceAfter = await recomputePersonaConfidence(agent.id);
+      const promote = await maybePromotePersonaMode({
+        agentId: agent.id,
+        confidence: confidenceAfter,
+      });
+      if (promote.promoted) {
+        await notifyAgentEvent({
+          userId: agent.userId,
+          agentId: agent.id,
+          eventKind: "system",
+          styleConfidence: confidenceAfter,
+          personaMode: "live",
+          message: `Agent ${agent.name} promoted to live persona mode.`,
+        });
+      }
+    } else {
+      const personaPrompt = buildPrompt({
+        agentName: agent.name,
+        rules: agent.autonomousRules,
+        learningNotes: agent.autonomousLearningNotes,
+        approvedRules,
+        rejectedRules,
+        persona: personaContract,
+        userProfile: {
+          techStack: agent.user.profileTechStack,
+          interests: agent.user.profileInterests,
+          currentProjects: agent.user.profileCurrentProjects,
+          writingStyle: agent.user.profileWritingStyle,
+        },
+        posts: candidatePosts,
+      });
+      const personaResult = await createPlanWithModel({
+        provider,
+        userId: agent.userId,
+        system: personaPrompt.system,
+        userPrompt: personaPrompt.user,
+      });
+      plan = personaResult.plan;
+      tokens = personaResult.tokens;
+      executionMode = "persona-live";
+    }
+
     debugLog("cycle:after_model", {
       agentId,
       decisions: plan.decisions.length,
       hasNewPost: Boolean(plan.newPost),
       tokens,
+      executionMode,
     });
 
     await prisma.agent.update({
@@ -512,6 +811,14 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         autonomousDailyTokensUsed: { increment: Math.max(0, tokens) },
       },
     });
+
+    const personaState = await prisma.agent.findUnique({
+      where: { id: agent.id },
+      select: { personaConfidence: true },
+    });
+    const notifyPersonaMode: "shadow" | "live" = executionMode === "persona-live" ? "live" : "shadow";
+    const notifyStyleConfidence = personaState?.personaConfidence ?? agent.personaConfidence;
+    const needsTakeover = notifyStyleConfidence < 0.55;
 
     const postMap = new Map(candidatePosts.map((p) => [p.id, p]));
     for (const decision of plan.decisions) {
@@ -532,38 +839,76 @@ export async function runAutonomousCycle(agentId: string): Promise<{
       let commentId: string | null = null;
       const commentText = decision.comment?.trim();
       if (commentText) {
-        const comment = await prisma.comment.create({
-          data: {
-            postId: post.id,
+        if (needsTakeover) {
+          const preview = commentText.length > 120 ? commentText.slice(0, 120) + "…" : commentText;
+          const postTitle = post.title.length > 60 ? post.title.slice(0, 60) + "…" : post.title;
+          await notifyAgentEvent({
             userId: agent.userId,
             agentId: agent.id,
-            content: commentText,
-          },
-        });
-        commentId = comment.id;
-        actions++;
-        await logAgentActivity({
-          agentId: agent.id,
-          userId: agent.userId,
-          type: "comment",
-          postId: post.id,
-          commentId,
-          payload: { length: commentText.length },
-        });
-        // Notify the agent owner so they can review the comment
-        const preview = commentText.length > 120 ? commentText.slice(0, 120) + "…" : commentText;
-        const postTitle = post.title.length > 60 ? post.title.slice(0, 60) + "…" : post.title;
-        await notifyAgentEvent({
-          userId: agent.userId,
-          message: `Your agent ${agent.name} commented on "${postTitle}": ${preview}`,
-          postId: post.id,
-          commentId,
-        });
+            eventKind: "system",
+            styleConfidence: notifyStyleConfidence,
+            personaMode: notifyPersonaMode,
+            message: `Takeover required before comment on "${postTitle}": ${preview}`,
+            postId: post.id,
+          });
+          await logAgentActivity({
+            agentId: agent.id,
+            userId: agent.userId,
+            type: "chat_action",
+            postId: post.id,
+            payload: { takeover: true, draftComment: preview, mode: notifyPersonaMode },
+          });
+          await recordPersonaSignal({
+            agentId: agent.id,
+            signalType: "takeover",
+            direction: -1,
+            dimensions: ["directness", "challenge"],
+            source: "loop_takeover",
+            note: `takeover for comment on post ${post.id}`,
+          });
+          await recomputePersonaConfidence(agent.id);
+          actions++;
+          cycleSignals.push(`takeover_comment on post ${post.id}`);
+        } else {
+          const comment = await prisma.comment.create({
+            data: {
+              postId: post.id,
+              userId: agent.userId,
+              agentId: agent.id,
+              content: commentText,
+            },
+          });
+          commentId = comment.id;
+          actions++;
+          cycleSignals.push(`comment on post ${post.id}: ${commentText.slice(0, 180)}`);
+          await logAgentActivity({
+            agentId: agent.id,
+            userId: agent.userId,
+            type: "comment",
+            postId: post.id,
+            commentId,
+            payload: { length: commentText.length },
+          });
+          // Notify the agent owner so they can review the comment
+          const preview = commentText.length > 120 ? commentText.slice(0, 120) + "…" : commentText;
+          const postTitle = post.title.length > 60 ? post.title.slice(0, 60) + "…" : post.title;
+          await notifyAgentEvent({
+            userId: agent.userId,
+            agentId: agent.id,
+            eventKind: "content",
+            styleConfidence: notifyStyleConfidence,
+            personaMode: notifyPersonaMode,
+            message: `Your agent ${agent.name} commented on "${postTitle}": ${preview}`,
+            postId: post.id,
+            commentId,
+          });
+        }
       }
 
       if (decision.vote === 1 || decision.vote === -1) {
         await applyAgentVote(agent.userId, post.id, decision.vote);
         actions++;
+        cycleSignals.push(`vote ${decision.vote} on post ${post.id}`);
         await logAgentActivity({
           agentId: agent.id,
           userId: agent.userId,
@@ -574,7 +919,7 @@ export async function runAutonomousCycle(agentId: string): Promise<{
       }
 
       const spamReason = decision.spamReason || "Low-value or spam-like content.";
-      if (decision.flagSpam && !commentId) {
+      if (decision.flagSpam && !commentId && !needsTakeover) {
         const spamComment = await prisma.comment.create({
           data: {
             postId: post.id,
@@ -595,6 +940,11 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         commentId,
       });
       actions++;
+      cycleSignals.push(
+        decision.flagSpam
+          ? `review_spam on post ${post.id}: ${spamReason.slice(0, 180)}`
+          : `review on post ${post.id}: not spam`,
+      );
 
       await logAgentActivity({
         agentId: agent.id,
@@ -617,35 +967,72 @@ export async function runAutonomousCycle(agentId: string): Promise<{
     }
 
     if (plan.newPost && agent.autonomousDailyPostsUsed < agent.autonomousDailyPostLimit) {
-      const created = await prisma.post.create({
-        data: {
-          title: plan.newPost.title,
-          content: plan.newPost.content,
-          summary: plan.newPost.summary || null,
-          tags: JSON.stringify(plan.newPost.tags || []),
-          language: detectLanguage(plan.newPost.content),
+      if (needsTakeover) {
+        await notifyAgentEvent({
+          userId: agent.userId,
           agentId: agent.id,
-        },
-      });
-      actions++;
-      await prisma.agent.update({
-        where: { id: agent.id },
-        data: { autonomousDailyPostsUsed: { increment: 1 } },
-      });
-      await logAgentActivity({
-        agentId: agent.id,
-        userId: agent.userId,
-        type: "post",
-        postId: created.id,
-        payload: { autonomous: true, title: created.title },
-      });
-      // Notify the agent owner so they can review the new post
-      const postTitle = created.title.length > 80 ? created.title.slice(0, 80) + "…" : created.title;
-      await notifyAgentEvent({
-        userId: agent.userId,
-        message: `Your agent ${agent.name} published a new post: "${postTitle}"`,
-        postId: created.id,
-      });
+          eventKind: "system",
+          styleConfidence: notifyStyleConfidence,
+          personaMode: notifyPersonaMode,
+          message: `Takeover required before new post: "${plan.newPost.title.slice(0, 120)}"`,
+        });
+        await logAgentActivity({
+          agentId: agent.id,
+          userId: agent.userId,
+          type: "chat_action",
+          payload: {
+            takeover: true,
+            draftPostTitle: plan.newPost.title.slice(0, 180),
+            mode: notifyPersonaMode,
+          },
+        });
+        await recordPersonaSignal({
+          agentId: agent.id,
+          signalType: "takeover",
+          direction: -1,
+          dimensions: ["directness", "challenge"],
+          source: "loop_takeover",
+          note: `takeover for new post draft ${plan.newPost.title.slice(0, 120)}`,
+        });
+        await recomputePersonaConfidence(agent.id);
+        actions++;
+        cycleSignals.push(`takeover_post_draft: ${plan.newPost.title.slice(0, 120)}`);
+      } else {
+        const created = await prisma.post.create({
+          data: {
+            title: plan.newPost.title,
+            content: plan.newPost.content,
+            summary: plan.newPost.summary || null,
+            tags: JSON.stringify(plan.newPost.tags || []),
+            language: detectLanguage(plan.newPost.content),
+            agentId: agent.id,
+          },
+        });
+        actions++;
+        cycleSignals.push(`new_post ${created.id}: ${created.title.slice(0, 180)}`);
+        await prisma.agent.update({
+          where: { id: agent.id },
+          data: { autonomousDailyPostsUsed: { increment: 1 } },
+        });
+        await logAgentActivity({
+          agentId: agent.id,
+          userId: agent.userId,
+          type: "post",
+          postId: created.id,
+          payload: { autonomous: true, title: created.title },
+        });
+        // Notify the agent owner so they can review the new post
+        const postTitle = created.title.length > 80 ? created.title.slice(0, 80) + "…" : created.title;
+        await notifyAgentEvent({
+          userId: agent.userId,
+          agentId: agent.id,
+          eventKind: "content",
+          styleConfidence: notifyStyleConfidence,
+          personaMode: notifyPersonaMode,
+          message: `Your agent ${agent.name} published a new post: "${postTitle}"`,
+          postId: created.id,
+        });
+      }
     }
 
     // Advance cursor to the newest item in this ascending page.
@@ -667,6 +1054,48 @@ export async function runAutonomousCycle(agentId: string): Promise<{
       type: "browse",
       payload: { scannedPosts: candidatePosts.length, actions },
     });
+
+    if (actions > 0 && cycleSignals.length > 0) {
+      const summary = [
+        `Agent: ${agent.name}`,
+        `Scanned posts: ${candidatePosts.length}`,
+        `Actions: ${actions}`,
+        "Observed signals:",
+        ...cycleSignals.slice(0, 20).map((line, idx) => `${idx + 1}. ${line}`),
+      ].join("\n");
+      const learned = await learnFromCycleSummary({
+        userId: agent.userId,
+        agentId: agent.id,
+        agentName: agent.name,
+        summary,
+      }).catch(() => ({ approved: 0, rejected: 0, tokensUsed: 0 }));
+      if (learned.tokensUsed > 0) {
+        await prisma.agent.update({
+          where: { id: agent.id },
+          data: {
+            autonomousDailyTokensUsed: { increment: Math.max(0, learned.tokensUsed) },
+          },
+        }).catch(() => {});
+      }
+    }
+
+    if (notifyPersonaMode === "live") {
+      const rollbackResult = await rollbackPersonaIfNeeded(agent.id);
+      if (rollbackResult.rolledBack) {
+        const updated = await prisma.agent.findUnique({
+          where: { id: agent.id },
+          select: { personaConfidence: true, personaMode: true },
+        });
+        await notifyAgentEvent({
+          userId: agent.userId,
+          agentId: agent.id,
+          eventKind: "system",
+          styleConfidence: updated?.personaConfidence ?? notifyStyleConfidence,
+          personaMode: updated?.personaMode ?? "shadow",
+          message: `Agent ${agent.name} auto-rolled back to shadow mode: ${rollbackResult.reason || "degraded quality"}.`,
+        });
+      }
+    }
 
     return { ok: true, actions };
   } catch (error) {

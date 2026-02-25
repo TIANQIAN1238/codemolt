@@ -17,6 +17,7 @@ import {
   Eye,
   EyeOff,
   Trash2,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useLang, useThemeMode } from "@/components/Providers";
 
@@ -29,6 +30,45 @@ interface MeUser {
   provider: string | null;
   hasPassword: boolean;
   linkedProviders?: string[];
+}
+
+interface MemoryRuleView {
+  id: string;
+  category: "topic" | "tone" | "format" | "behavior";
+  text: string;
+  weight: number;
+  evidence_count: number;
+  source: string;
+  updated_at: string;
+}
+
+interface SystemLogView {
+  id: string;
+  review_action: string;
+  message: string | null;
+  note: string | null;
+  notification_id: string | null;
+  created_at: string;
+}
+
+interface AgentMemoryView {
+  id: string;
+  name: string;
+  approved_rules: MemoryRuleView[];
+  rejected_rules: MemoryRuleView[];
+  system_logs: SystemLogView[];
+  persona?: {
+    preset: string;
+    warmth: number;
+    humor: number;
+    directness: number;
+    depth: number;
+    challenge: number;
+    mode: "shadow" | "live" | string;
+    confidence: number;
+    version: number;
+    last_promoted_at: string | null;
+  };
 }
 
 function SettingsContent() {
@@ -78,6 +118,21 @@ function SettingsContent() {
   const [aiChoices, setAiChoices] = useState<
     { name: string; providerID: string; api: string; baseURL: string }[]
   >([]);
+
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryMessage, setMemoryMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [memoryAgents, setMemoryAgents] = useState<AgentMemoryView[]>([]);
+  const [profileTechStackText, setProfileTechStackText] = useState("");
+  const [profileInterestsText, setProfileInterestsText] = useState("");
+  const [profileProjects, setProfileProjects] = useState("");
+  const [profileWritingStyle, setProfileWritingStyle] = useState("");
+  const [profileGithubUrl, setProfileGithubUrl] = useState("");
+  const [profileMemorySaving, setProfileMemorySaving] = useState(false);
+  const [personaSavingAgentId, setPersonaSavingAgentId] = useState<string | null>(null);
+  const [personaPreviewByAgent, setPersonaPreviewByAgent] = useState<Record<string, string>>({});
 
   const bindMessage = useMemo(() => {
     const linked = searchParams.get("linked");
@@ -173,6 +228,45 @@ function SettingsContent() {
       })
       .catch(() => {});
   }, []);
+
+  const parseTagsInput = (value: string): string[] =>
+    Array.from(
+      new Set(
+        value
+          .split(/[,\n]/)
+          .map((row) => row.trim())
+          .filter(Boolean)
+      )
+    ).slice(0, 20);
+
+  const loadMemoryProfile = async () => {
+    if (!user) return;
+    setMemoryLoading(true);
+    try {
+      const res = await fetch("/api/v1/users/me/profile");
+      const data = await res.json();
+      if (!res.ok) {
+        return;
+      }
+      const profile = data.profile || {};
+      setProfileTechStackText(Array.isArray(profile.tech_stack) ? profile.tech_stack.join(", ") : "");
+      setProfileInterestsText(Array.isArray(profile.interests) ? profile.interests.join(", ") : "");
+      setProfileProjects(typeof profile.current_projects === "string" ? profile.current_projects : "");
+      setProfileWritingStyle(typeof profile.writing_style === "string" ? profile.writing_style : "");
+      setProfileGithubUrl(typeof profile.github_url === "string" ? profile.github_url : "");
+      setMemoryAgents(Array.isArray(data.agents) ? (data.agents as AgentMemoryView[]) : []);
+    } catch {
+      // ignore
+    } finally {
+      setMemoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    void loadMemoryProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   // Scroll to hash anchor (e.g. #ai-provider) after page loads
   useEffect(() => {
@@ -306,6 +400,205 @@ function SettingsContent() {
       setPasswordMessage({ type: "error", text: "Network error" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveMemoryProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileMemorySaving(true);
+    setMemoryMessage(null);
+    try {
+      const res = await fetch("/api/v1/users/me/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tech_stack: parseTagsInput(profileTechStackText),
+          interests: parseTagsInput(profileInterestsText),
+          current_projects: profileProjects,
+          writing_style: profileWritingStyle,
+          github_url: profileGithubUrl,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMemoryMessage({ type: "error", text: data.error || "Failed to save profile memory" });
+        return;
+      }
+      setMemoryMessage({ type: "success", text: "Profile memory saved" });
+      await loadMemoryProfile();
+    } catch {
+      setMemoryMessage({ type: "error", text: "Network error" });
+    } finally {
+      setProfileMemorySaving(false);
+    }
+  };
+
+  const handleSyncFromPosts = async () => {
+    setMemoryMessage(null);
+    setMemoryLoading(true);
+    try {
+      const res = await fetch("/api/v1/users/me/profile/sync", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setMemoryMessage({ type: "error", text: data.error || "Sync failed" });
+        return;
+      }
+      setMemoryMessage({
+        type: "success",
+        text: data.updated_fields?.length
+          ? `Synced fields: ${data.updated_fields.join(", ")}`
+          : "Sync complete (no empty fields updated)",
+      });
+      await loadMemoryProfile();
+    } catch {
+      setMemoryMessage({ type: "error", text: "Network error" });
+    } finally {
+      setMemoryLoading(false);
+    }
+  };
+
+  const handleDeleteMemoryRule = async (agentId: string, ruleId: string) => {
+    setMemoryMessage(null);
+    try {
+      const res = await fetch(`/api/v1/agents/${agentId}/memory/rules/${ruleId}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMemoryMessage({ type: "error", text: data.error || "Failed to delete rule" });
+        return;
+      }
+      await loadMemoryProfile();
+    } catch {
+      setMemoryMessage({ type: "error", text: "Network error" });
+    }
+  };
+
+  const handleEditMemoryRule = async (agentId: string, ruleId: string, currentText: string) => {
+    const nextText = window.prompt("Edit rule text", currentText);
+    if (nextText === null) return;
+    const trimmed = nextText.trim();
+    if (!trimmed) return;
+    setMemoryMessage(null);
+    try {
+      const res = await fetch(`/api/v1/agents/${agentId}/memory/rules/${ruleId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: trimmed }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMemoryMessage({ type: "error", text: data.error || "Failed to update rule" });
+        return;
+      }
+      await loadMemoryProfile();
+    } catch {
+      setMemoryMessage({ type: "error", text: "Network error" });
+    }
+  };
+
+  const handleAddMemoryRule = async (agentId: string, polarity: "approved" | "rejected") => {
+    const text = window.prompt(`Add ${polarity} rule (category: behavior)`, "");
+    if (!text) return;
+    setMemoryMessage(null);
+    try {
+      const res = await fetch(`/api/v1/agents/${agentId}/memory`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          polarity,
+          category: "behavior",
+          text: text.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMemoryMessage({ type: "error", text: data.error || "Failed to add rule" });
+        return;
+      }
+      await loadMemoryProfile();
+    } catch {
+      setMemoryMessage({ type: "error", text: "Network error" });
+    }
+  };
+
+  const handlePersonaDraftChange = (
+    agentId: string,
+    field: "preset" | "warmth" | "humor" | "directness" | "depth" | "challenge" | "mode",
+    value: string | number,
+  ) => {
+    setMemoryAgents((prev) => prev.map((agent) => {
+      if (agent.id !== agentId || !agent.persona) return agent;
+      return {
+        ...agent,
+        persona: {
+          ...agent.persona,
+          [field]: value,
+        },
+      };
+    }));
+  };
+
+  const handleSavePersona = async (agentId: string) => {
+    const agent = memoryAgents.find((row) => row.id === agentId);
+    if (!agent?.persona) return;
+    setPersonaSavingAgentId(agentId);
+    setMemoryMessage(null);
+    try {
+      const res = await fetch(`/api/v1/agents/${agentId}/persona`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preset: agent.persona.preset,
+          warmth: agent.persona.warmth,
+          humor: agent.persona.humor,
+          directness: agent.persona.directness,
+          depth: agent.persona.depth,
+          challenge: agent.persona.challenge,
+          mode: agent.persona.mode,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMemoryMessage({ type: "error", text: data.error || "Failed to save persona style" });
+        return;
+      }
+      const persona = data.persona;
+      setMemoryAgents((prev) => prev.map((row) => row.id === agentId
+        ? { ...row, persona: persona || row.persona }
+        : row));
+      setMemoryMessage({ type: "success", text: "Digital twin style saved" });
+    } catch {
+      setMemoryMessage({ type: "error", text: "Failed to save persona style" });
+    } finally {
+      setPersonaSavingAgentId(null);
+    }
+  };
+
+  const handlePreviewPersona = async (agentId: string) => {
+    const scenario = window.prompt("Preview scenario", "A user asks how to refactor an unstable cron worker.");
+    if (!scenario || !scenario.trim()) return;
+    setPersonaSavingAgentId(agentId);
+    setMemoryMessage(null);
+    try {
+      const res = await fetch(`/api/v1/agents/${agentId}/persona/preview`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenario: scenario.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMemoryMessage({ type: "error", text: data.error || "Preview failed" });
+        return;
+      }
+      setPersonaPreviewByAgent((prev) => ({
+        ...prev,
+        [agentId]: `Baseline: ${data.baseline || ""}\n\nPersona: ${data.persona || ""}`,
+      }));
+    } catch {
+      setMemoryMessage({ type: "error", text: "Preview failed" });
+    } finally {
+      setPersonaSavingAgentId(null);
     }
   };
 
@@ -940,6 +1233,344 @@ function SettingsContent() {
               </div>
             )}
           </div>
+        </div>
+
+        <div id="my-tech-profile" className="bg-bg-card border border-border rounded-xl p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <User className="w-5 h-5 text-text-muted" />
+              My Tech Profile
+            </h2>
+            <div className="flex items-center gap-2">
+              <a
+                href="/api/auth/github?intent=link&return_to=/settings#my-tech-profile"
+                className="text-xs px-2.5 py-1 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors"
+              >
+                Sync from GitHub
+              </a>
+              <button
+                type="button"
+                onClick={handleSyncFromPosts}
+                disabled={memoryLoading}
+                className="text-xs px-2.5 py-1 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors disabled:opacity-50"
+              >
+                {memoryLoading ? "Syncing..." : "Sync from posts"}
+              </button>
+            </div>
+          </div>
+          <form onSubmit={handleSaveMemoryProfile} className="space-y-3">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Tech Stack (comma separated)</label>
+              <input
+                type="text"
+                value={profileTechStackText}
+                onChange={(e) => setProfileTechStackText(e.target.value)}
+                placeholder="TypeScript, React, PostgreSQL"
+                className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Interests (comma separated)</label>
+              <input
+                type="text"
+                value={profileInterestsText}
+                onChange={(e) => setProfileInterestsText(e.target.value)}
+                placeholder="AI tools, backend architecture"
+                className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Current Projects</label>
+              <textarea
+                value={profileProjects}
+                onChange={(e) => setProfileProjects(e.target.value)}
+                className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary min-h-[72px]"
+                maxLength={1500}
+                placeholder="What are you building now?"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Writing Style</label>
+              <textarea
+                value={profileWritingStyle}
+                onChange={(e) => setProfileWritingStyle(e.target.value)}
+                className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary min-h-[72px]"
+                maxLength={500}
+                placeholder="Concise / technical / casual..."
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">GitHub URL</label>
+              <input
+                type="url"
+                value={profileGithubUrl}
+                onChange={(e) => setProfileGithubUrl(e.target.value)}
+                placeholder="https://github.com/yourname"
+                className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={profileMemorySaving}
+              className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
+            >
+              {profileMemorySaving ? "Saving..." : "Save Tech Profile"}
+            </button>
+          </form>
+        </div>
+
+        <div id="agent-memory" className="bg-bg-card border border-border rounded-xl p-6">
+          <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+            <Sparkles className="w-5 h-5 text-text-muted" />
+            Agent Memory
+          </h2>
+          {memoryMessage && (
+            <div
+              className={`mb-3 flex items-center gap-2 text-xs ${memoryMessage.type === "success" ? "text-accent-green" : "text-accent-red"}`}
+            >
+              {memoryMessage.type === "success" ? (
+                <Check className="w-4 h-4" />
+              ) : (
+                <AlertCircle className="w-4 h-4" />
+              )}
+              {memoryMessage.text}
+            </div>
+          )}
+
+          {memoryLoading ? (
+            <p className="text-sm text-text-muted">Loading memory...</p>
+          ) : memoryAgents.length === 0 ? (
+            <p className="text-sm text-text-muted">No agents available for memory editing.</p>
+          ) : (
+            <div className="space-y-4">
+              {memoryAgents.map((agent) => (
+                <div key={agent.id} className="border border-border rounded-lg p-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h3 className="font-medium text-sm">{agent.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleAddMemoryRule(agent.id, "approved")}
+                        className="text-xs px-2 py-1 rounded-md border border-accent-green/30 text-accent-green hover:bg-accent-green/10 transition-colors"
+                      >
+                        + Approved
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddMemoryRule(agent.id, "rejected")}
+                        className="text-xs px-2 py-1 rounded-md border border-accent-red/30 text-accent-red hover:bg-accent-red/10 transition-colors"
+                      >
+                        + Rejected
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-text-muted mb-1">Approved patterns</p>
+                      <div className="space-y-1">
+                        {agent.approved_rules.length === 0 ? (
+                          <p className="text-xs text-text-dim">No approved rules yet.</p>
+                        ) : (
+                          agent.approved_rules.map((rule) => (
+                            <div key={rule.id} className="text-xs border border-border rounded-md p-2 bg-bg-input/40">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-text">{rule.text}</span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditMemoryRule(agent.id, rule.id, rule.text)}
+                                    className="px-1.5 py-0.5 rounded border border-border hover:bg-bg text-text-muted hover:text-text"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteMemoryRule(agent.id, rule.id)}
+                                    className="px-1.5 py-0.5 rounded border border-accent-red/30 text-accent-red hover:bg-accent-red/10"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-text-dim mt-1">
+                                {rule.category} · weight {rule.weight} · {rule.source}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-text-muted mb-1">Rejected patterns</p>
+                      <div className="space-y-1">
+                        {agent.rejected_rules.length === 0 ? (
+                          <p className="text-xs text-text-dim">No rejected rules yet.</p>
+                        ) : (
+                          agent.rejected_rules.map((rule) => (
+                            <div key={rule.id} className="text-xs border border-border rounded-md p-2 bg-bg-input/40">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-text">{rule.text}</span>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleEditMemoryRule(agent.id, rule.id, rule.text)}
+                                    className="px-1.5 py-0.5 rounded border border-border hover:bg-bg text-text-muted hover:text-text"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteMemoryRule(agent.id, rule.id)}
+                                    className="px-1.5 py-0.5 rounded border border-accent-red/30 text-accent-red hover:bg-accent-red/10"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-text-dim mt-1">
+                                {rule.category} · weight {rule.weight} · {rule.source}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-text-muted mb-1">System event logs</p>
+                      <div className="space-y-1">
+                        {agent.system_logs.length === 0 ? (
+                          <p className="text-xs text-text-dim">No system logs yet.</p>
+                        ) : (
+                          agent.system_logs.slice(0, 6).map((log) => (
+                            <div key={log.id} className="text-[11px] border border-border rounded-md p-2 bg-bg-input/40">
+                              <p className="text-text">
+                                [{log.review_action}] {log.message || "(no message)"}
+                              </p>
+                              {log.note ? <p className="text-text-dim mt-0.5">note: {log.note}</p> : null}
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div id="digital-twin-style" className="bg-bg-card border border-border rounded-xl p-6">
+          <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+            <SlidersHorizontal className="w-5 h-5 text-text-muted" />
+            Digital Twin Style
+          </h2>
+          {memoryLoading ? (
+            <p className="text-sm text-text-muted">Loading persona settings...</p>
+          ) : memoryAgents.length === 0 ? (
+            <p className="text-sm text-text-muted">No agents available.</p>
+          ) : (
+            <div className="space-y-4">
+              {memoryAgents.map((agent) => (
+                <div key={`persona-${agent.id}`} className="border border-border rounded-lg p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-medium">{agent.name}</h3>
+                    <span className={`text-[10px] px-2 py-0.5 rounded border ${
+                      agent.persona?.mode === "live"
+                        ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
+                        : "border-zinc-500/30 text-zinc-400 bg-zinc-500/10"
+                    }`}>
+                      {agent.persona?.mode || "shadow"}
+                    </span>
+                  </div>
+                  {!agent.persona ? (
+                    <p className="text-xs text-text-dim">Persona data unavailable.</p>
+                  ) : (
+                    <>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Preset</label>
+                          <select
+                            value={agent.persona.preset}
+                            onChange={(e) => handlePersonaDraftChange(agent.id, "preset", e.target.value)}
+                            className="w-full bg-bg-input border border-border rounded-md px-2 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
+                          >
+                            <option value="elys-balanced">elys-balanced</option>
+                            <option value="elys-sharp">elys-sharp</option>
+                            <option value="elys-playful">elys-playful</option>
+                            <option value="elys-calm">elys-calm</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-muted mb-1">Mode</label>
+                          <select
+                            value={agent.persona.mode}
+                            onChange={(e) => handlePersonaDraftChange(agent.id, "mode", e.target.value)}
+                            className="w-full bg-bg-input border border-border rounded-md px-2 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
+                          >
+                            <option value="shadow">shadow</option>
+                            <option value="live">live</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {([
+                        ["warmth", "Warmth"],
+                        ["humor", "Humor"],
+                        ["directness", "Directness"],
+                        ["depth", "Depth"],
+                        ["challenge", "Challenge"],
+                      ] as const).map(([key, label]) => (
+                        <div key={key}>
+                          <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                            <span>{label}</span>
+                            <span>{agent.persona?.[key]}</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            value={agent.persona?.[key] || 0}
+                            onChange={(e) => handlePersonaDraftChange(agent.id, key, Number(e.target.value))}
+                            className="w-full accent-primary"
+                          />
+                        </div>
+                      ))}
+
+                      <div className="text-[11px] text-text-muted">
+                        confidence: {Math.round((agent.persona.confidence || 0) * 100)}% · version {agent.persona.version}
+                      </div>
+                      {personaPreviewByAgent[agent.id] ? (
+                        <pre className="text-[11px] whitespace-pre-wrap bg-bg-input/40 border border-border rounded-md p-2 text-text-muted">
+                          {personaPreviewByAgent[agent.id]}
+                        </pre>
+                      ) : null}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleSavePersona(agent.id)}
+                          disabled={personaSavingAgentId === agent.id}
+                          className="text-xs px-2.5 py-1 rounded-md bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50"
+                        >
+                          {personaSavingAgentId === agent.id ? "Saving..." : "Save style"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePreviewPersona(agent.id)}
+                          disabled={personaSavingAgentId === agent.id}
+                          className="text-xs px-2.5 py-1 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors disabled:opacity-50"
+                        >
+                          Preview
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-bg-card border border-border rounded-xl p-6">

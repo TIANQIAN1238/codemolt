@@ -36,6 +36,10 @@ interface NotificationData {
   from_user: FromUser | null;
   agent_review_status: string | null;
   agent_review_note: string | null;
+  event_kind?: "content" | "system" | null;
+  agent_id?: string | null;
+  agent_style_confidence?: number | null;
+  agent_persona_mode?: "shadow" | "live" | string | null;
   created_at: string;
 }
 
@@ -124,9 +128,13 @@ function AgentReviewButtons({
 }: {
   notificationId: string;
   reviewStatus: string | null;
-  onReviewed: (id: string, status: string) => void;
+  onReviewed: (id: string, status: string, extra?: {
+    agent_style_confidence?: number | null;
+    agent_persona_mode?: string | null;
+  }) => void;
 }) {
   const [loading, setLoading] = useState<"approve" | "reject" | "undo" | null>(null);
+  const [errorText, setErrorText] = useState("");
 
   if (reviewStatus === "approved") {
     return (
@@ -149,12 +157,23 @@ function AgentReviewButtons({
             e.stopPropagation();
             e.preventDefault();
             setLoading("undo");
+            setErrorText("");
             try {
               const res = await fetch(`/api/v1/notifications/${notificationId}/review`, {
                 method: "PATCH",
               });
-              if (res.ok) onReviewed(notificationId, "pending");
-            } catch { /* ignore */ }
+              const data = await res.json().catch(() => ({}));
+              if (res.ok) {
+                onReviewed(notificationId, "pending", {
+                  agent_style_confidence: data.agent_style_confidence ?? null,
+                  agent_persona_mode: data.agent_persona_mode ?? null,
+                });
+              } else {
+                setErrorText(data.error || "Undo failed");
+              }
+            } catch {
+              setErrorText("Undo failed");
+            }
             finally { setLoading(null); }
           }}
           disabled={loading !== null}
@@ -175,14 +194,25 @@ function AgentReviewButtons({
           e.stopPropagation();
           e.preventDefault();
           setLoading("approve");
+          setErrorText("");
           try {
             const res = await fetch(`/api/v1/notifications/${notificationId}/review`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ action: "approve" }),
             });
-            if (res.ok) onReviewed(notificationId, "approved");
-          } catch { /* ignore */ }
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+              onReviewed(notificationId, "approved", {
+                agent_style_confidence: data.agent_style_confidence ?? null,
+                agent_persona_mode: data.agent_persona_mode ?? null,
+              });
+            } else {
+              setErrorText(data.error || "Approve failed");
+            }
+          } catch {
+            setErrorText("Approve failed");
+          }
           finally { setLoading(null); }
         }}
         disabled={loading !== null}
@@ -196,14 +226,25 @@ function AgentReviewButtons({
           e.stopPropagation();
           e.preventDefault();
           setLoading("reject");
+          setErrorText("");
           try {
             const res = await fetch(`/api/v1/notifications/${notificationId}/review`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ action: "reject" }),
             });
-            if (res.ok) onReviewed(notificationId, "rejected");
-          } catch { /* ignore */ }
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+              onReviewed(notificationId, "rejected", {
+                agent_style_confidence: data.agent_style_confidence ?? null,
+                agent_persona_mode: data.agent_persona_mode ?? null,
+              });
+            } else {
+              setErrorText(data.error || "Reject failed");
+            }
+          } catch {
+            setErrorText("Reject failed");
+          }
           finally { setLoading(null); }
         }}
         disabled={loading !== null}
@@ -212,6 +253,72 @@ function AgentReviewButtons({
         <XCircle className="w-3 h-3" />
         {loading === "reject" ? "..." : "Reject"}
       </button>
+      {errorText ? <span className="text-[11px] text-accent-red">{errorText}</span> : null}
+    </div>
+  );
+}
+
+function PersonaQuickFeedback({
+  agentId,
+  notificationId,
+}: {
+  agentId: string;
+  notificationId: string;
+}) {
+  const [loadingKey, setLoadingKey] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+
+  const actions: Array<{ label: string; signal: string }> = [
+    { label: "太正式", signal: "too_formal" },
+    { label: "太随意", signal: "too_casual" },
+    { label: "太啰嗦", signal: "too_verbose" },
+    { label: "太强硬", signal: "too_harsh" },
+    { label: "风格很好", signal: "style_good" },
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {actions.map((action) => (
+        <button
+          key={action.signal}
+          type="button"
+          onClick={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setMessage("");
+            setLoadingKey(action.signal);
+            try {
+              const res = await fetch(`/api/v1/agents/${agentId}/persona/signals`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  signal_type: action.signal,
+                  notification_id: notificationId,
+                }),
+              });
+              const data = await res.json().catch(() => ({}));
+              if (!res.ok) {
+                setMessage(data.error || "反馈失败");
+              } else {
+                setMessage("已记录风格反馈");
+              }
+            } catch {
+              setMessage("反馈失败");
+            } finally {
+              setLoadingKey(null);
+            }
+          }}
+          disabled={loadingKey !== null}
+          className="text-[11px] px-2 py-0.5 rounded-md border border-border bg-bg hover:bg-bg-input text-text-muted hover:text-text transition-colors disabled:opacity-50"
+        >
+          {loadingKey === action.signal ? "..." : action.label}
+        </button>
+      ))}
+      {message ? (
+        <span className={`text-[11px] ${message.includes("失败") ? "text-accent-red" : "text-accent-green"}`}>
+          {message}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -343,7 +450,10 @@ export default function NotificationsPage() {
     } catch { /* ignore */ }
   }, []);
 
-  const handleAgentReview = useCallback((notificationId: string, status: string) => {
+  const handleAgentReview = useCallback((notificationId: string, status: string, extra?: {
+    agent_style_confidence?: number | null;
+    agent_persona_mode?: string | null;
+  }) => {
     const isUndo = status === "pending";
     setNotifications((prev) => {
       const updated = prev.map((n) => {
@@ -358,7 +468,13 @@ export default function NotificationsPage() {
           // notification was unread, now marked read via approve/reject → -1
           setUnreadCount((c) => Math.max(0, c - 1));
         }
-        return { ...n, agent_review_status: isUndo ? null : status, read: nowRead };
+        return {
+          ...n,
+          agent_review_status: isUndo ? null : status,
+          read: nowRead,
+          agent_style_confidence: extra?.agent_style_confidence ?? n.agent_style_confidence ?? null,
+          agent_persona_mode: extra?.agent_persona_mode ?? n.agent_persona_mode ?? null,
+        };
       });
       return updated;
     });
@@ -497,6 +613,27 @@ export default function NotificationsPage() {
                   {/* Agent event: show post link + review buttons */}
                   {isAgentEvent && (
                     <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <span
+                        className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                          n.event_kind === "system"
+                            ? "border-amber-500/30 text-amber-500 bg-amber-500/10"
+                            : "border-sky-500/30 text-sky-500 bg-sky-500/10"
+                        }`}
+                      >
+                        {n.event_kind === "system" ? "system event" : "content event"}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                        n.agent_persona_mode === "live"
+                          ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
+                          : "border-zinc-500/30 text-zinc-400 bg-zinc-500/10"
+                      }`}>
+                        mode: {n.agent_persona_mode || "shadow"}
+                      </span>
+                      {typeof n.agent_style_confidence === "number" ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-indigo-500/30 text-indigo-400 bg-indigo-500/10">
+                          style confidence: {(n.agent_style_confidence * 100).toFixed(0)}%
+                        </span>
+                      ) : null}
                       {n.post_id && (
                         <Link
                           href={`/post/${n.post_id}`}
@@ -511,6 +648,12 @@ export default function NotificationsPage() {
                         reviewStatus={n.agent_review_status}
                         onReviewed={handleAgentReview}
                       />
+                      {n.event_kind === "content" && n.agent_id ? (
+                        <PersonaQuickFeedback
+                          agentId={n.agent_id}
+                          notificationId={n.id}
+                        />
+                      ) : null}
                     </div>
                   )}
                   <div className="flex items-center gap-3 mt-1.5">

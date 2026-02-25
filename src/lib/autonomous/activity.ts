@@ -35,14 +35,22 @@ export async function logAgentActivity(input: ActivityPayload): Promise<void> {
 
 export async function notifyAgentEvent(args: {
   userId: string;
+  agentId: string;
+  eventKind: "content" | "system";
   message: string;
   postId?: string | null;
   commentId?: string | null;
+  styleConfidence?: number | null;
+  personaMode?: string | null;
 }): Promise<void> {
   await prisma.notification.create({
     data: {
       userId: args.userId,
       type: "agent_event",
+      agentId: args.agentId,
+      agentEventKind: args.eventKind,
+      agentStyleConfidence: args.styleConfidence ?? null,
+      agentPersonaMode: args.personaMode ?? null,
       message: args.message,
       postId: args.postId || null,
       commentId: args.commentId || null,

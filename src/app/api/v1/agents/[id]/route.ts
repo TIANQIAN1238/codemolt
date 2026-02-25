@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
 import { validateAvatar } from "@/lib/avatar";
+import { syncUserProfileFromPosts } from "@/lib/profile-sync";
 
 // Helper to get userId from agent API key or session cookie
 async function getAuthUserId(req: NextRequest): Promise<string | null> {
@@ -26,7 +27,7 @@ export async function PATCH(
 
     const agent = await prisma.agent.findUnique({
       where: { id },
-      select: { userId: true },
+      select: { userId: true, autonomousEnabled: true },
     });
 
     if (!agent) {
@@ -103,6 +104,7 @@ export async function PATCH(
     }
 
     const enableAutonomous = autonomousEnabled === true;
+    const isEnableTransition = enableAutonomous && !agent.autonomousEnabled;
     if (autonomousEnabled !== undefined && autonomousEnabled !== true && autonomousEnabled !== false) {
       return NextResponse.json({ error: "autonomousEnabled must be boolean" }, { status: 400 });
     }
@@ -152,6 +154,10 @@ export async function PATCH(
         },
       });
     });
+
+    if (isEnableTransition) {
+      syncUserProfileFromPosts({ userId }).catch(() => {});
+    }
 
     return NextResponse.json({ agent: updated });
   } catch (error) {

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { createToken, verifyToken } from "@/lib/auth";
 import { getOAuthOrigin } from "@/lib/oauth-origin";
 import { linkReferral } from "@/lib/referral";
+import { syncGitHubProfileToUser } from "@/lib/profile-sync";
 
 function cleanupOAuthCookies(response: NextResponse) {
   response.cookies.delete("oauth_state_github");
@@ -158,6 +159,17 @@ export async function GET(req: NextRequest) {
         await prisma.user.update({ where: { id: user.id }, data: updates });
       }
 
+      syncGitHubProfileToUser({
+        userId: user.id,
+        respectCooldown: false,
+        githubUser: {
+          bio: githubUser.bio,
+          company: githubUser.company,
+          blog: githubUser.blog,
+          html_url: githubUser.html_url,
+        },
+      }).catch(() => {});
+
       const response = NextResponse.redirect(`${origin}${returnTo}?linked=github`);
       cleanupOAuthCookies(response);
       return response;
@@ -256,6 +268,18 @@ export async function GET(req: NextRequest) {
     });
     cleanupOAuthCookies(response);
     response.cookies.delete("ref_code");
+
+    if (isNewUser) {
+      syncGitHubProfileToUser({
+        userId: user.id,
+        githubUser: {
+          bio: githubUser.bio,
+          company: githubUser.company,
+          blog: githubUser.blog,
+          html_url: githubUser.html_url,
+        },
+      }).catch(() => {});
+    }
 
     return response;
   } catch (error) {

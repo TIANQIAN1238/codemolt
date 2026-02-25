@@ -1,14 +1,131 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
-import { resolveAiProviderForUser, runModelTextCompletion } from "@/lib/ai-provider";
+import { appendSystemMemoryLog, learnFromReviewFeedback } from "@/lib/memory/learning";
+import {
+  applyPersonaDelta,
+  inferPersonaDimensionsFromText,
+  recomputePersonaConfidence,
+  recordPersonaSignal,
+  rollbackPersonaIfNeeded,
+} from "@/lib/memory/persona-learning";
+
+type AgentLite = { id: string; name: string };
+type EventKind = "content" | "system";
+
+function inferEventKind(notification: {
+  agentEventKind: string | null;
+  postId: string | null;
+  commentId: string | null;
+}): EventKind {
+  if (notification.agentEventKind === "content" || notification.agentEventKind === "system") {
+    return notification.agentEventKind;
+  }
+  return notification.postId || notification.commentId ? "content" : "system";
+}
+
+async function resolveNotificationAgent(args: {
+  userId: string;
+  notification: {
+    agentId: string | null;
+    postId: string | null;
+    commentId: string | null;
+  };
+}): Promise<AgentLite | null> {
+  if (args.notification.agentId) {
+    const agent = await prisma.agent.findFirst({
+      where: { id: args.notification.agentId, userId: args.userId },
+      select: { id: true, name: true },
+    });
+    if (agent) return agent;
+  }
+
+  if (args.notification.commentId) {
+    const comment = await prisma.comment.findUnique({
+      where: { id: args.notification.commentId },
+      select: {
+        agent: {
+          select: { id: true, name: true, userId: true },
+        },
+      },
+    });
+    if (comment?.agent && comment.agent.userId === args.userId) {
+      return { id: comment.agent.id, name: comment.agent.name };
+    }
+  }
+
+  if (args.notification.postId) {
+    const post = await prisma.post.findUnique({
+      where: { id: args.notification.postId },
+      select: {
+        agent: {
+          select: { id: true, name: true, userId: true },
+        },
+      },
+    });
+    if (post?.agent && post.agent.userId === args.userId) {
+      return { id: post.agent.id, name: post.agent.name };
+    }
+  }
+
+  return null;
+}
+
+async function hideRejectedContent(args: {
+  userId: string;
+  notification: { postId: string | null; commentId: string | null };
+}): Promise<void> {
+  if (args.notification.commentId) {
+    await prisma.comment.update({
+      where: { id: args.notification.commentId },
+      data: { hidden: true },
+    }).catch(() => {});
+    return;
+  }
+
+  if (args.notification.postId) {
+    const post = await prisma.post.findUnique({
+      where: { id: args.notification.postId },
+      select: { id: true, agent: { select: { userId: true } } },
+    });
+    if (post?.agent.userId === args.userId) {
+      await prisma.post.update({
+        where: { id: post.id },
+        data: { aiHidden: true, aiHiddenAt: new Date() },
+      });
+    }
+  }
+}
+
+async function restoreHiddenContent(args: {
+  userId: string;
+  notification: { postId: string | null; commentId: string | null };
+}): Promise<void> {
+  if (args.notification.commentId) {
+    await prisma.comment.update({
+      where: { id: args.notification.commentId },
+      data: { hidden: false },
+    }).catch(() => {});
+    return;
+  }
+
+  if (args.notification.postId) {
+    const post = await prisma.post.findUnique({
+      where: { id: args.notification.postId },
+      select: { id: true, agent: { select: { userId: true } } },
+    });
+    if (post?.agent.userId === args.userId) {
+      await prisma.post.update({
+        where: { id: post.id },
+        data: { aiHidden: false, aiHiddenAt: null },
+      });
+    }
+  }
+}
 
 /**
  * POST /api/v1/notifications/[id]/review
  * Body: { action: "approve" | "reject", note?: string }
- *
- * - approve: marks the notification as approved (no side effects on content)
- * - reject: hides the associated comment/post + triggers AI learning update on agent
  */
 export async function POST(
   req: NextRequest,
@@ -28,7 +145,6 @@ export async function POST(
     return NextResponse.json({ error: "action must be 'approve' or 'reject'" }, { status: 400 });
   }
 
-  // Load notification and verify ownership
   const notification = await prisma.notification.findUnique({
     where: { id },
     select: {
@@ -38,10 +154,11 @@ export async function POST(
       userId: true,
       postId: true,
       commentId: true,
+      agentId: true,
+      agentEventKind: true,
       agentReviewStatus: true,
     },
   });
-
   if (!notification) {
     return NextResponse.json({ error: "Notification not found" }, { status: 404 });
   }
@@ -52,95 +169,163 @@ export async function POST(
     return NextResponse.json({ error: "Only agent_event notifications can be reviewed" }, { status: 400 });
   }
 
-  // Update notification review status
-  await prisma.notification.update({
-    where: { id },
-    data: {
-      agentReviewStatus: action === "approve" ? "approved" : "rejected",
-      agentReviewNote: action === "reject" && note ? note : null,
-      read: true,
+  const eventKind = inferEventKind(notification);
+  const nextReviewStatus = action === "approve" ? "approved" : "rejected";
+  if (notification.agentReviewStatus === nextReviewStatus) {
+    return NextResponse.json({
+      ok: true,
+      action: nextReviewStatus,
+      event_kind: eventKind,
+      learned_rules_count: 0,
+      system_log_recorded: false,
+      persona_delta_applied: 0,
+      agent_style_confidence: null,
+      agent_persona_mode: null,
+      idempotent: true,
+    });
+  }
+  const agent = await resolveNotificationAgent({
+    userId,
+    notification: {
+      agentId: notification.agentId,
+      postId: notification.postId,
+      commentId: notification.commentId,
     },
   });
 
-  if (action === "approve") {
-    return NextResponse.json({ ok: true, action: "approved" });
+  const updateResult = await prisma.notification.updateMany({
+    where: {
+      id,
+      OR: [
+        { agentReviewStatus: null },
+        { agentReviewStatus: { not: nextReviewStatus } },
+      ],
+    },
+    data: {
+      agentReviewStatus: nextReviewStatus,
+      agentReviewNote: action === "reject" && note ? note.slice(0, 400) : null,
+      read: true,
+    },
+  });
+  if (updateResult.count === 0) {
+    return NextResponse.json({
+      ok: true,
+      action: nextReviewStatus,
+      event_kind: eventKind,
+      learned_rules_count: 0,
+      system_log_recorded: false,
+      persona_delta_applied: 0,
+      agent_style_confidence: null,
+      agent_persona_mode: null,
+      idempotent: true,
+    });
   }
 
-  // ---- REJECT path ----
+  if (action === "reject" && eventKind === "content") {
+    await hideRejectedContent({
+      userId,
+      notification: {
+        postId: notification.postId,
+        commentId: notification.commentId,
+      },
+    });
+  }
 
-  // 1. Hide the comment or post
-  if (notification.commentId) {
-    await prisma.comment.update({
-      where: { id: notification.commentId },
-      data: { hidden: true },
-    }).catch(() => {
-      // comment may already be deleted – not a hard failure
-    });
-  } else if (notification.postId) {
-    // Hide the post if it belongs to an agent owned by this user
-    const post = await prisma.post.findUnique({
-      where: { id: notification.postId },
-      select: { agentId: true, agent: { select: { userId: true } } },
-    });
-    if (post?.agent?.userId === userId) {
-      await prisma.post.update({
-        where: { id: notification.postId },
-        data: { aiHidden: true, aiHiddenAt: new Date() },
+  let learnedRulesCount = 0;
+  let systemLogRecorded = false;
+  let personaDeltaApplied = 0;
+  let agentStyleConfidence: number | null = null;
+  let agentPersonaMode: string | null = null;
+  let personaErrorCode: string | null = null;
+
+  if (agent) {
+    if (eventKind === "content") {
+      learnedRulesCount = await learnFromReviewFeedback({
+        userId,
+        agentId: agent.id,
+        agentName: agent.name,
+        polarity: action === "approve" ? "approved" : "rejected",
+        actionMessage: notification.message,
+        note,
+      }).catch(() => 0);
+
+      const personaDirection = action === "approve" ? 1 : -1;
+      const inferredDimensions = inferPersonaDimensionsFromText(`${notification.message}\n${note}`);
+      try {
+        await recordPersonaSignal({
+          agentId: agent.id,
+          signalType: action === "approve" ? "review_approve" : "review_reject",
+          direction: personaDirection,
+          dimensions: inferredDimensions,
+          note: note || null,
+          source: "review",
+          notificationId: notification.id,
+        });
+        const deltaResult = await applyPersonaDelta({
+          agentId: agent.id,
+          direction: personaDirection,
+          dimensions: inferredDimensions,
+        });
+        personaDeltaApplied = Object.values(deltaResult.deltaMap).reduce((sum, value) => sum + Math.abs(value), 0);
+        agentStyleConfidence = await recomputePersonaConfidence(agent.id);
+        if (action === "reject") {
+          const modeState = await prisma.agent.findUnique({
+            where: { id: agent.id },
+            select: { personaMode: true },
+          });
+          if (modeState?.personaMode === "live") {
+            await rollbackPersonaIfNeeded(agent.id);
+          }
+        }
+      } catch (error) {
+        personaErrorCode = "persona_review_learning_failed";
+        console.error("persona review learning failed", {
+          notificationId: notification.id,
+          agentId: agent.id,
+          action,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      const personaState = await prisma.agent.findUnique({
+        where: { id: agent.id },
+        select: { personaMode: true, personaConfidence: true },
       });
+      if (personaState) {
+        agentPersonaMode = personaState.personaMode;
+        agentStyleConfidence = personaState.personaConfidence;
+      }
+    } else {
+      await appendSystemMemoryLog({
+        agentId: agent.id,
+        notificationId: notification.id,
+        reviewAction: action === "approve" ? "approved" : "rejected",
+        message: notification.message,
+        note: note || null,
+      }).catch(() => {});
+      systemLogRecorded = true;
     }
   }
 
-  // 2. AI learning: analyse recent rejections and update agent's autonomousLearningNotes
-  // Find the specific agent that triggered this action via commentId or postId
-  const agentSelect = { id: true, name: true, autonomousRules: true, autonomousLearningNotes: true } as const;
-  let agent: { id: string; name: string; autonomousRules: string | null; autonomousLearningNotes: string | null } | null = null;
-
-  if (notification.commentId) {
-    const comment = await prisma.comment.findUnique({
-      where: { id: notification.commentId },
-      select: { agent: { select: agentSelect } },
-    });
-    if (comment?.agent) agent = comment.agent;
-  } else if (notification.postId) {
-    const post = await prisma.post.findUnique({
-      where: { id: notification.postId },
-      select: { agent: { select: agentSelect } },
-    });
-    if (post?.agent) agent = post.agent;
-  }
-
-  // Fallback: pick the most recently updated autonomous agent for this user
-  if (!agent) {
-    agent = await prisma.agent.findFirst({
-      where: { userId, autonomousEnabled: true },
-      orderBy: { updatedAt: "desc" },
-      select: agentSelect,
-    });
-  }
-
-  if (agent) {
-    // Run AI learning update in background — don't block the response
-    updateAgentLearningNotes({
-      userId,
-      agent,
-      rejectedMessage: notification.message,
-      userNote: note,
-    }).catch(() => {
-      // Non-critical — swallow error silently
-    });
-  }
-
-  return NextResponse.json({ ok: true, action: "rejected" });
+  return NextResponse.json({
+    ok: true,
+    action: nextReviewStatus,
+    event_kind: eventKind,
+    learned_rules_count: learnedRulesCount,
+    system_log_recorded: systemLogRecorded,
+    persona_delta_applied: personaDeltaApplied,
+    agent_style_confidence: agentStyleConfidence,
+    agent_persona_mode: agentPersonaMode,
+    ...(personaErrorCode ? { persona_error_code: personaErrorCode } : {}),
+  });
 }
 
 /**
- * POST /api/v1/notifications/[id]/review (undo — PATCH semantics via action="undo")
- * Restores a previously rejected notification to pending state.
- * Also unhides the associated comment/post if it was hidden.
- * Re-using same route: action = "undo"
+ * PATCH /api/v1/notifications/[id]/review
+ * Body not required. Undo a previous rejection.
  */
 export async function PATCH(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const userId = await getCurrentUser();
@@ -155,26 +340,39 @@ export async function PATCH(
     select: {
       id: true,
       type: true,
+      message: true,
       userId: true,
       postId: true,
       commentId: true,
+      agentId: true,
+      agentEventKind: true,
       agentReviewStatus: true,
       agentReviewNote: true,
-      message: true,
     },
   });
-
   if (!notification) {
     return NextResponse.json({ error: "Notification not found" }, { status: 404 });
   }
   if (notification.userId !== userId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  if (notification.type !== "agent_event") {
+    return NextResponse.json({ error: "Only agent_event notifications can be reviewed" }, { status: 400 });
+  }
   if (notification.agentReviewStatus !== "rejected") {
     return NextResponse.json({ error: "Only rejected notifications can be undone" }, { status: 400 });
   }
 
-  // Restore notification to pending
+  const eventKind = inferEventKind(notification);
+  const agent = await resolveNotificationAgent({
+    userId,
+    notification: {
+      agentId: notification.agentId,
+      postId: notification.postId,
+      commentId: notification.commentId,
+    },
+  });
+
   await prisma.notification.update({
     where: { id },
     data: {
@@ -184,73 +382,77 @@ export async function PATCH(
     },
   });
 
-  // Restore hidden comment or post
-  if (notification.commentId) {
-    await prisma.comment.update({
-      where: { id: notification.commentId },
-      data: { hidden: false },
-    }).catch(() => {});
-  } else if (notification.postId && !notification.commentId) {
-    const post = await prisma.post.findUnique({
-      where: { id: notification.postId },
-      select: { agentId: true, agent: { select: { userId: true } } },
+  if (eventKind === "content") {
+    await restoreHiddenContent({
+      userId,
+      notification: {
+        postId: notification.postId,
+        commentId: notification.commentId,
+      },
     });
-    if (post?.agent?.userId === userId) {
-      await prisma.post.update({
-        where: { id: notification.postId },
-        data: { aiHidden: false, aiHiddenAt: null },
+  }
+
+  let systemLogRecorded = false;
+  let personaDeltaApplied = 0;
+  let agentStyleConfidence: number | null = null;
+  let agentPersonaMode: string | null = null;
+  let personaErrorCode: string | null = null;
+
+  if (eventKind === "content" && agent) {
+    try {
+      await recordPersonaSignal({
+        agentId: agent.id,
+        signalType: "review_undo",
+        direction: 0,
+        note: notification.agentReviewNote || null,
+        source: "review",
+        notificationId: notification.id,
       });
+      const deltaResult = await applyPersonaDelta({
+        agentId: agent.id,
+        direction: 0,
+        undoNotificationId: notification.id,
+      });
+      personaDeltaApplied = Object.values(deltaResult.deltaMap).reduce((sum, value) => sum + Math.abs(value), 0);
+      agentStyleConfidence = await recomputePersonaConfidence(agent.id);
+    } catch (error) {
+      personaErrorCode = "persona_undo_learning_failed";
+      console.error("persona undo learning failed", {
+        notificationId: notification.id,
+        agentId: agent.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    const personaState = await prisma.agent.findUnique({
+      where: { id: agent.id },
+      select: { personaMode: true, personaConfidence: true },
+    });
+    if (personaState) {
+      agentPersonaMode = personaState.personaMode;
+      agentStyleConfidence = personaState.personaConfidence;
     }
   }
 
-  return NextResponse.json({ ok: true, action: "undo" });
-}
-
-// ---------------------------------------------------------------------------
-// Internal: update agent learning notes using AI
-// ---------------------------------------------------------------------------
-
-async function updateAgentLearningNotes(args: {
-  userId: string;
-  agent: { id: string; name: string; autonomousRules: string | null; autonomousLearningNotes: string | null };
-  rejectedMessage: string;
-  userNote: string;
-}) {
-  const provider = await resolveAiProviderForUser(args.userId);
-  if (!provider) return;
-
-  const existing = args.agent.autonomousLearningNotes || "(none yet)";
-  const rules = args.agent.autonomousRules || "(no rules configured)";
-
-  const systemPrompt = `You are an AI assistant helping to improve an autonomous forum agent named "${args.agent.name}".
-The agent's owner has rejected one of the agent's actions. Your job is to:
-1. Understand why the owner rejected it
-2. Update a short "learning notes" paragraph (max 300 words) that will be injected into the agent's future prompts to prevent similar mistakes.
-
-Current agent rules: ${rules}
-Current learning notes: ${existing}`;
-
-  const userPrompt = `The owner just rejected this agent action:
-"${args.rejectedMessage}"
-
-Owner's reason: "${args.userNote || "No reason provided"}"
-
-Please write an updated "learning notes" paragraph that captures the feedback pattern.
-Be concise and actionable. Focus on what the agent should do differently.
-Output only the updated notes text, no extra explanation.`;
-
-  const { text } = await runModelTextCompletion({
-    provider,
-    systemPrompt,
-    userPrompt,
-    maxTokens: 400,
-    temperature: 0.3,
-  });
-
-  if (text.trim()) {
-    await prisma.agent.update({
-      where: { id: args.agent.id },
-      data: { autonomousLearningNotes: text.trim().slice(0, 1000) },
-    });
+  if (eventKind === "system" && agent) {
+    await appendSystemMemoryLog({
+      agentId: agent.id,
+      notificationId: notification.id,
+      reviewAction: "undo",
+      message: notification.message,
+      note: notification.agentReviewNote || null,
+    }).catch(() => {});
+    systemLogRecorded = true;
   }
+
+  return NextResponse.json({
+    ok: true,
+    action: "undo",
+    event_kind: eventKind,
+    system_log_recorded: systemLogRecorded,
+    persona_delta_applied: personaDeltaApplied,
+    agent_style_confidence: agentStyleConfidence,
+    agent_persona_mode: agentPersonaMode,
+    ...(personaErrorCode ? { persona_error_code: personaErrorCode } : {}),
+  });
 }
