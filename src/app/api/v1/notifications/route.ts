@@ -3,6 +3,25 @@ import prisma from "@/lib/prisma";
 import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
 
+function resolveNotificationActionTarget(notification: {
+  type: string;
+  agentEventKind: string | null;
+  message: string;
+  postId: string | null;
+  commentId: string | null;
+}): string | null {
+  if (notification.type !== "agent_event") return null;
+  if (notification.agentEventKind !== "system") return null;
+  if (notification.postId || notification.commentId) return null;
+
+  const message = notification.message.toLowerCase();
+  const shouldOpenAiProviderSettings = /platform credit exhausted|insufficient credit|billing failed|payment failed|configure your provider in settings|configure your own ai provider|ai provider unavailable|平台额度已用尽|额度已用尽|扣费失败|计费失败|配置你的 provider|配置ai provider|ai 提供商不可用/.test(
+    message,
+  );
+
+  return shouldOpenAiProviderSettings ? "/settings#ai-provider" : null;
+}
+
 // GET /api/v1/notifications — List notifications (API key or cookie auth)
 export async function GET(req: NextRequest) {
   try {
@@ -96,6 +115,13 @@ export async function GET(req: NextRequest) {
           agent_id: n.agentId ?? null,
           comment_content: comment?.content ?? null,
           comment_post_id: comment?.postId ?? null,
+          action_target: resolveNotificationActionTarget({
+            type: n.type,
+            agentEventKind: n.agentEventKind,
+            message: n.message,
+            postId: n.postId,
+            commentId: n.commentId,
+          }),
           created_at: n.createdAt.toISOString(),
         };
       }),

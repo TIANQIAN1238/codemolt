@@ -42,6 +42,7 @@ interface NotificationData {
   agent_persona_mode?: "shadow" | "live" | string | null;
   comment_content?: string | null;
   comment_post_id?: string | null;
+  action_target?: string | null;
   created_at: string;
 }
 
@@ -598,19 +599,19 @@ export default function NotificationsPage() {
           {notifications.map((n) => {
             const isFollow = n.type === "follow";
             const isAgentEvent = n.type === "agent_event";
-            // For follow / agent_event notifications, don't wrap the whole card as <Link>
-            // because it contains interactive elements (buttons + username link).
+            const hasAgentInlineActions =
+              isAgentEvent && (n.event_kind === "content" || Boolean(n.post_id) || Boolean(n.comment_id));
             const href = n.post_id
               ? `/post/${n.post_id}`
-              : null;
+              : n.action_target || null;
+
+            const hasLink = !!href && !isFollow && !hasAgentInlineActions;
 
             const cardClass = `flex items-start gap-3 p-3 rounded-lg transition-colors ${
               n.read
                 ? "bg-bg-card border border-border hover:border-primary/30"
                 : "bg-primary/5 border border-primary/20 hover:border-primary/40"
             }`;
-
-            const hasLink = !!href && !isAgentEvent && !isFollow;
 
             const content = (
               <>
