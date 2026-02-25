@@ -6,6 +6,7 @@ import { ArrowLeft, Bot, FileText, Eye, ArrowBigUp, MessageSquare, Calendar } fr
 import { PostCard } from "@/components/PostCard";
 import { getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
 import { isEmojiAvatar } from "@/lib/avatar";
+import { useLang } from "@/components/Providers";
 
 interface AgentDetail {
   id: string;
@@ -44,6 +45,9 @@ interface PostData {
 
 export default function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { locale } = useLang();
+  const isZh = locale === "zh";
+  const tr = (zh: string, en: string) => (isZh ? zh : en);
   const [agent, setAgent] = useState<AgentDetail | null>(null);
   const [posts, setPosts] = useState<PostData[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -95,10 +99,10 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
     return (
       <div className="max-w-4xl mx-auto text-center py-20">
         <Bot className="w-12 h-12 text-text-dim mx-auto mb-4" />
-        <h1 className="text-xl font-bold mb-2">Agent not found</h1>
-        <p className="text-text-muted mb-4">This agent doesn&apos;t exist or has been removed.</p>
+        <h1 className="text-xl font-bold mb-2">{tr("未找到该 Agent", "Agent not found")}</h1>
+        <p className="text-text-muted mb-4">{tr("该 Agent 不存在或已被移除。", "This agent doesn't exist or has been removed.")}</p>
         <Link href="/agents" className="text-primary hover:underline">
-          Browse all agents
+          {tr("浏览全部 Agent", "Browse all agents")}
         </Link>
       </div>
     );
@@ -115,7 +119,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
         className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to agents
+        {tr("返回 Agent 列表", "Back to agents")}
       </Link>
 
       {/* Agent header */}
@@ -140,7 +144,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
               </span>
               <span>•</span>
               <span className="flex items-center gap-1">
-                owned by
+                {tr("归属于", "owned by")}
                 <Link
                   href={`/profile/${agent.user.id}`}
                   className="text-primary hover:underline"
@@ -166,28 +170,28 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
             <div className="text-lg font-bold text-primary">{agent._count.posts}</div>
             <div className="text-xs text-text-dim flex items-center justify-center gap-1">
               <FileText className="w-3 h-3" />
-              posts
+              {tr("帖子", "posts")}
             </div>
           </div>
           <div className="text-center">
             <div className="text-lg font-bold text-primary">{totalUpvotes}</div>
             <div className="text-xs text-text-dim flex items-center justify-center gap-1">
               <ArrowBigUp className="w-3 h-3" />
-              upvotes
+              {tr("点赞", "upvotes")}
             </div>
           </div>
           <div className="text-center">
             <div className="text-lg font-bold text-primary">{totalViews}</div>
             <div className="text-xs text-text-dim flex items-center justify-center gap-1">
               <Eye className="w-3 h-3" />
-              views
+              {tr("浏览", "views")}
             </div>
           </div>
           <div className="text-center">
             <div className="text-lg font-bold text-primary">{totalComments}</div>
             <div className="text-xs text-text-dim flex items-center justify-center gap-1">
               <MessageSquare className="w-3 h-3" />
-              comments
+              {tr("评论", "comments")}
             </div>
           </div>
         </div>
@@ -196,13 +200,13 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
       {/* Posts */}
       <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
         <FileText className="w-4 h-4" />
-        Posts ({posts.length})
+        {tr("帖子", "Posts")} ({posts.length})
       </h2>
 
       {posts.length === 0 ? (
         <div className="text-center py-12 text-text-muted">
           <Bot className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p>This agent hasn&apos;t published any posts yet.</p>
+          <p>{tr("这个 Agent 还没有发布帖子。", "This agent hasn't published any posts yet.")}</p>
         </div>
       ) : (
         <div className="grid gap-3">

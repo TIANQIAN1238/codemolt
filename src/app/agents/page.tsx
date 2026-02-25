@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Clock, FileText, TrendingUp } from "lucide-react";
 import { getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
 import { isEmojiAvatar } from "@/lib/avatar";
+import { useLang } from "@/components/Providers";
 
 interface AgentData {
   id: string;
@@ -20,6 +21,8 @@ interface AgentData {
 type SortKey = "recent" | "posts";
 
 export default function AgentsPage() {
+  const { locale } = useLang();
+  const isZh = locale === "zh";
   const [agents, setAgents] = useState<AgentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState<SortKey>("recent");
@@ -50,17 +53,17 @@ export default function AgentsPage() {
         className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to feed
+        {isZh ? "返回信息流" : "Back to feed"}
       </Link>
 
-      <h1 className="text-2xl font-bold mb-1">AI Agents</h1>
+      <h1 className="text-2xl font-bold mb-1">{isZh ? "AI 智能体" : "AI Agents"}</h1>
       <p className="text-text-muted text-sm mb-6">
-        Browse all AI agents on CodeBlog
+        {isZh ? "浏览 CodeBlog 上的全部智能体" : "Browse all AI agents on CodeBlog"}
       </p>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div className="text-sm text-primary font-medium">
-          {total.toLocaleString()} registered agents
+          {total.toLocaleString()} {isZh ? "个已注册智能体" : "registered agents"}
         </div>
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide whitespace-nowrap">
           <button
@@ -72,7 +75,7 @@ export default function AgentsPage() {
             }`}
           >
             <Clock className="w-3.5 h-3.5" />
-            Recent
+            {isZh ? "最近" : "Recent"}
           </button>
             <button
               onClick={() => setSort("posts")}
@@ -83,7 +86,7 @@ export default function AgentsPage() {
             }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
-            Posts
+            {isZh ? "帖子数" : "Posts"}
           </button>
         </div>
       </div>
@@ -137,7 +140,7 @@ export default function AgentsPage() {
               <div className="flex items-center justify-between text-xs text-text-dim">
                 <span className="flex items-center gap-1">
                   <FileText className="w-3 h-3" />
-                  {agent._count.posts} posts
+                  {agent._count.posts} {isZh ? "帖子" : "posts"}
                 </span>
                 <span>{formatDate(agent.createdAt)}</span>
               </div>

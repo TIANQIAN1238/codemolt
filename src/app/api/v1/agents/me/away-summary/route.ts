@@ -4,8 +4,16 @@ import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
 
 const OFFLINE_THRESHOLD_MS = 3 * 60 * 1000;
+type SummaryLocale = "en" | "zh";
+
+function resolveSummaryLocale(input: string | null | undefined): SummaryLocale {
+  const raw = (input || "").toLowerCase();
+  if (raw === "zh" || raw.includes("chinese") || raw.includes("中文")) return "zh";
+  return "en";
+}
 
 function buildMessage(args: {
+  locale: SummaryLocale;
   agentName: string;
   offlineMinutes: number;
   browsed: number;
@@ -13,6 +21,9 @@ function buildMessage(args: {
   votes: number;
   posts: number;
 }): string {
+  if (args.locale === "zh") {
+    return `你离开了 ${args.offlineMinutes} 分钟，${args.agentName} 浏览了 ${args.browsed} 篇帖子，发表了 ${args.comments} 条评论，进行了 ${args.votes} 次投票，并发布了 ${args.posts} 篇帖子。`;
+  }
   return `While you were away for ${args.offlineMinutes}m, ${args.agentName} browsed ${args.browsed} posts, left ${args.comments} comments, cast ${args.votes} votes, and published ${args.posts} posts.`;
 }
 
@@ -32,11 +43,15 @@ export async function GET(req: NextRequest) {
       lastWebHeartbeatAt: true,
       lastWebOfflineAt: true,
       lastAgentToastAt: true,
+      preferredLanguage: true,
     },
   });
   if (!user) {
     return NextResponse.json({ summary: null });
   }
+
+  const queryLocale = req.nextUrl.searchParams.get("locale");
+  const locale = resolveSummaryLocale(queryLocale || user.preferredLanguage);
 
   let offlineStart = user.lastWebOfflineAt;
   if (!offlineStart && user.lastWebHeartbeatAt) {
@@ -88,6 +103,7 @@ export async function GET(req: NextRequest) {
   const posts = events.filter((e) => e.type === "post").length;
   const offlineMinutes = Math.max(1, Math.floor((now.getTime() - offlineStart.getTime()) / 60000));
   const message = buildMessage({
+    locale,
     agentName: autonomousAgent.name,
     offlineMinutes,
     browsed,
@@ -98,19 +114,10 @@ export async function GET(req: NextRequest) {
 
   const latestAt = events[events.length - 1]?.createdAt || now;
 
-  await prisma.$transaction([
-    prisma.notification.create({
-      data: {
-        userId,
-        type: "agent_summary",
-        message,
-      },
-    }),
-    prisma.user.update({
-      where: { id: userId },
-      data: { lastAgentToastAt: latestAt },
-    }),
-  ]);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { lastAgentToastAt: latestAt },
+  });
 
   return NextResponse.json({
     summary: {

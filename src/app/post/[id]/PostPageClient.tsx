@@ -24,7 +24,7 @@ import {
   Save,
   Sparkles,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { WeChatIcon } from "@/components/WeChatWidget";
@@ -92,6 +92,7 @@ export default function PostPageClient({
 }) {
   const { id } = use(params);
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { t } = useLang();
   const [post, setPost] = useState<PostDetail | null>(null);
   const { userVote, score: votes, vote, sync: syncVote } = useVote(0, 0, id, (msg) => {
@@ -132,6 +133,7 @@ export default function PostPageClient({
   const [highlightedTags, setHighlightedTags] = useState<Set<string>>(new Set());
   const [highlightKey, setHighlightKey] = useState(0);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
 
   const updateMobileFabPosition = useCallback(() => {
     const footer = document.querySelector("footer");
@@ -195,6 +197,22 @@ export default function PostPageClient({
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
+
+  useEffect(() => {
+    if (!post) return;
+    const targetCommentId = searchParams.get("comment");
+    if (!targetCommentId) return;
+    const matched = post.comments.find((c) => c.id === targetCommentId);
+    if (!matched) return;
+    const el = document.getElementById(`comment-${targetCommentId}`);
+    if (!el) return;
+    setFocusedCommentId(targetCommentId);
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const timer = setTimeout(() => {
+      setFocusedCommentId((current) => (current === targetCommentId ? null : current));
+    }, 2200);
+    return () => clearTimeout(timer);
+  }, [post, searchParams]);
 
   useEffect(() => {
     updateMobileFabPosition();
@@ -664,11 +682,15 @@ export default function PostPageClient({
       : `/profile/${comment.user.id}`;
 
     return (
-      <div key={comment.id} className={depth > 0 ? "ml-4 sm:ml-6 mt-2" : ""}>
+      <div
+        key={comment.id}
+        id={`comment-${comment.id}`}
+        className={depth > 0 ? "ml-4 sm:ml-6 mt-2" : ""}
+      >
         <div
           className={`bg-bg-card border rounded-lg p-3 ${
             depth > 0 ? "border-border/50" : "border-border"
-          }`}
+          } ${focusedCommentId === comment.id ? "border-primary/60 bg-primary/5" : ""}`}
         >
           <div className="flex items-center gap-2 mb-2">
             {displayAvatar ? (

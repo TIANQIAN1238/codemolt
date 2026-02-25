@@ -18,8 +18,10 @@ import {
   EyeOff,
   Trash2,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import { useLang, useThemeMode } from "@/components/Providers";
+import { toast } from "sonner";
 
 interface MeUser {
   id: string;
@@ -71,10 +73,98 @@ interface AgentMemoryView {
   };
 }
 
+interface TechProfileDraft {
+  techStackText: string;
+  interestsText: string;
+  projects: string;
+  writingStyle: string;
+  githubUrl: string;
+}
+
+interface RuleDialogState {
+  mode: "add" | "edit";
+  agentId: string;
+  agentName: string;
+  polarity: "approved" | "rejected";
+  ruleId: string | null;
+}
+
+interface PersonaTierPreset {
+  level: 1 | 2 | 3 | 4 | 5;
+  labelEn: string;
+  labelZh: string;
+  preset: "elys-balanced" | "elys-sharp" | "elys-playful" | "elys-calm";
+  warmth: number;
+  humor: number;
+  directness: number;
+  depth: number;
+  challenge: number;
+}
+
+const PERSONA_TIER_PRESETS: PersonaTierPreset[] = [
+  {
+    level: 1,
+    labelEn: "Calm",
+    labelZh: "沉稳",
+    preset: "elys-calm",
+    warmth: 50,
+    humor: 10,
+    directness: 40,
+    depth: 60,
+    challenge: 35,
+  },
+  {
+    level: 2,
+    labelEn: "Warm",
+    labelZh: "温和",
+    preset: "elys-balanced",
+    warmth: 62,
+    humor: 20,
+    directness: 55,
+    depth: 62,
+    challenge: 45,
+  },
+  {
+    level: 3,
+    labelEn: "Balanced",
+    labelZh: "平衡",
+    preset: "elys-balanced",
+    warmth: 60,
+    humor: 25,
+    directness: 70,
+    depth: 65,
+    challenge: 55,
+  },
+  {
+    level: 4,
+    labelEn: "Sharp",
+    labelZh: "犀利",
+    preset: "elys-sharp",
+    warmth: 52,
+    humor: 18,
+    directness: 84,
+    depth: 74,
+    challenge: 70,
+  },
+  {
+    level: 5,
+    labelEn: "Playful",
+    labelZh: "有趣",
+    preset: "elys-playful",
+    warmth: 72,
+    humor: 56,
+    directness: 64,
+    depth: 58,
+    challenge: 52,
+  },
+];
+
 function SettingsContent() {
   const searchParams = useSearchParams();
   const { mode, setMode } = useThemeMode();
   const { locale, setLocale } = useLang();
+  const isZh = locale === "zh";
+  const tr = (zh: string, en: string) => (isZh ? zh : en);
 
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<MeUser | null>(null);
@@ -120,6 +210,9 @@ function SettingsContent() {
   >([]);
 
   const [memoryLoading, setMemoryLoading] = useState(false);
+  const [postsSyncing, setPostsSyncing] = useState(false);
+  const [githubSyncing, setGithubSyncing] = useState(false);
+  const [syncProgressText, setSyncProgressText] = useState("");
   const [memoryMessage, setMemoryMessage] = useState<{
     type: "success" | "error";
     text: string;
@@ -130,9 +223,21 @@ function SettingsContent() {
   const [profileProjects, setProfileProjects] = useState("");
   const [profileWritingStyle, setProfileWritingStyle] = useState("");
   const [profileGithubUrl, setProfileGithubUrl] = useState("");
+  const [profileDraftBaseline, setProfileDraftBaseline] = useState<TechProfileDraft | null>(null);
   const [profileMemorySaving, setProfileMemorySaving] = useState(false);
   const [personaSavingAgentId, setPersonaSavingAgentId] = useState<string | null>(null);
-  const [personaPreviewByAgent, setPersonaPreviewByAgent] = useState<Record<string, string>>({});
+  const [personaPreviewByAgent, setPersonaPreviewByAgent] = useState<
+    Record<string, { baseline: string; persona: string }>
+  >({});
+  const [personaBaselineByAgent, setPersonaBaselineByAgent] = useState<Record<string, AgentMemoryView["persona"]>>({});
+  const [ruleDialog, setRuleDialog] = useState<RuleDialogState | null>(null);
+  const [ruleDialogText, setRuleDialogText] = useState("");
+  const [ruleDialogSaving, setRuleDialogSaving] = useState(false);
+  const [previewDialogAgent, setPreviewDialogAgent] = useState<{ id: string; name: string } | null>(null);
+  const [modeMenuAgentId, setModeMenuAgentId] = useState<string | null>(null);
+  const [previewScenarioText, setPreviewScenarioText] = useState(
+    "用户提问：如何重构一个不稳定的 cron worker？"
+  );
 
   const bindMessage = useMemo(() => {
     const linked = searchParams.get("linked");
@@ -140,35 +245,36 @@ function SettingsContent() {
     if (linked === "google")
       return {
         type: "success" as const,
-        text: "Google account linked successfully",
+        text: tr("Google 账号绑定成功", "Google account linked successfully"),
       };
     if (linked === "github")
       return {
         type: "success" as const,
-        text: "GitHub account linked successfully",
+        text: tr("GitHub 账号绑定成功", "GitHub account linked successfully"),
       };
     if (error === "google_already_linked")
       return {
         type: "error" as const,
-        text: "This Google account is already linked to another user",
+        text: tr("该 Google 账号已绑定到其他用户", "This Google account is already linked to another user"),
       };
     if (error === "github_already_linked")
       return {
         type: "error" as const,
-        text: "This GitHub account is already linked to another user",
+        text: tr("该 GitHub 账号已绑定到其他用户", "This GitHub account is already linked to another user"),
       };
     if (error === "google_conflict")
       return {
         type: "error" as const,
-        text: "You already linked another Google account",
+        text: tr("你已绑定另一个 Google 账号", "You already linked another Google account"),
       };
     if (error === "github_conflict")
       return {
         type: "error" as const,
-        text: "You already linked another GitHub account",
+        text: tr("你已绑定另一个 GitHub 账号", "You already linked another GitHub account"),
       };
     return null;
-  }, [searchParams]);
+  }, [searchParams, isZh]);
+  const highlightedAgentId = searchParams.get("agent") || "";
 
   useEffect(() => {
     const savedCompact = localStorage.getItem("feed-compact-mode");
@@ -239,9 +345,85 @@ function SettingsContent() {
       )
     ).slice(0, 20);
 
-  const loadMemoryProfile = async () => {
+  const normalizeShortText = (value: string): string => value.replace(/\s+/g, " ").trim();
+
+  const buildDraftFromRaw = (args: {
+    techStackText: string;
+    interestsText: string;
+    projects: string;
+    writingStyle: string;
+    githubUrl: string;
+  }): TechProfileDraft => ({
+    techStackText: parseTagsInput(args.techStackText).join(", "),
+    interestsText: parseTagsInput(args.interestsText).join(", "),
+    projects: normalizeShortText(args.projects),
+    writingStyle: normalizeShortText(args.writingStyle),
+    githubUrl: normalizeShortText(args.githubUrl),
+  });
+
+  const currentDraft = useMemo(
+    () =>
+      buildDraftFromRaw({
+        techStackText: profileTechStackText,
+        interestsText: profileInterestsText,
+        projects: profileProjects,
+        writingStyle: profileWritingStyle,
+        githubUrl: profileGithubUrl,
+      }),
+    [profileTechStackText, profileInterestsText, profileProjects, profileWritingStyle, profileGithubUrl],
+  );
+
+  const hasUnsavedProfileDraft = useMemo(() => {
+    if (!profileDraftBaseline) return false;
+    return (
+      profileDraftBaseline.techStackText !== currentDraft.techStackText ||
+      profileDraftBaseline.interestsText !== currentDraft.interestsText ||
+      profileDraftBaseline.projects !== currentDraft.projects ||
+      profileDraftBaseline.writingStyle !== currentDraft.writingStyle ||
+      profileDraftBaseline.githubUrl !== currentDraft.githubUrl
+    );
+  }, [currentDraft, profileDraftBaseline]);
+
+  const getPersonaTier = (persona: AgentMemoryView["persona"] | undefined): PersonaTierPreset => {
+    if (!persona) return PERSONA_TIER_PRESETS[2];
+    let best = PERSONA_TIER_PRESETS[2];
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (const tier of PERSONA_TIER_PRESETS) {
+      const distance =
+        Math.abs(persona.warmth - tier.warmth) +
+        Math.abs(persona.humor - tier.humor) +
+        Math.abs(persona.directness - tier.directness) +
+        Math.abs(persona.depth - tier.depth) +
+        Math.abs(persona.challenge - tier.challenge) +
+        (persona.preset === tier.preset ? 0 : 14);
+      if (distance < bestDistance) {
+        best = tier;
+        bestDistance = distance;
+      }
+    }
+    return best;
+  };
+
+  const isPersonaDirty = (agentId: string, persona: AgentMemoryView["persona"] | undefined): boolean => {
+    if (!persona) return false;
+    const baseline = personaBaselineByAgent[agentId];
+    if (!baseline) return false;
+    return (
+      baseline.preset !== persona.preset ||
+      baseline.warmth !== persona.warmth ||
+      baseline.humor !== persona.humor ||
+      baseline.directness !== persona.directness ||
+      baseline.depth !== persona.depth ||
+      baseline.challenge !== persona.challenge ||
+      baseline.mode !== persona.mode
+    );
+  };
+
+  const loadMemoryProfile = async (options?: { silent?: boolean }) => {
     if (!user) return;
-    setMemoryLoading(true);
+    if (!options?.silent) {
+      setMemoryLoading(true);
+    }
     try {
       const res = await fetch("/api/v1/users/me/profile");
       const data = await res.json();
@@ -249,16 +431,40 @@ function SettingsContent() {
         return;
       }
       const profile = data.profile || {};
-      setProfileTechStackText(Array.isArray(profile.tech_stack) ? profile.tech_stack.join(", ") : "");
-      setProfileInterestsText(Array.isArray(profile.interests) ? profile.interests.join(", ") : "");
-      setProfileProjects(typeof profile.current_projects === "string" ? profile.current_projects : "");
-      setProfileWritingStyle(typeof profile.writing_style === "string" ? profile.writing_style : "");
-      setProfileGithubUrl(typeof profile.github_url === "string" ? profile.github_url : "");
-      setMemoryAgents(Array.isArray(data.agents) ? (data.agents as AgentMemoryView[]) : []);
+      const techStackText = Array.isArray(profile.tech_stack) ? profile.tech_stack.join(", ") : "";
+      const interestsText = Array.isArray(profile.interests) ? profile.interests.join(", ") : "";
+      const projects = typeof profile.current_projects === "string" ? profile.current_projects : "";
+      const writingStyle = typeof profile.writing_style === "string" ? profile.writing_style : "";
+      const githubUrl = typeof profile.github_url === "string" ? profile.github_url : "";
+      setProfileTechStackText(techStackText);
+      setProfileInterestsText(interestsText);
+      setProfileProjects(projects);
+      setProfileWritingStyle(writingStyle);
+      setProfileGithubUrl(githubUrl);
+      setProfileDraftBaseline(
+        buildDraftFromRaw({
+          techStackText,
+          interestsText,
+          projects,
+          writingStyle,
+          githubUrl,
+        }),
+      );
+      const agents = Array.isArray(data.agents) ? (data.agents as AgentMemoryView[]) : [];
+      setMemoryAgents(agents);
+      const nextPersonaBaseline: Record<string, AgentMemoryView["persona"]> = {};
+      for (const agent of agents) {
+        if (agent.persona) {
+          nextPersonaBaseline[agent.id] = { ...agent.persona };
+        }
+      }
+      setPersonaBaselineByAgent(nextPersonaBaseline);
     } catch {
       // ignore
     } finally {
-      setMemoryLoading(false);
+      if (!options?.silent) {
+        setMemoryLoading(false);
+      }
     }
   };
 
@@ -280,6 +486,18 @@ function SettingsContent() {
     return () => clearTimeout(timer);
   }, [loading]);
 
+  useEffect(() => {
+    if (!modeMenuAgentId) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest("[data-persona-mode-menu]")) return;
+      setModeMenuAgentId(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [modeMenuAgentId]);
+
   const handleCompactModeToggle = (enabled: boolean) => {
     setCompactMode(enabled);
     localStorage.setItem("feed-compact-mode", enabled ? "1" : "0");
@@ -291,11 +509,11 @@ function SettingsContent() {
 
   const handleProfileAvatarUpload = async (file: File) => {
     if (!file.type.startsWith("image/")) {
-      setProfileAvatarError("Please upload an image file");
+      setProfileAvatarError(tr("请上传图片文件", "Please upload an image file"));
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      setProfileAvatarError("Image size must be 2MB or less");
+      setProfileAvatarError(tr("图片大小不能超过 2MB", "Image size must be 2MB or less"));
       return;
     }
 
@@ -307,13 +525,13 @@ function SettingsContent() {
         reader.readAsDataURL(file);
       });
       if (!dataUrl.startsWith("data:image/")) {
-        setProfileAvatarError("Unsupported image format");
+        setProfileAvatarError(tr("不支持的图片格式", "Unsupported image format"));
         return;
       }
       setProfileAvatar(dataUrl);
       setProfileAvatarError("");
     } catch {
-      setProfileAvatarError("Failed to process selected image");
+      setProfileAvatarError(tr("图片处理失败", "Failed to process selected image"));
     }
   };
 
@@ -338,17 +556,17 @@ function SettingsContent() {
       if (!res.ok) {
         setProfileMessage({
           type: "error",
-          text: data.error || "Failed to update profile",
+          text: data.error || tr("更新资料失败", "Failed to update profile"),
         });
         return;
       }
       setUser((prev) => (prev ? { ...prev, ...data.user } : prev));
       setProfileMessage({
         type: "success",
-        text: "Profile updated successfully",
+        text: tr("资料更新成功", "Profile updated successfully"),
       });
     } catch {
-      setProfileMessage({ type: "error", text: "Network error" });
+      setProfileMessage({ type: "error", text: tr("网络错误", "Network error") });
     } finally {
       setProfileSaving(false);
     }
@@ -361,13 +579,13 @@ function SettingsContent() {
     if (newPassword.length < 6) {
       setPasswordMessage({
         type: "error",
-        text: "New password must be at least 6 characters",
+        text: tr("新密码至少需要 6 个字符", "New password must be at least 6 characters"),
       });
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setPasswordMessage({ type: "error", text: "Passwords do not match" });
+      setPasswordMessage({ type: "error", text: tr("两次密码输入不一致", "Passwords do not match") });
       return;
     }
 
@@ -385,19 +603,19 @@ function SettingsContent() {
       if (!res.ok) {
         setPasswordMessage({
           type: "error",
-          text: data.error || "Failed to change password",
+          text: data.error || tr("修改密码失败", "Failed to change password"),
         });
         return;
       }
       setPasswordMessage({
         type: "success",
-        text: "Password changed successfully",
+        text: tr("密码修改成功", "Password changed successfully"),
       });
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
     } catch {
-      setPasswordMessage({ type: "error", text: "Network error" });
+      setPasswordMessage({ type: "error", text: tr("网络错误", "Network error") });
     } finally {
       setSaving(false);
     }
@@ -405,6 +623,7 @@ function SettingsContent() {
 
   const handleSaveMemoryProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!hasUnsavedProfileDraft) return;
     setProfileMemorySaving(true);
     setMemoryMessage(null);
     try {
@@ -421,39 +640,148 @@ function SettingsContent() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMemoryMessage({ type: "error", text: data.error || "Failed to save profile memory" });
+        setMemoryMessage({ type: "error", text: data.error || tr("保存技术画像失败", "Failed to save tech profile") });
+        toast.error(tr("保存技术画像失败", "Failed to save tech profile"));
         return;
       }
-      setMemoryMessage({ type: "success", text: "Profile memory saved" });
-      await loadMemoryProfile();
+      const profile = data.profile || {};
+      const techStackText = Array.isArray(profile.tech_stack) ? profile.tech_stack.join(", ") : profileTechStackText;
+      const interestsText = Array.isArray(profile.interests) ? profile.interests.join(", ") : profileInterestsText;
+      const projects = typeof profile.current_projects === "string" ? profile.current_projects : profileProjects;
+      const writingStyle = typeof profile.writing_style === "string" ? profile.writing_style : profileWritingStyle;
+      const githubUrl = typeof profile.github_url === "string" ? profile.github_url : profileGithubUrl;
+      setProfileTechStackText(techStackText);
+      setProfileInterestsText(interestsText);
+      setProfileProjects(projects);
+      setProfileWritingStyle(writingStyle);
+      setProfileGithubUrl(githubUrl);
+      setProfileDraftBaseline(
+        buildDraftFromRaw({
+          techStackText,
+          interestsText,
+          projects,
+          writingStyle,
+          githubUrl,
+        }),
+      );
+      setMemoryMessage({ type: "success", text: tr("技术画像已保存", "Tech profile saved") });
+      toast.success(tr("技术画像已保存", "Tech profile saved"));
     } catch {
-      setMemoryMessage({ type: "error", text: "Network error" });
+      setMemoryMessage({ type: "error", text: tr("网络错误", "Network error") });
+      toast.error(tr("网络错误，保存失败", "Network error while saving"));
     } finally {
       setProfileMemorySaving(false);
     }
   };
 
+  const handleSyncFromGithub = () => {
+    const linkUrl = "/api/auth/github?intent=link&return_to=/settings#my-tech-profile";
+    if (!githubLinked) {
+      toast.error(locale === "zh" ? "请先绑定 GitHub 账号" : "Please connect GitHub first", {
+        action: {
+          label: locale === "zh" ? "去绑定" : "Connect",
+          onClick: () => {
+            window.location.href = linkUrl;
+          },
+        },
+      });
+      return;
+    }
+    setGithubSyncing(true);
+    toast.message(
+      locale === "zh"
+        ? "正在跳转 GitHub 授权，同步完成后会自动返回。"
+        : "Opening GitHub auth. We'll sync and return automatically."
+    );
+    setTimeout(() => setGithubSyncing(false), 3000);
+    window.location.href = linkUrl;
+  };
+
   const handleSyncFromPosts = async () => {
     setMemoryMessage(null);
-    setMemoryLoading(true);
+    const stepPreparing = locale === "zh" ? "正在收集最近帖子..." : "Collecting your recent posts...";
+    const stepAnalyzing = locale === "zh" ? "AI 正在分析你的写作风格..." : "AI is analyzing your writing style...";
+    const stepApplying = locale === "zh" ? "正在写入可更新字段..." : "Applying detected profile fields...";
+    setPostsSyncing(true);
+    setSyncProgressText(stepPreparing);
+    const toastId = toast.loading(stepPreparing);
     try {
+      toast.loading(stepAnalyzing, { id: toastId });
+      setSyncProgressText(stepAnalyzing);
       const res = await fetch("/api/v1/users/me/profile/sync", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        setMemoryMessage({ type: "error", text: data.error || "Sync failed" });
+        const message = data.error || tr("同步失败", "Sync failed");
+        setMemoryMessage({ type: "error", text: message });
+        if (message === "AI provider unavailable") {
+          toast.error(
+            locale === "zh"
+              ? "请先在设置中配置 AI Provider 后再同步帖子。"
+              : "Please configure an AI provider first, then sync from posts.",
+            {
+              id: toastId,
+              action: {
+                label: locale === "zh" ? "去配置" : "Open",
+                onClick: () => {
+                  document.getElementById("ai-provider")?.scrollIntoView({ behavior: "smooth" });
+                },
+              },
+            },
+          );
+          return;
+        }
+        if (message === "Platform credit exhausted") {
+          toast.error(
+            locale === "zh"
+              ? "平台额度不足，请先充值或配置自有 API Key。"
+              : "Platform credit is exhausted. Add credit or use your own API key.",
+            {
+              id: toastId,
+              action: {
+                label: locale === "zh" ? "去配置" : "Open",
+                onClick: () => {
+                  document.getElementById("ai-provider")?.scrollIntoView({ behavior: "smooth" });
+                },
+              },
+            },
+          );
+          return;
+        }
+        toast.error(
+          locale === "zh" ? `从帖子同步失败：${message}` : `Sync from posts failed: ${message}`,
+          { id: toastId },
+        );
         return;
       }
+      toast.loading(stepApplying, { id: toastId });
+      setSyncProgressText(stepApplying);
       setMemoryMessage({
         type: "success",
         text: data.updated_fields?.length
-          ? `Synced fields: ${data.updated_fields.join(", ")}`
-          : "Sync complete (no empty fields updated)",
+          ? isZh
+            ? `同步字段：${data.updated_fields.join("、")}`
+            : `Synced fields: ${data.updated_fields.join(", ")}`
+          : tr("同步完成（没有可更新的空字段）", "Sync complete (no empty fields updated)"),
       });
-      await loadMemoryProfile();
+      await loadMemoryProfile({ silent: true });
+      toast.success(
+        data.updated_fields?.length
+          ? locale === "zh"
+            ? `同步完成，更新了：${data.updated_fields.join("、")}`
+            : `Sync complete. Updated: ${data.updated_fields.join(", ")}`
+          : locale === "zh"
+            ? "同步完成，没有可更新的空字段。"
+            : "Sync complete. No empty profile fields to update.",
+        { id: toastId }
+      );
     } catch {
-      setMemoryMessage({ type: "error", text: "Network error" });
+      setMemoryMessage({ type: "error", text: tr("网络错误", "Network error") });
+      toast.error(locale === "zh" ? "网络错误，同步失败" : "Network error while syncing", {
+        id: toastId,
+      });
     } finally {
-      setMemoryLoading(false);
+      setPostsSyncing(false);
+      setSyncProgressText("");
     }
   };
 
@@ -465,75 +793,113 @@ function SettingsContent() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMemoryMessage({ type: "error", text: data.error || "Failed to delete rule" });
+        setMemoryMessage({ type: "error", text: data.error || tr("删除规则失败", "Failed to delete rule") });
         return;
       }
-      await loadMemoryProfile();
+      await loadMemoryProfile({ silent: true });
     } catch {
-      setMemoryMessage({ type: "error", text: "Network error" });
+      setMemoryMessage({ type: "error", text: tr("网络错误", "Network error") });
     }
   };
 
-  const handleEditMemoryRule = async (agentId: string, ruleId: string, currentText: string) => {
-    const nextText = window.prompt("Edit rule text", currentText);
-    if (nextText === null) return;
-    const trimmed = nextText.trim();
-    if (!trimmed) return;
-    setMemoryMessage(null);
-    try {
-      const res = await fetch(`/api/v1/agents/${agentId}/memory/rules/${ruleId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMemoryMessage({ type: "error", text: data.error || "Failed to update rule" });
-        return;
-      }
-      await loadMemoryProfile();
-    } catch {
-      setMemoryMessage({ type: "error", text: "Network error" });
-    }
-  };
-
-  const handleAddMemoryRule = async (agentId: string, polarity: "approved" | "rejected") => {
-    const text = window.prompt(`Add ${polarity} rule (category: behavior)`, "");
-    if (!text) return;
-    setMemoryMessage(null);
-    try {
-      const res = await fetch(`/api/v1/agents/${agentId}/memory`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          polarity,
-          category: "behavior",
-          text: text.trim(),
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setMemoryMessage({ type: "error", text: data.error || "Failed to add rule" });
-        return;
-      }
-      await loadMemoryProfile();
-    } catch {
-      setMemoryMessage({ type: "error", text: "Network error" });
-    }
-  };
-
-  const handlePersonaDraftChange = (
+  const openEditMemoryRuleDialog = (
     agentId: string,
-    field: "preset" | "warmth" | "humor" | "directness" | "depth" | "challenge" | "mode",
-    value: string | number,
+    agentName: string,
+    polarity: "approved" | "rejected",
+    ruleId: string,
+    currentText: string,
   ) => {
+    setRuleDialog({
+      mode: "edit",
+      agentId,
+      agentName,
+      polarity,
+      ruleId,
+    });
+    setRuleDialogText(currentText);
+  };
+
+  const openAddMemoryRuleDialog = (agentId: string, agentName: string, polarity: "approved" | "rejected") => {
+    setRuleDialog({
+      mode: "add",
+      agentId,
+      agentName,
+      polarity,
+      ruleId: null,
+    });
+    setRuleDialogText("");
+  };
+
+  const submitRuleDialog = async () => {
+    if (!ruleDialog) return;
+    const text = ruleDialogText.trim();
+    if (!text) {
+      setMemoryMessage({ type: "error", text: tr("规则内容不能为空", "Rule text cannot be empty") });
+      return;
+    }
+    setRuleDialogSaving(true);
+    setMemoryMessage(null);
+    try {
+      const url =
+        ruleDialog.mode === "add"
+          ? `/api/v1/agents/${ruleDialog.agentId}/memory`
+          : `/api/v1/agents/${ruleDialog.agentId}/memory/rules/${ruleDialog.ruleId}`;
+      const method = ruleDialog.mode === "add" ? "POST" : "PATCH";
+      const body =
+        ruleDialog.mode === "add"
+          ? {
+              polarity: ruleDialog.polarity,
+              category: "behavior",
+              text,
+            }
+          : { text };
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMemoryMessage({ type: "error", text: data.error || tr("保存规则失败", "Failed to save rule") });
+        return;
+      }
+      await loadMemoryProfile({ silent: true });
+      setRuleDialog(null);
+      setRuleDialogText("");
+    } catch {
+      setMemoryMessage({ type: "error", text: tr("网络错误", "Network error") });
+    } finally {
+      setRuleDialogSaving(false);
+    }
+  };
+
+  const handlePersonaModeChange = (agentId: string, mode: "shadow" | "live") => {
     setMemoryAgents((prev) => prev.map((agent) => {
       if (agent.id !== agentId || !agent.persona) return agent;
       return {
         ...agent,
         persona: {
           ...agent.persona,
-          [field]: value,
+          mode,
+        },
+      };
+    }));
+  };
+
+  const handlePersonaTierChange = (agentId: string, level: number) => {
+    const tier = PERSONA_TIER_PRESETS.find((item) => item.level === level) || PERSONA_TIER_PRESETS[2];
+    setMemoryAgents((prev) => prev.map((agent) => {
+      if (agent.id !== agentId || !agent.persona) return agent;
+      return {
+        ...agent,
+        persona: {
+          ...agent.persona,
+          preset: tier.preset,
+          warmth: tier.warmth,
+          humor: tier.humor,
+          directness: tier.directness,
+          depth: tier.depth,
+          challenge: tier.challenge,
         },
       };
     }));
@@ -560,43 +926,85 @@ function SettingsContent() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMemoryMessage({ type: "error", text: data.error || "Failed to save persona style" });
+        setMemoryMessage({ type: "error", text: data.error || tr("保存风格失败", "Failed to save persona style") });
         return;
       }
       const persona = data.persona;
       setMemoryAgents((prev) => prev.map((row) => row.id === agentId
         ? { ...row, persona: persona || row.persona }
         : row));
-      setMemoryMessage({ type: "success", text: "Digital twin style saved" });
+      if (persona) {
+        setPersonaBaselineByAgent((prev) => ({ ...prev, [agentId]: persona }));
+      }
+      setMemoryMessage({ type: "success", text: tr("数字分身风格已保存", "Digital twin style saved") });
+      toast.success(tr("数字分身风格已保存", "Digital twin style saved"));
     } catch {
-      setMemoryMessage({ type: "error", text: "Failed to save persona style" });
+      setMemoryMessage({ type: "error", text: tr("保存风格失败", "Failed to save persona style") });
+      toast.error(tr("保存风格失败", "Failed to save style"));
     } finally {
       setPersonaSavingAgentId(null);
     }
   };
 
-  const handlePreviewPersona = async (agentId: string) => {
-    const scenario = window.prompt("Preview scenario", "A user asks how to refactor an unstable cron worker.");
-    if (!scenario || !scenario.trim()) return;
+  const handlePreviewPersona = async (agentId: string, scenario: string) => {
+    if (!scenario.trim()) return;
     setPersonaSavingAgentId(agentId);
     setMemoryMessage(null);
     try {
       const res = await fetch(`/api/v1/agents/${agentId}/persona/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scenario: scenario.trim() }),
+        body: JSON.stringify({ scenario: scenario.trim(), locale }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setMemoryMessage({ type: "error", text: data.error || "Preview failed" });
+        const message = typeof data.error === "string" ? data.error : tr("预览失败", "Preview failed");
+        setMemoryMessage({ type: "error", text: message });
+        if (message === "AI provider unavailable") {
+          toast.error(
+            locale === "zh"
+              ? "请先配置 AI Provider，再使用风格预览。"
+              : "Please configure an AI provider before previewing style.",
+            {
+              action: {
+                label: locale === "zh" ? "去配置" : "Open",
+                onClick: () => {
+                  document.getElementById("ai-provider")?.scrollIntoView({ behavior: "smooth" });
+                },
+              },
+            },
+          );
+        } else if (message === "Platform credit exhausted") {
+          toast.error(
+            locale === "zh"
+              ? "平台额度不足，请先充值或配置自有 API Key。"
+              : "Platform credit is exhausted. Add credit or use your own API key.",
+            {
+              action: {
+                label: locale === "zh" ? "去配置" : "Open",
+                onClick: () => {
+                  document.getElementById("ai-provider")?.scrollIntoView({ behavior: "smooth" });
+                },
+              },
+            },
+          );
+        } else {
+          toast.error(tr("预览失败", "Preview failed"));
+        }
         return;
       }
       setPersonaPreviewByAgent((prev) => ({
         ...prev,
-        [agentId]: `Baseline: ${data.baseline || ""}\n\nPersona: ${data.persona || ""}`,
+        [agentId]: {
+          baseline: typeof data.baseline === "string" ? data.baseline : "",
+          persona: typeof data.persona === "string" ? data.persona : "",
+        },
       }));
+      setPreviewDialogAgent(null);
+      toast.success(tr("预览已生成", "Preview generated"));
     } catch {
-      setMemoryMessage({ type: "error", text: "Preview failed" });
+      setMemoryMessage({ type: "error", text: tr("预览失败", "Preview failed") });
+      toast.error(tr("预览失败", "Preview failed"));
     } finally {
       setPersonaSavingAgentId(null);
     }
@@ -605,6 +1013,30 @@ function SettingsContent() {
   const linkedProviders = new Set(user?.linkedProviders || []);
   const googleLinked = linkedProviders.has("google");
   const githubLinked = linkedProviders.has("github");
+  const personaModeLabel = (mode: string | undefined) => {
+    if (mode === "live") {
+      return isZh ? "自动执行" : "Auto publish";
+    }
+    return isZh ? "观察学习" : "Learning only";
+  };
+  const personaModeDescription = (mode: string | undefined) => {
+    if (mode === "live") {
+      return isZh
+        ? "Agent 会按当前风格直接执行发布动作，适合风格已稳定后使用。"
+        : "Agent publishes with this style automatically when confidence is stable.";
+    }
+    return isZh
+      ? "只学习并输出候选结果，不直接发布，推荐先用这个模式观察效果。"
+      : "Learns and generates candidates only, without auto-publishing. Recommended to start here.";
+  };
+  const personaAgents = useMemo(() => {
+    if (!highlightedAgentId) return memoryAgents;
+    return [...memoryAgents].sort((a, b) => {
+      if (a.id === highlightedAgentId) return -1;
+      if (b.id === highlightedAgentId) return 1;
+      return 0;
+    });
+  }, [highlightedAgentId, memoryAgents]);
 
   if (loading) {
     return (
@@ -627,10 +1059,10 @@ function SettingsContent() {
         className="inline-flex items-center gap-1 text-sm text-text-muted hover:text-text mb-6 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to feed
+        {tr("返回信息流", "Back to feed")}
       </Link>
 
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+      <h1 className="text-2xl font-bold mb-6">{tr("设置", "Settings")}</h1>
 
       {bindMessage && (
         <div
@@ -644,18 +1076,16 @@ function SettingsContent() {
         <div className="bg-bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
             <User className="w-5 h-5 text-text-muted" />
-            Profile
+            {tr("个人资料", "Profile")}
           </h2>
           <form onSubmit={handleSaveProfile} className="space-y-4">
             <div>
-              <label className="block text-xs text-text-muted mb-1">
-                Avatar
-              </label>
+              <label className="block text-xs text-text-muted mb-1">{tr("头像", "Avatar")}</label>
               <div className="flex items-center gap-3 mb-2">
                 {profileAvatar ? (
                   <img
                     src={profileAvatar}
-                    alt="Avatar preview"
+                    alt={tr("头像预览", "Avatar preview")}
                     className="w-12 h-12 rounded-full object-cover border border-border"
                   />
                 ) : (
@@ -665,7 +1095,7 @@ function SettingsContent() {
                 )}
                 <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border bg-bg hover:bg-bg-input cursor-pointer transition-colors">
                   <Camera className="w-3.5 h-3.5" />
-                  Upload image
+                  {tr("上传图片", "Upload image")}
                   <input
                     type="file"
                     accept="image/*"
@@ -698,7 +1128,7 @@ function SettingsContent() {
             </div>
             <div>
               <label className="block text-xs text-text-muted mb-1">
-                Username
+                {tr("用户名", "Username")}
               </label>
               <input
                 type="text"
@@ -711,13 +1141,13 @@ function SettingsContent() {
               />
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1">Bio</label>
+              <label className="block text-xs text-text-muted mb-1">{tr("简介", "Bio")}</label>
               <textarea
                 value={profileBio}
                 onChange={(e) => setProfileBio(e.target.value)}
                 className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary min-h-[96px]"
                 maxLength={200}
-                placeholder="Tell the community what you're building..."
+                placeholder={tr("告诉社区你正在做什么...", "Tell the community what you're building...")}
               />
               <p className="text-xs text-text-dim mt-1">
                 {profileBio.length}/200
@@ -740,7 +1170,7 @@ function SettingsContent() {
               disabled={profileSaving}
               className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
             >
-              {profileSaving ? "Saving..." : "Save Profile"}
+              {profileSaving ? tr("保存中...", "Saving...") : tr("保存资料", "Save Profile")}
             </button>
           </form>
         </div>
@@ -748,28 +1178,28 @@ function SettingsContent() {
         <div className="bg-bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
             <Mail className="w-5 h-5 text-text-muted" />
-            Account
+            {tr("账号", "Account")}
           </h2>
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
-              <span className="text-text-muted">Email</span>
-              <span className="text-text">{user?.email || "Not set"}</span>
+              <span className="text-text-muted">{tr("邮箱", "Email")}</span>
+              <span className="text-text">{user?.email || tr("未设置", "Not set")}</span>
             </div>
             <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
-              <span className="text-text-muted">Linked providers</span>
+              <span className="text-text-muted">{tr("已绑定登录方式", "Linked providers")}</span>
               <span className="text-text">
                 {linkedProviders.size > 0
                   ? Array.from(linkedProviders).join(" / ")
-                  : "None"}
+                  : tr("无", "None")}
               </span>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="text-text-muted">Public profile</span>
+              <span className="text-text-muted">{tr("公开主页", "Public profile")}</span>
               <Link
                 href={user ? `/profile/${user.id}` : "/"}
                 className="text-primary hover:text-primary-light transition-colors"
               >
-                View profile
+                {tr("查看主页", "View profile")}
               </Link>
             </div>
           </div>
@@ -778,26 +1208,26 @@ function SettingsContent() {
         <div className="bg-bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
             <Link2 className="w-5 h-5 text-text-muted" />
-            Connected Accounts
+            {tr("账号绑定", "Connected Accounts")}
           </h2>
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
               <div>
                 <p className="font-medium">Google</p>
                 <p className="text-xs text-text-muted">
-                  Use Google to sign in to the same account
+                  {tr("使用 Google 登录同一账号", "Use Google to sign in to the same account")}
                 </p>
               </div>
               {googleLinked ? (
                 <span className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green border border-accent-green/25">
-                  Connected
+                  {tr("已绑定", "Connected")}
                 </span>
               ) : (
                 <a
                   href="/api/auth/google?intent=link&return_to=/settings"
                   className="text-xs px-3 py-1.5 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors"
                 >
-                  Connect Google
+                  {tr("绑定 Google", "Connect Google")}
                 </a>
               )}
             </div>
@@ -805,19 +1235,19 @@ function SettingsContent() {
               <div>
                 <p className="font-medium">GitHub</p>
                 <p className="text-xs text-text-muted">
-                  Use GitHub to sign in to the same account
+                  {tr("使用 GitHub 登录同一账号", "Use GitHub to sign in to the same account")}
                 </p>
               </div>
               {githubLinked ? (
                 <span className="text-xs px-2 py-1 rounded-md bg-accent-green/15 text-accent-green border border-accent-green/25">
-                  Connected
+                  {tr("已绑定", "Connected")}
                 </span>
               ) : (
                 <a
                   href="/api/auth/github?intent=link&return_to=/settings"
                   className="text-xs px-3 py-1.5 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors"
                 >
-                  Connect GitHub
+                  {tr("绑定 GitHub", "Connect GitHub")}
                 </a>
               )}
             </div>
@@ -827,29 +1257,31 @@ function SettingsContent() {
         <div id="ai-provider" className="bg-bg-card border border-border rounded-xl p-6 scroll-mt-20">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-2">
             <Sparkles className="w-5 h-5 text-text-muted" />
-            AI Provider
+            {tr("AI 提供商", "AI Provider")}
           </h2>
           <p className="text-xs text-text-muted mb-3">
-            Power the AI Rewrite feature on your posts. Configure your own API
-            key, or use platform credit.
+            {tr(
+              "为帖子的 AI Rewrite 功能提供模型能力。你可以配置自己的 API Key，或使用平台额度。",
+              "Power the AI Rewrite feature on your posts. Configure your own API key, or use platform credit."
+            )}
           </p>
 
           {/* Credit balance banner */}
           <div className="mb-4 flex items-center gap-3 px-3 py-2 rounded-lg border border-border bg-bg-input/50 text-xs">
             <div className="flex-1">
-              <span className="text-text-muted">Platform credit: </span>
+              <span className="text-text-muted">{tr("平台额度：", "Platform credit: ")}</span>
               <span
                 className={`font-semibold ${parseFloat(aiCreditBalance) > 0 ? "text-accent-green" : "text-text-dim"}`}
               >
                 ${aiCreditBalance}
               </span>
               {!aiCreditGranted && (
-                <span className="text-text-dim ml-1">(not claimed)</span>
+                <span className="text-text-dim ml-1">{tr("（未领取）", "(not claimed)")}</span>
               )}
             </div>
             {aiHasExisting && (
               <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-medium">
-                Custom provider active
+                {tr("自定义提供商已启用", "Custom provider active")}
               </span>
             )}
           </div>
@@ -858,7 +1290,7 @@ function SettingsContent() {
             {/* Provider selection — matches codeblog-app TUI choices */}
             <div>
               <label className="block text-xs text-text-muted mb-1.5">
-                Provider
+                {tr("提供商", "Provider")}
               </label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5">
                 {(aiChoices.length > 0
@@ -1100,7 +1532,7 @@ function SettingsContent() {
                     )}
                     <div>
                       <label className="block text-xs text-text-muted mb-1">
-                        Model
+                        {tr("模型", "Model")}
                       </label>
                       {suggestions && (
                         <div className="flex flex-wrap gap-1 mb-1.5">
@@ -1124,7 +1556,7 @@ function SettingsContent() {
                         type="text"
                         value={aiModel}
                         onChange={(e) => setAiModel(e.target.value)}
-                        placeholder="model name (optional)"
+                        placeholder={tr("模型名称（可选）", "model name (optional)")}
                         className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
                       />
                     </div>
@@ -1152,7 +1584,7 @@ function SettingsContent() {
                               const data = await res.json();
                               setAiMessage({
                                 type: "error",
-                                text: data.error || "Failed to save",
+                                text: data.error || tr("保存失败", "Failed to save"),
                               });
                               return;
                             }
@@ -1160,12 +1592,12 @@ function SettingsContent() {
                             setAiApiKey("");
                             setAiMessage({
                               type: "success",
-                              text: "AI provider saved",
+                              text: tr("AI 提供商已保存", "AI provider saved"),
                             });
                           } catch {
                             setAiMessage({
                               type: "error",
-                              text: "Network error",
+                              text: tr("网络错误", "Network error"),
                             });
                           } finally {
                             setAiSaving(false);
@@ -1173,7 +1605,7 @@ function SettingsContent() {
                         }}
                         className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
                       >
-                        {aiSaving ? "Saving..." : "Save Provider"}
+                        {aiSaving ? tr("保存中...", "Saving...") : tr("保存提供商", "Save Provider")}
                       </button>
                       {aiHasExisting && (
                         <button
@@ -1188,7 +1620,7 @@ function SettingsContent() {
                               if (!res.ok) {
                                 setAiMessage({
                                   type: "error",
-                                  text: "Failed to remove",
+                                  text: tr("移除失败", "Failed to remove"),
                                 });
                                 return;
                               }
@@ -1199,12 +1631,12 @@ function SettingsContent() {
                               setAiHasExisting(false);
                               setAiMessage({
                                 type: "success",
-                                text: "AI provider removed. Using platform credit.",
+                                text: tr("已移除 AI 提供商，切换为平台额度。", "AI provider removed. Using platform credit."),
                               });
                             } catch {
                               setAiMessage({
                                 type: "error",
-                                text: "Network error",
+                                text: tr("网络错误", "Network error"),
                               });
                             } finally {
                               setAiSaving(false);
@@ -1213,7 +1645,7 @@ function SettingsContent() {
                           className="inline-flex items-center gap-1 text-xs px-3 py-2 rounded-md border border-accent-red/30 text-accent-red hover:bg-accent-red/10 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          Remove
+                          {tr("移除", "Remove")}
                         </button>
                       )}
                     </div>
@@ -1239,68 +1671,81 @@ function SettingsContent() {
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <User className="w-5 h-5 text-text-muted" />
-              My Tech Profile
+              {tr("我的技术画像", "My Tech Profile")}
             </h2>
             <div className="flex items-center gap-2">
-              <a
-                href="/api/auth/github?intent=link&return_to=/settings#my-tech-profile"
-                className="text-xs px-2.5 py-1 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors"
+              <button
+                type="button"
+                onClick={handleSyncFromGithub}
+                disabled={githubSyncing}
+                className="text-xs px-2.5 py-1 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors disabled:opacity-50"
               >
-                Sync from GitHub
-              </a>
+                {githubSyncing
+                  ? locale === "zh"
+                    ? "跳转中..."
+                    : "Redirecting..."
+                  : tr("从 GitHub 同步", "Sync from GitHub")}
+              </button>
               <button
                 type="button"
                 onClick={handleSyncFromPosts}
-                disabled={memoryLoading}
+                disabled={postsSyncing}
                 className="text-xs px-2.5 py-1 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors disabled:opacity-50"
               >
-                {memoryLoading ? "Syncing..." : "Sync from posts"}
+                {postsSyncing
+                  ? locale === "zh"
+                    ? "同步中..."
+                    : "Syncing..."
+                  : tr("从帖子同步", "Sync from posts")}
               </button>
             </div>
           </div>
+          <p className="text-xs text-text-muted mb-3">
+            {syncProgressText || (locale === "zh" ? "可从 GitHub 或近期帖子提取画像，帖子同步由 AI 进行分析。" : "You can sync from GitHub or recent posts. Post sync uses AI to infer your profile.")}
+          </p>
           <form onSubmit={handleSaveMemoryProfile} className="space-y-3">
             <div>
-              <label className="block text-xs text-text-muted mb-1">Tech Stack (comma separated)</label>
+              <label className="block text-xs text-text-muted mb-1">{tr("技术栈（逗号分隔）", "Tech Stack (comma separated)")}</label>
               <input
                 type="text"
                 value={profileTechStackText}
                 onChange={(e) => setProfileTechStackText(e.target.value)}
-                placeholder="TypeScript, React, PostgreSQL"
+                placeholder={tr("TypeScript, React, PostgreSQL", "TypeScript, React, PostgreSQL")}
                 className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
               />
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1">Interests (comma separated)</label>
+              <label className="block text-xs text-text-muted mb-1">{tr("兴趣方向（逗号分隔）", "Interests (comma separated)")}</label>
               <input
                 type="text"
                 value={profileInterestsText}
                 onChange={(e) => setProfileInterestsText(e.target.value)}
-                placeholder="AI tools, backend architecture"
+                placeholder={tr("AI 工具, 后端架构", "AI tools, backend architecture")}
                 className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
               />
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1">Current Projects</label>
+              <label className="block text-xs text-text-muted mb-1">{tr("当前项目", "Current Projects")}</label>
               <textarea
                 value={profileProjects}
                 onChange={(e) => setProfileProjects(e.target.value)}
                 className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary min-h-[72px]"
                 maxLength={1500}
-                placeholder="What are you building now?"
+                placeholder={tr("你最近在做什么项目？", "What are you building now?")}
               />
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1">Writing Style</label>
+              <label className="block text-xs text-text-muted mb-1">{tr("写作风格", "Writing Style")}</label>
               <textarea
                 value={profileWritingStyle}
                 onChange={(e) => setProfileWritingStyle(e.target.value)}
                 className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary min-h-[72px]"
                 maxLength={500}
-                placeholder="Concise / technical / casual..."
+                placeholder={tr("简洁 / 技术向 / 轻松…", "Concise / technical / casual...")}
               />
             </div>
             <div>
-              <label className="block text-xs text-text-muted mb-1">GitHub URL</label>
+              <label className="block text-xs text-text-muted mb-1">{tr("GitHub 链接", "GitHub URL")}</label>
               <input
                 type="url"
                 value={profileGithubUrl}
@@ -1309,20 +1754,26 @@ function SettingsContent() {
                 className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
               />
             </div>
-            <button
-              type="submit"
-              disabled={profileMemorySaving}
-              className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
-            >
-              {profileMemorySaving ? "Saving..." : "Save Tech Profile"}
-            </button>
+            {hasUnsavedProfileDraft ? (
+              <button
+                type="submit"
+                disabled={profileMemorySaving}
+                className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
+              >
+                {profileMemorySaving ? tr("保存中...", "Saving...") : tr("保存技术画像", "Save Tech Profile")}
+              </button>
+            ) : (
+              <p className="text-xs text-text-dim">
+                {locale === "zh" ? "当前没有待保存改动" : "No unsaved changes"}
+              </p>
+            )}
           </form>
         </div>
 
         <div id="agent-memory" className="bg-bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
             <Sparkles className="w-5 h-5 text-text-muted" />
-            Agent Memory
+            {tr("智能体记忆", "Agent Memory")}
           </h2>
           {memoryMessage && (
             <div
@@ -1338,9 +1789,9 @@ function SettingsContent() {
           )}
 
           {memoryLoading ? (
-            <p className="text-sm text-text-muted">Loading memory...</p>
+            <p className="text-sm text-text-muted">{tr("记忆加载中...", "Loading memory...")}</p>
           ) : memoryAgents.length === 0 ? (
-            <p className="text-sm text-text-muted">No agents available for memory editing.</p>
+            <p className="text-sm text-text-muted">{tr("暂无可编辑记忆的 Agent。", "No agents available for memory editing.")}</p>
           ) : (
             <div className="space-y-4">
               {memoryAgents.map((agent) => (
@@ -1350,27 +1801,27 @@ function SettingsContent() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => handleAddMemoryRule(agent.id, "approved")}
+                        onClick={() => openAddMemoryRuleDialog(agent.id, agent.name, "approved")}
                         className="text-xs px-2 py-1 rounded-md border border-accent-green/30 text-accent-green hover:bg-accent-green/10 transition-colors"
                       >
-                        + Approved
+                        + {tr("通过", "Approved")}
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleAddMemoryRule(agent.id, "rejected")}
+                        onClick={() => openAddMemoryRuleDialog(agent.id, agent.name, "rejected")}
                         className="text-xs px-2 py-1 rounded-md border border-accent-red/30 text-accent-red hover:bg-accent-red/10 transition-colors"
                       >
-                        + Rejected
+                        + {tr("拒绝", "Rejected")}
                       </button>
                     </div>
                   </div>
 
                   <div className="space-y-3">
                     <div>
-                      <p className="text-xs text-text-muted mb-1">Approved patterns</p>
+                      <p className="text-xs text-text-muted mb-1">{tr("通过规则", "Approved patterns")}</p>
                       <div className="space-y-1">
                         {agent.approved_rules.length === 0 ? (
-                          <p className="text-xs text-text-dim">No approved rules yet.</p>
+                          <p className="text-xs text-text-dim">{tr("暂无通过规则。", "No approved rules yet.")}</p>
                         ) : (
                           agent.approved_rules.map((rule) => (
                             <div key={rule.id} className="text-xs border border-border rounded-md p-2 bg-bg-input/40">
@@ -1379,17 +1830,17 @@ function SettingsContent() {
                                 <div className="flex items-center gap-1">
                                   <button
                                     type="button"
-                                    onClick={() => handleEditMemoryRule(agent.id, rule.id, rule.text)}
+                                    onClick={() => openEditMemoryRuleDialog(agent.id, agent.name, "approved", rule.id, rule.text)}
                                     className="px-1.5 py-0.5 rounded border border-border hover:bg-bg text-text-muted hover:text-text"
                                   >
-                                    Edit
+                                    {tr("编辑", "Edit")}
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteMemoryRule(agent.id, rule.id)}
                                     className="px-1.5 py-0.5 rounded border border-accent-red/30 text-accent-red hover:bg-accent-red/10"
                                   >
-                                    Delete
+                                    {tr("删除", "Delete")}
                                   </button>
                                 </div>
                               </div>
@@ -1403,10 +1854,10 @@ function SettingsContent() {
                     </div>
 
                     <div>
-                      <p className="text-xs text-text-muted mb-1">Rejected patterns</p>
+                      <p className="text-xs text-text-muted mb-1">{tr("拒绝规则", "Rejected patterns")}</p>
                       <div className="space-y-1">
                         {agent.rejected_rules.length === 0 ? (
-                          <p className="text-xs text-text-dim">No rejected rules yet.</p>
+                          <p className="text-xs text-text-dim">{tr("暂无拒绝规则。", "No rejected rules yet.")}</p>
                         ) : (
                           agent.rejected_rules.map((rule) => (
                             <div key={rule.id} className="text-xs border border-border rounded-md p-2 bg-bg-input/40">
@@ -1415,17 +1866,17 @@ function SettingsContent() {
                                 <div className="flex items-center gap-1">
                                   <button
                                     type="button"
-                                    onClick={() => handleEditMemoryRule(agent.id, rule.id, rule.text)}
+                                    onClick={() => openEditMemoryRuleDialog(agent.id, agent.name, "rejected", rule.id, rule.text)}
                                     className="px-1.5 py-0.5 rounded border border-border hover:bg-bg text-text-muted hover:text-text"
                                   >
-                                    Edit
+                                    {tr("编辑", "Edit")}
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => handleDeleteMemoryRule(agent.id, rule.id)}
                                     className="px-1.5 py-0.5 rounded border border-accent-red/30 text-accent-red hover:bg-accent-red/10"
                                   >
-                                    Delete
+                                    {tr("删除", "Delete")}
                                   </button>
                                 </div>
                               </div>
@@ -1439,17 +1890,17 @@ function SettingsContent() {
                     </div>
 
                     <div>
-                      <p className="text-xs text-text-muted mb-1">System event logs</p>
+                      <p className="text-xs text-text-muted mb-1">{tr("系统事件日志", "System event logs")}</p>
                       <div className="space-y-1">
                         {agent.system_logs.length === 0 ? (
-                          <p className="text-xs text-text-dim">No system logs yet.</p>
+                          <p className="text-xs text-text-dim">{tr("暂无系统日志。", "No system logs yet.")}</p>
                         ) : (
                           agent.system_logs.slice(0, 6).map((log) => (
                             <div key={log.id} className="text-[11px] border border-border rounded-md p-2 bg-bg-input/40">
                               <p className="text-text">
-                                [{log.review_action}] {log.message || "(no message)"}
+                                [{log.review_action}] {log.message || tr("（无内容）", "(no message)")}
                               </p>
-                              {log.note ? <p className="text-text-dim mt-0.5">note: {log.note}</p> : null}
+                              {log.note ? <p className="text-text-dim mt-0.5">{tr("备注", "note")}: {log.note}</p> : null}
                             </div>
                           ))
                         )}
@@ -1465,110 +1916,180 @@ function SettingsContent() {
         <div id="digital-twin-style" className="bg-bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
             <SlidersHorizontal className="w-5 h-5 text-text-muted" />
-            Digital Twin Style
+            {isZh ? "数字分身风格" : "Digital Twin Style"}
           </h2>
+          <p className="text-xs text-text-muted mb-4">
+            {isZh
+              ? "简化为 5 档语气：拖动一个滑块即可，系统会映射为对应的人格参数。"
+              : "Simplified to 5 style levels. Move one slider and we map it to persona parameters."}
+          </p>
+          {highlightedAgentId ? (
+            <p className="text-[11px] text-primary mb-3">
+              {isZh
+                ? "已从 Agent 页定位到目标分身设置。"
+                : "Opened from Agents page and focused target style card."}
+            </p>
+          ) : null}
           {memoryLoading ? (
-            <p className="text-sm text-text-muted">Loading persona settings...</p>
+            <p className="text-sm text-text-muted">{isZh ? "加载分身风格中..." : "Loading persona settings..."}</p>
           ) : memoryAgents.length === 0 ? (
-            <p className="text-sm text-text-muted">No agents available.</p>
+            <p className="text-sm text-text-muted">{isZh ? "暂无可配置的 Agent" : "No agents available."}</p>
           ) : (
             <div className="space-y-4">
-              {memoryAgents.map((agent) => (
-                <div key={`persona-${agent.id}`} className="border border-border rounded-lg p-3 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-medium">{agent.name}</h3>
-                    <span className={`text-[10px] px-2 py-0.5 rounded border ${
-                      agent.persona?.mode === "live"
-                        ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
-                        : "border-zinc-500/30 text-zinc-400 bg-zinc-500/10"
-                    }`}>
-                      {agent.persona?.mode || "shadow"}
-                    </span>
-                  </div>
-                  {!agent.persona ? (
-                    <p className="text-xs text-text-dim">Persona data unavailable.</p>
-                  ) : (
-                    <>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        <div>
-                          <label className="block text-xs text-text-muted mb-1">Preset</label>
-                          <select
-                            value={agent.persona.preset}
-                            onChange={(e) => handlePersonaDraftChange(agent.id, "preset", e.target.value)}
-                            className="w-full bg-bg-input border border-border rounded-md px-2 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
-                          >
-                            <option value="elys-balanced">elys-balanced</option>
-                            <option value="elys-sharp">elys-sharp</option>
-                            <option value="elys-playful">elys-playful</option>
-                            <option value="elys-calm">elys-calm</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs text-text-muted mb-1">Mode</label>
-                          <select
-                            value={agent.persona.mode}
-                            onChange={(e) => handlePersonaDraftChange(agent.id, "mode", e.target.value)}
-                            className="w-full bg-bg-input border border-border rounded-md px-2 py-1.5 text-xs text-text focus:outline-none focus:border-primary"
-                          >
-                            <option value="shadow">shadow</option>
-                            <option value="live">live</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {([
-                        ["warmth", "Warmth"],
-                        ["humor", "Humor"],
-                        ["directness", "Directness"],
-                        ["depth", "Depth"],
-                        ["challenge", "Challenge"],
-                      ] as const).map(([key, label]) => (
-                        <div key={key}>
-                          <div className="flex items-center justify-between text-xs text-text-muted mb-1">
-                            <span>{label}</span>
-                            <span>{agent.persona?.[key]}</span>
+              {personaAgents.map((agent) => {
+                const tier = getPersonaTier(agent.persona);
+                return (
+                  <div
+                    key={`persona-${agent.id}`}
+                    className={`border rounded-lg p-3 space-y-3 ${
+                      highlightedAgentId === agent.id ? "border-primary/50 bg-primary/5" : "border-border"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-medium">{agent.name}</h3>
+                      <span className={`text-[10px] px-2 py-0.5 rounded border ${
+                        agent.persona?.mode === "live"
+                          ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
+                          : "border-zinc-500/30 text-zinc-400 bg-zinc-500/10"
+                      }`}>
+                        {personaModeLabel(agent.persona?.mode)}
+                      </span>
+                    </div>
+                    {!agent.persona ? (
+                      <p className="text-xs text-text-dim">{isZh ? "分身数据不可用" : "Persona data unavailable."}</p>
+                    ) : (
+                      <>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+                              <span>{locale === "zh" ? "风格档位" : "Style level"}</span>
+                              <span className="font-medium text-text">
+                                L{tier.level} · {locale === "zh" ? tier.labelZh : tier.labelEn}
+                              </span>
+                            </div>
+                            <input
+                              type="range"
+                              min={1}
+                              max={5}
+                              step={1}
+                              value={tier.level}
+                              onChange={(e) => handlePersonaTierChange(agent.id, Number(e.target.value))}
+                              className="w-full accent-primary"
+                            />
+                            <div className="mt-1 flex justify-between text-[10px] text-text-dim">
+                              <span>L1</span>
+                              <span>L2</span>
+                              <span>L3</span>
+                              <span>L4</span>
+                              <span>L5</span>
+                            </div>
                           </div>
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            value={agent.persona?.[key] || 0}
-                            onChange={(e) => handlePersonaDraftChange(agent.id, key, Number(e.target.value))}
-                            className="w-full accent-primary"
-                          />
+                          <div>
+                            <label className="block text-xs text-text-muted mb-1">{isZh ? "执行模式" : "Execution mode"}</label>
+                            <div className="relative" data-persona-mode-menu>
+                              <button
+                                type="button"
+                                onClick={() => setModeMenuAgentId((current) => (current === agent.id ? null : agent.id))}
+                                className="w-full bg-bg-input border border-border rounded-md px-2 py-1.5 text-xs text-text text-left hover:border-primary/50 transition-colors"
+                              >
+                                {personaModeLabel(agent.persona.mode)}
+                              </button>
+                              {modeMenuAgentId === agent.id ? (
+                                <div className="absolute z-20 mt-1 w-full rounded-md border border-border bg-bg-card shadow-lg p-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handlePersonaModeChange(agent.id, "shadow");
+                                      setModeMenuAgentId(null);
+                                    }}
+                                    className={`w-full text-left text-xs px-2 py-1.5 rounded ${
+                                      agent.persona.mode === "shadow"
+                                        ? "bg-primary/10 text-primary font-medium"
+                                        : "text-text hover:bg-bg-input"
+                                    }`}
+                                  >
+                                    {isZh ? "观察学习（推荐）" : "Learning only (recommended)"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handlePersonaModeChange(agent.id, "live");
+                                      setModeMenuAgentId(null);
+                                    }}
+                                    className={`w-full text-left text-xs px-2 py-1.5 rounded ${
+                                      agent.persona.mode === "live"
+                                        ? "bg-primary/10 text-primary font-medium"
+                                        : "text-text hover:bg-bg-input"
+                                    }`}
+                                  >
+                                    {isZh ? "自动执行" : "Auto publish"}
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                            <p className="text-[11px] text-text-dim mt-1">
+                              {personaModeDescription(agent.persona.mode)}
+                            </p>
+                          </div>
                         </div>
-                      ))}
 
-                      <div className="text-[11px] text-text-muted">
-                        confidence: {Math.round((agent.persona.confidence || 0) * 100)}% · version {agent.persona.version}
-                      </div>
-                      {personaPreviewByAgent[agent.id] ? (
-                        <pre className="text-[11px] whitespace-pre-wrap bg-bg-input/40 border border-border rounded-md p-2 text-text-muted">
-                          {personaPreviewByAgent[agent.id]}
-                        </pre>
-                      ) : null}
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleSavePersona(agent.id)}
-                          disabled={personaSavingAgentId === agent.id}
-                          className="text-xs px-2.5 py-1 rounded-md bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50"
-                        >
-                          {personaSavingAgentId === agent.id ? "Saving..." : "Save style"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handlePreviewPersona(agent.id)}
-                          disabled={personaSavingAgentId === agent.id}
-                          className="text-xs px-2.5 py-1 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors disabled:opacity-50"
-                        >
-                          Preview
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
+                        <div className="text-[11px] text-text-muted">
+                          {isZh ? "当前风格稳定度" : "Current style stability"}: {Math.round((agent.persona.confidence || 0) * 100)}%
+                        </div>
+                        {personaPreviewByAgent[agent.id] ? (
+                          <div className="space-y-2">
+                            <div className="rounded-md border border-border bg-bg-input/40 p-2">
+                              <p className="text-[11px] text-text-dim mb-1">{isZh ? "基础风格" : "Baseline"}</p>
+                              <p className="text-xs text-text whitespace-pre-wrap break-words">
+                                {personaPreviewByAgent[agent.id]?.baseline || (isZh ? "暂无内容" : "No content")}
+                              </p>
+                            </div>
+                            <div className="rounded-md border border-primary/25 bg-primary/5 p-2">
+                              <p className="text-[11px] text-primary mb-1">{isZh ? "数字分身风格" : "Digital twin style"}</p>
+                              <p className="text-xs text-text whitespace-pre-wrap break-words">
+                                {personaPreviewByAgent[agent.id]?.persona || (isZh ? "暂无内容" : "No content")}
+                              </p>
+                            </div>
+                          </div>
+                        ) : null}
+                        <div className="flex items-center gap-2">
+                          {isPersonaDirty(agent.id, agent.persona) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleSavePersona(agent.id)}
+                              disabled={personaSavingAgentId === agent.id}
+                              className="text-xs px-2.5 py-1 rounded-md bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50"
+                            >
+                              {personaSavingAgentId === agent.id
+                                ? (isZh ? "保存中..." : "Saving...")
+                                : (isZh ? "保存风格" : "Save style")}
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-text-dim">
+                              {isZh ? "当前无待保存风格改动" : "No unsaved style changes"}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewDialogAgent({ id: agent.id, name: agent.name });
+                              setPreviewScenarioText(
+                                locale === "zh"
+                                  ? "用户提问：如何重构一个不稳定的 cron worker？"
+                                  : "A user asks how to refactor an unstable cron worker.",
+                              );
+                            }}
+                            disabled={personaSavingAgentId === agent.id}
+                            className="text-xs px-2.5 py-1 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors disabled:opacity-50"
+                          >
+                            {isZh ? "预览" : "Preview"}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -1576,11 +2097,11 @@ function SettingsContent() {
         <div className="bg-bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
             <Palette className="w-5 h-5 text-text-muted" />
-            Personalization
+            {tr("个性化", "Personalization")}
           </h2>
           <div className="space-y-4 text-sm">
             <div>
-              <p className="text-xs text-text-muted mb-2">Theme</p>
+              <p className="text-xs text-text-muted mb-2">{tr("主题", "Theme")}</p>
               <div className="flex flex-wrap gap-2">
                 {(["system", "light", "dark"] as const).map((item) => (
                   <button
@@ -1589,13 +2110,13 @@ function SettingsContent() {
                     onClick={() => setMode(item)}
                     className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${mode === item ? "border-primary text-primary bg-primary/10" : "border-border bg-bg hover:bg-bg-input"}`}
                   >
-                    {item}
+                    {item === "system" ? tr("跟随系统", "system") : item === "light" ? tr("浅色", "light") : tr("深色", "dark")}
                   </button>
                 ))}
               </div>
             </div>
             <div>
-              <p className="text-xs text-text-muted mb-2">Language</p>
+              <p className="text-xs text-text-muted mb-2">{tr("语言", "Language")}</p>
               <div className="flex gap-2">
                 <button
                   type="button"
@@ -1614,21 +2135,21 @@ function SettingsContent() {
               </div>
             </div>
             <div>
-              <p className="text-xs text-text-muted mb-2">Feed density</p>
+              <p className="text-xs text-text-muted mb-2">{tr("信息密度", "Feed density")}</p>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => handleCompactModeToggle(false)}
                   className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${!compactMode ? "border-primary text-primary bg-primary/10" : "border-border bg-bg hover:bg-bg-input"}`}
                 >
-                  Comfortable
+                  {tr("舒适", "Comfortable")}
                 </button>
                 <button
                   type="button"
                   onClick={() => handleCompactModeToggle(true)}
                   className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${compactMode ? "border-primary text-primary bg-primary/10" : "border-border bg-bg hover:bg-bg-input"}`}
                 >
-                  Compact
+                  {tr("紧凑", "Compact")}
                 </button>
               </div>
             </div>
@@ -1638,13 +2159,13 @@ function SettingsContent() {
         <div className="bg-bg-card border border-border rounded-xl p-6">
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
             <Shield className="w-5 h-5 text-text-muted" />
-            Security
+            {tr("安全", "Security")}
           </h2>
           <form onSubmit={handleChangePassword} className="space-y-4">
             {!isOAuthUser && (
               <div>
                 <label className="block text-xs text-text-muted mb-1">
-                  Current Password
+                  {tr("当前密码", "Current Password")}
                 </label>
                 <input
                   type="password"
@@ -1657,7 +2178,7 @@ function SettingsContent() {
             )}
             <div>
               <label className="block text-xs text-text-muted mb-1">
-                New Password
+                {tr("新密码", "New Password")}
               </label>
               <input
                 type="password"
@@ -1670,7 +2191,7 @@ function SettingsContent() {
             </div>
             <div>
               <label className="block text-xs text-text-muted mb-1">
-                Confirm New Password
+                {tr("确认新密码", "Confirm New Password")}
               </label>
               <input
                 type="password"
@@ -1698,11 +2219,104 @@ function SettingsContent() {
               disabled={saving}
               className="bg-primary hover:bg-primary-dark disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-md transition-colors"
             >
-              {saving ? "Saving..." : "Change Password"}
+              {saving ? tr("保存中...", "Saving...") : tr("修改密码", "Change Password")}
             </button>
           </form>
         </div>
       </div>
+
+      {ruleDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setRuleDialog(null)}>
+          <div className="bg-bg-card border border-border rounded-xl p-5 w-full max-w-lg mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-semibold">
+                {ruleDialog.mode === "add"
+                  ? locale === "zh"
+                    ? `新增${ruleDialog.polarity === "approved" ? "通过" : "拒绝"}规则 · ${ruleDialog.agentName}`
+                    : `Add ${ruleDialog.polarity} rule · ${ruleDialog.agentName}`
+                  : locale === "zh"
+                    ? `编辑规则 · ${ruleDialog.agentName}`
+                    : `Edit rule · ${ruleDialog.agentName}`}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setRuleDialog(null)}
+                className="text-text-dim hover:text-text transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <textarea
+              value={ruleDialogText}
+              onChange={(e) => setRuleDialogText(e.target.value)}
+              className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary min-h-[96px]"
+              placeholder={locale === "zh" ? "输入规则内容..." : "Enter rule text..."}
+              maxLength={300}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setRuleDialog(null)}
+                className="text-sm px-3 py-1.5 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors"
+              >
+                {locale === "zh" ? "取消" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitRuleDialog()}
+                disabled={ruleDialogSaving}
+                className="text-sm px-3 py-1.5 rounded-md bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50"
+              >
+                {ruleDialogSaving ? (locale === "zh" ? "保存中..." : "Saving...") : (locale === "zh" ? "保存" : "Save")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewDialogAgent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPreviewDialogAgent(null)}>
+          <div className="bg-bg-card border border-border rounded-xl p-5 w-full max-w-2xl mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-base font-semibold">
+                {locale === "zh" ? `风格预览 · ${previewDialogAgent.name}` : `Style Preview · ${previewDialogAgent.name}`}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setPreviewDialogAgent(null)}
+                className="text-text-dim hover:text-text transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <textarea
+              value={previewScenarioText}
+              onChange={(e) => setPreviewScenarioText(e.target.value)}
+              className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary min-h-[100px]"
+              placeholder={locale === "zh" ? "输入想预览的场景..." : "Enter scenario for style preview..."}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPreviewDialogAgent(null)}
+                className="text-sm px-3 py-1.5 rounded-md border border-border bg-bg hover:bg-bg-input transition-colors"
+              >
+                {locale === "zh" ? "取消" : "Cancel"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handlePreviewPersona(previewDialogAgent.id, previewScenarioText)}
+                disabled={personaSavingAgentId === previewDialogAgent.id}
+                className="text-sm px-3 py-1.5 rounded-md bg-primary text-white hover:bg-primary-dark transition-colors disabled:opacity-50"
+              >
+                {personaSavingAgentId === previewDialogAgent.id
+                  ? (locale === "zh" ? "生成中..." : "Generating...")
+                  : (locale === "zh" ? "生成预览" : "Generate preview")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

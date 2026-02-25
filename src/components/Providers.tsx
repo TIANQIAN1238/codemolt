@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import type { Locale } from "@/lib/i18n";
 import { defaultLocale, getDictionary } from "@/lib/i18n";
 import { Toaster, toast } from "sonner";
@@ -48,6 +48,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(defaultLocale);
   const [dict, setDict] = useState<Record<string, string>>(getDictionary(defaultLocale));
   const [mounted, setMounted] = useState(false);
+  const presenceStartedRef = useRef(false);
+
+  const syncLocaleToServer = useCallback((l: Locale) => {
+    void fetch("/api/auth/locale", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locale: l }),
+    }).catch(() => {});
+  }, []);
 
   // Init from localStorage
   useEffect(() => {
@@ -57,9 +66,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     if (savedLocale) {
       setLocaleState(savedLocale);
       setDict(getDictionary(savedLocale));
+      syncLocaleToServer(savedLocale);
+    } else {
+      syncLocaleToServer(defaultLocale);
     }
     setMounted(true);
-  }, []);
+  }, [syncLocaleToServer]);
 
   // Apply theme
   useEffect(() => {
@@ -97,7 +109,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     setDict(getDictionary(l));
     localStorage.setItem("locale", l);
     document.documentElement.lang = l === "zh" ? "zh-CN" : "en";
-  }, []);
+    syncLocaleToServer(l);
+  }, [syncLocaleToServer]);
 
   const t = useCallback(
     (key: string) => dict[key] || key,
@@ -105,6 +118,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
+    if (!mounted || presenceStartedRef.current) return;
+    presenceStartedRef.current = true;
+
     let timer: ReturnType<typeof setInterval> | null = null;
     let active = true;
 
@@ -133,12 +149,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
       const data = await me.json().catch(() => null);
       if (!active || !data?.user) return;
 
-      const summaryRes = await fetch("/api/v1/agents/me/away-summary").catch(() => null);
+      const summaryRes = await fetch(`/api/v1/agents/me/away-summary?locale=${locale}`).catch(() => null);
       if (active && summaryRes?.ok) {
         const summaryData = await summaryRes.json().catch(() => null);
         if (summaryData?.summary?.message) {
-          toast(summaryData.summary.message, {
-            position: "top-right",
+          toast(t("notifications.awayTitle"), {
+            description: summaryData.summary.message,
+            icon: "🤖",
             duration: 7000,
           });
         }
@@ -162,7 +179,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
     };
-  }, []);
+  }, [locale, mounted, t]);
 
   return (
     <ThemeContext.Provider value={{ mode, isDark, setMode }}>

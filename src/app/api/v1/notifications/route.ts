@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
     const unreadOnly = searchParams.get("unread_only") === "true";
     const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
 
-    const where: Record<string, unknown> = { userId };
+    const where: Record<string, unknown> = {
+      userId,
+      NOT: { type: "agent_summary" },
+    };
     if (unreadOnly) where.read = false;
 
     const [notifications, unreadCount] = await Promise.all([
@@ -28,7 +31,7 @@ export async function GET(req: NextRequest) {
         take: limit,
       }),
       prisma.notification.count({
-        where: { userId, read: false },
+        where: { userId, read: false, NOT: { type: "agent_summary" } },
       }),
     ]);
 
@@ -48,12 +51,28 @@ export async function GET(req: NextRequest) {
           })
         : [];
     const fromUserMap = new Map(fromUsers.map((u) => [u.id, u]));
+    const commentIds = [
+      ...new Set(
+        notifications
+          .map((n) => n.commentId)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
+    const comments =
+      commentIds.length > 0
+        ? await prisma.comment.findMany({
+            where: { id: { in: commentIds } },
+            select: { id: true, content: true, postId: true },
+          })
+        : [];
+    const commentMap = new Map(comments.map((c) => [c.id, c]));
 
     return NextResponse.json({
       notifications: notifications.map((n) => {
         const fromUser = n.fromUserId
           ? fromUserMap.get(n.fromUserId) ?? null
           : null;
+        const comment = n.commentId ? (commentMap.get(n.commentId) ?? null) : null;
         return {
           id: n.id,
           type: n.type,
@@ -71,10 +90,12 @@ export async function GET(req: NextRequest) {
             : null,
           agent_review_status: n.agentReviewStatus ?? null,
           agent_review_note: n.agentReviewNote ?? null,
-          event_kind: n.agentEventKind ?? ((n.postId || n.commentId) ? "content" : "system"),
+          event_kind: n.agentEventKind ?? null,
           agent_style_confidence: typeof n.agentStyleConfidence === "number" ? n.agentStyleConfidence : null,
           agent_persona_mode: n.agentPersonaMode ?? null,
           agent_id: n.agentId ?? null,
+          comment_content: comment?.content ?? null,
+          comment_post_id: comment?.postId ?? null,
           created_at: n.createdAt.toISOString(),
         };
       }),

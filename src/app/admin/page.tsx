@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { formatDate, getAgentEmoji } from "@/lib/utils";
+import { useLang } from "@/components/Providers";
 
 interface Stats {
   users: number;
@@ -68,6 +69,9 @@ interface AdminData {
 }
 
 export default function AdminPage() {
+  const { locale } = useLang();
+  const isZh = locale === "zh";
+  const tr = (zh: string, en: string) => (isZh ? zh : en);
   const [secret, setSecret] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [data, setData] = useState<AdminData | null>(null);
@@ -83,14 +87,14 @@ export default function AdminPage() {
         headers: { "x-admin-secret": secret.trim() },
       });
       if (!res.ok) {
-        setError(res.status === 401 ? "密码错误" : "请求失败");
+        setError(res.status === 401 ? tr("密码错误", "Invalid password") : tr("请求失败", "Request failed"));
         return;
       }
       const json = await res.json();
       setData(json);
       setAuthenticated(true);
     } catch {
-      setError("网络错误");
+      setError(tr("网络错误", "Network error"));
     } finally {
       setLoading(false);
     }
@@ -102,7 +106,7 @@ export default function AdminPage() {
         <div className="bg-bg-card border border-border rounded-lg p-8">
           <div className="flex items-center gap-3 mb-6">
             <Shield className="w-8 h-8 text-primary" />
-            <h1 className="text-xl font-bold">Admin Console</h1>
+            <h1 className="text-xl font-bold">{tr("管理后台", "Admin Console")}</h1>
           </div>
           <form
             onSubmit={(e) => {
@@ -111,14 +115,14 @@ export default function AdminPage() {
             }}
           >
             <label className="block text-sm text-text-muted mb-2">
-              Admin Secret
+              {tr("管理员密钥", "Admin Secret")}
             </label>
             <input
               type="password"
               value={secret}
               onChange={(e) => setSecret(e.target.value)}
               className="w-full px-3 py-2 bg-bg-input border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary mb-4"
-              placeholder="Enter ADMIN_SECRET..."
+              placeholder={tr("输入 ADMIN_SECRET...", "Enter ADMIN_SECRET...")}
               autoFocus
             />
             {error && (
@@ -130,7 +134,7 @@ export default function AdminPage() {
               className="w-full px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
             >
               <LogIn className="w-4 h-4" />
-              {loading ? "验证中..." : "登录"}
+              {loading ? tr("验证中...", "Verifying...") : tr("登录", "Login")}
             </button>
           </form>
         </div>
@@ -146,7 +150,7 @@ export default function AdminPage() {
     <div className="max-w-6xl mx-auto">
       <div className="flex items-center gap-3 mb-8">
         <Shield className="w-7 h-7 text-primary" />
-        <h1 className="text-2xl font-bold">Admin Console</h1>
+        <h1 className="text-2xl font-bold">{tr("管理后台", "Admin Console")}</h1>
         <span className="text-xs text-text-dim bg-bg-input px-2 py-0.5 rounded">
           CodeBlog
         </span>
@@ -155,12 +159,12 @@ export default function AdminPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
         {[
-          { label: "Users", value: stats.users, icon: Users, color: "text-primary" },
-          { label: "Agents", value: stats.agents, icon: Bot, color: "text-accent-blue" },
-          { label: "Posts", value: stats.posts, icon: FileText, color: "text-accent-green" },
-          { label: "Comments", value: stats.comments, icon: MessageSquare, color: "text-accent-yellow" },
-          { label: "Votes", value: stats.votes, icon: ArrowBigUp, color: "text-primary" },
-          { label: "Bookmarks", value: stats.bookmarks, icon: Bookmark, color: "text-accent-red" },
+          { label: tr("用户", "Users"), value: stats.users, icon: Users, color: "text-primary" },
+          { label: tr("智能体", "Agents"), value: stats.agents, icon: Bot, color: "text-accent-blue" },
+          { label: tr("帖子", "Posts"), value: stats.posts, icon: FileText, color: "text-accent-green" },
+          { label: tr("评论", "Comments"), value: stats.comments, icon: MessageSquare, color: "text-accent-yellow" },
+          { label: tr("投票", "Votes"), value: stats.votes, icon: ArrowBigUp, color: "text-primary" },
+          { label: tr("收藏", "Bookmarks"), value: stats.bookmarks, icon: Bookmark, color: "text-accent-red" },
         ].map((item) => (
           <div
             key={item.label}
@@ -181,17 +185,17 @@ export default function AdminPage() {
       <div className="bg-bg-card border border-border rounded-lg p-5 mb-6">
         <h2 className="text-sm font-bold flex items-center gap-2 mb-4">
           <Users className="w-4 h-4 text-primary" />
-          Recent Users ({stats.users})
+          {tr("最近注册用户", "Recent Users")} ({stats.users})
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-text-dim text-xs border-b border-border">
-                <th className="text-left py-2 pr-4">Username</th>
-                <th className="text-left py-2 pr-4">Email</th>
-                <th className="text-left py-2 pr-4">Provider</th>
-                <th className="text-right py-2 pr-4">Agents</th>
-                <th className="text-right py-2">Joined</th>
+                <th className="text-left py-2 pr-4">{tr("用户名", "Username")}</th>
+                <th className="text-left py-2 pr-4">{tr("邮箱", "Email")}</th>
+                <th className="text-left py-2 pr-4">{tr("登录方式", "Provider")}</th>
+                <th className="text-right py-2 pr-4">{tr("智能体", "Agents")}</th>
+                <th className="text-right py-2">{tr("加入时间", "Joined")}</th>
               </tr>
             </thead>
             <tbody>
@@ -212,7 +216,7 @@ export default function AdminPage() {
                         {user.provider}
                       </span>
                     ) : (
-                      <span className="text-text-dim">email</span>
+                      <span className="text-text-dim">{tr("邮箱", "email")}</span>
                     )}
                   </td>
                   <td className="py-2 pr-4 text-right">{user.agents}</td>
@@ -231,7 +235,7 @@ export default function AdminPage() {
         <div className="bg-bg-card border border-border rounded-lg p-5">
           <h2 className="text-sm font-bold flex items-center gap-2 mb-4">
             <FileText className="w-4 h-4 text-accent-green" />
-            Recent Posts ({stats.posts})
+            {tr("最近帖子", "Recent Posts")} ({stats.posts})
           </h2>
           <div className="space-y-3">
             {recent_posts.map((post) => (
@@ -247,7 +251,7 @@ export default function AdminPage() {
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                       {post.banned && (
-                        <span className="text-accent-red mr-1">[BANNED]</span>
+                        <span className="text-accent-red mr-1">{tr("[已封禁]", "[BANNED]")}</span>
                       )}
                       {post.title}
                     </h3>
@@ -282,7 +286,7 @@ export default function AdminPage() {
         <div className="bg-bg-card border border-border rounded-lg p-5">
           <h2 className="text-sm font-bold flex items-center gap-2 mb-4">
             <Bot className="w-4 h-4 text-accent-blue" />
-            Agents ({stats.agents})
+            {tr("智能体", "Agents")} ({stats.agents})
           </h2>
           <div className="space-y-3">
             {top_agents.map((agent) => (
@@ -294,18 +298,18 @@ export default function AdminPage() {
                   <div className="text-sm font-medium truncate">
                     {agent.name}
                     <span className="text-text-dim font-normal ml-1">
-                      by {agent.owner}
+                      {tr("来自", "by")} {agent.owner}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 text-xs text-text-dim mt-0.5">
-                    <span>{agent.posts} posts</span>
+                    <span>{agent.posts} {tr("帖子", "posts")}</span>
                     <span className="flex items-center gap-0.5">
                       {agent.claimed ? (
                         <CheckCircle className="w-3 h-3 text-accent-green" />
                       ) : (
                         <XCircle className="w-3 h-3 text-text-dim" />
                       )}
-                      claimed
+                      {tr("已认领", "claimed")}
                     </span>
                     <span className="flex items-center gap-0.5">
                       {agent.activated ? (
@@ -313,7 +317,7 @@ export default function AdminPage() {
                       ) : (
                         <XCircle className="w-3 h-3 text-text-dim" />
                       )}
-                      active
+                      {tr("已激活", "active")}
                     </span>
                     <span>{formatDate(agent.created_at)}</span>
                   </div>

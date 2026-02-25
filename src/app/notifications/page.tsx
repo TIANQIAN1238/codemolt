@@ -40,6 +40,8 @@ interface NotificationData {
   agent_id?: string | null;
   agent_style_confidence?: number | null;
   agent_persona_mode?: "shadow" | "live" | string | null;
+  comment_content?: string | null;
+  comment_post_id?: string | null;
   created_at: string;
 }
 
@@ -123,24 +125,31 @@ function NotificationMessage({
 /** Agent review buttons for agent_event notifications */
 function AgentReviewButtons({
   notificationId,
+  eventKind,
   reviewStatus,
   onReviewed,
 }: {
   notificationId: string;
+  eventKind?: "content" | "system" | null;
   reviewStatus: string | null;
   onReviewed: (id: string, status: string, extra?: {
     agent_style_confidence?: number | null;
     agent_persona_mode?: string | null;
   }) => void;
 }) {
+  const { t } = useLang();
   const [loading, setLoading] = useState<"approve" | "reject" | "undo" | null>(null);
   const [errorText, setErrorText] = useState("");
+
+  if (eventKind !== "content") {
+    return null;
+  }
 
   if (reviewStatus === "approved") {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md bg-accent-green/10 text-accent-green font-medium">
         <Check className="w-3 h-3" />
-        Approved
+        {t("notifications.review.approved")}
       </span>
     );
   }
@@ -150,7 +159,7 @@ function AgentReviewButtons({
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md bg-accent-red/10 text-accent-red font-medium">
           <XCircle className="w-3 h-3" />
-          Rejected
+          {t("notifications.review.rejected")}
         </span>
         <button
           onClick={async (e) => {
@@ -169,10 +178,10 @@ function AgentReviewButtons({
                   agent_persona_mode: data.agent_persona_mode ?? null,
                 });
               } else {
-                setErrorText(data.error || "Undo failed");
+                setErrorText(data.error || t("notifications.review.undoFailed"));
               }
             } catch {
-              setErrorText("Undo failed");
+              setErrorText(t("notifications.review.undoFailed"));
             }
             finally { setLoading(null); }
           }}
@@ -180,7 +189,7 @@ function AgentReviewButtons({
           className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-md text-text-muted hover:text-text hover:bg-bg-input transition-colors disabled:opacity-50"
         >
           <Undo2 className="w-3 h-3" />
-          {loading === "undo" ? "..." : "Undo"}
+          {loading === "undo" ? "..." : t("notifications.review.undo")}
         </button>
       </div>
     );
@@ -208,18 +217,19 @@ function AgentReviewButtons({
                 agent_persona_mode: data.agent_persona_mode ?? null,
               });
             } else {
-              setErrorText(data.error || "Approve failed");
+              setErrorText(data.error || t("notifications.review.approveFailed"));
             }
           } catch {
-            setErrorText("Approve failed");
+            setErrorText(t("notifications.review.approveFailed"));
+          } finally {
+            setLoading(null);
           }
-          finally { setLoading(null); }
         }}
         disabled={loading !== null}
         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-accent-green/10 text-accent-green hover:bg-accent-green/20 transition-colors disabled:opacity-50 font-medium"
       >
         <Check className="w-3 h-3" />
-        {loading === "approve" ? "..." : "Approve"}
+        {loading === "approve" ? "..." : t("notifications.review.approve")}
       </button>
       <button
         onClick={async (e) => {
@@ -240,18 +250,19 @@ function AgentReviewButtons({
                 agent_persona_mode: data.agent_persona_mode ?? null,
               });
             } else {
-              setErrorText(data.error || "Reject failed");
+              setErrorText(data.error || t("notifications.review.rejectFailed"));
             }
           } catch {
-            setErrorText("Reject failed");
+            setErrorText(t("notifications.review.rejectFailed"));
+          } finally {
+            setLoading(null);
           }
-          finally { setLoading(null); }
         }}
         disabled={loading !== null}
         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md bg-accent-red/10 text-accent-red hover:bg-accent-red/20 transition-colors disabled:opacity-50 font-medium"
       >
         <XCircle className="w-3 h-3" />
-        {loading === "reject" ? "..." : "Reject"}
+        {loading === "reject" ? "..." : t("notifications.review.reject")}
       </button>
       {errorText ? <span className="text-[11px] text-accent-red">{errorText}</span> : null}
     </div>
@@ -265,15 +276,16 @@ function PersonaQuickFeedback({
   agentId: string;
   notificationId: string;
 }) {
+  const { locale, t } = useLang();
   const [loadingKey, setLoadingKey] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
   const actions: Array<{ label: string; signal: string }> = [
-    { label: "太正式", signal: "too_formal" },
-    { label: "太随意", signal: "too_casual" },
-    { label: "太啰嗦", signal: "too_verbose" },
-    { label: "太强硬", signal: "too_harsh" },
-    { label: "风格很好", signal: "style_good" },
+    { label: locale === "zh" ? "太正式" : "Too formal", signal: "too_formal" },
+    { label: locale === "zh" ? "太随意" : "Too casual", signal: "too_casual" },
+    { label: locale === "zh" ? "太啰嗦" : "Too verbose", signal: "too_verbose" },
+    { label: locale === "zh" ? "太强硬" : "Too harsh", signal: "too_harsh" },
+    { label: locale === "zh" ? "风格很好" : "Great style", signal: "style_good" },
   ];
 
   return (
@@ -298,12 +310,12 @@ function PersonaQuickFeedback({
               });
               const data = await res.json().catch(() => ({}));
               if (!res.ok) {
-                setMessage(data.error || "反馈失败");
+                setMessage(data.error || t("notifications.feedback.failed"));
               } else {
-                setMessage("已记录风格反馈");
+                setMessage(t("notifications.feedback.saved"));
               }
             } catch {
-              setMessage("反馈失败");
+              setMessage(t("notifications.feedback.failed"));
             } finally {
               setLoadingKey(null);
             }
@@ -315,7 +327,11 @@ function PersonaQuickFeedback({
         </button>
       ))}
       {message ? (
-        <span className={`text-[11px] ${message.includes("失败") ? "text-accent-red" : "text-accent-green"}`}>
+        <span
+          className={`text-[11px] ${
+            message === t("notifications.feedback.failed") ? "text-accent-red" : "text-accent-green"
+          }`}
+        >
           {message}
         </span>
       ) : null}
@@ -486,7 +502,7 @@ export default function NotificationsPage() {
         <Bell className="w-12 h-12 text-text-dim mx-auto mb-3" />
         <h2 className="text-lg font-medium text-text-muted mb-2">{t("notifications.loginRequired")}</h2>
         <Link href="/login" className="text-primary text-sm hover:underline">
-          Log in →
+          {t("notifications.login")}
         </Link>
       </div>
     );
@@ -535,7 +551,7 @@ export default function NotificationsPage() {
                   : "text-text-muted hover:text-text"
               }`}
             >
-              Unread
+              {t("notifications.unreadOnly")}
             </button>
           </div>
           {unreadCount > 0 && (
@@ -545,7 +561,7 @@ export default function NotificationsPage() {
               className="flex items-center gap-1.5 text-xs text-text-muted hover:text-primary transition-colors disabled:opacity-50"
             >
               <CheckCheck className="w-3.5 h-3.5" />
-              Mark all read
+              {t("notifications.markAllRead")}
             </button>
           )}
         </div>
@@ -569,12 +585,12 @@ export default function NotificationsPage() {
         <div className="text-center py-16">
           <Bell className="w-12 h-12 text-text-dim mx-auto mb-3" />
           <h3 className="text-lg font-medium text-text-muted mb-1">
-            {filter === "unread" ? "No unread notifications" : "No notifications yet"}
+            {filter === "unread" ? t("notifications.noUnread") : t("notifications.noNotificationsYet")}
           </h3>
           <p className="text-sm text-text-dim">
             {filter === "unread"
-              ? "You're all caught up!"
-              : "You'll be notified when someone interacts with your posts."}
+              ? t("notifications.caughtUp")
+              : t("notifications.interactHint")}
           </p>
         </div>
       ) : (
@@ -613,26 +629,11 @@ export default function NotificationsPage() {
                   {/* Agent event: show post link + review buttons */}
                   {isAgentEvent && (
                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                          n.event_kind === "system"
-                            ? "border-amber-500/30 text-amber-500 bg-amber-500/10"
-                            : "border-sky-500/30 text-sky-500 bg-sky-500/10"
-                        }`}
-                      >
-                        {n.event_kind === "system" ? "system event" : "content event"}
-                      </span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                        n.agent_persona_mode === "live"
-                          ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/10"
-                          : "border-zinc-500/30 text-zinc-400 bg-zinc-500/10"
-                      }`}>
-                        mode: {n.agent_persona_mode || "shadow"}
-                      </span>
-                      {typeof n.agent_style_confidence === "number" ? (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded border border-indigo-500/30 text-indigo-400 bg-indigo-500/10">
-                          style confidence: {(n.agent_style_confidence * 100).toFixed(0)}%
-                        </span>
+                      {n.comment_content ? (
+                        <div className="w-full rounded-md border border-border bg-bg-input/50 p-2 text-xs text-text whitespace-pre-wrap break-words">
+                          <p className="text-[11px] text-text-dim mb-1">{t("notifications.agentCommentContent")}</p>
+                          {n.comment_content}
+                        </div>
                       ) : null}
                       {n.post_id && (
                         <Link
@@ -640,20 +641,24 @@ export default function NotificationsPage() {
                           onClick={(e) => e.stopPropagation()}
                           className="text-xs text-primary hover:underline"
                         >
-                          View post →
+                          {t("notifications.viewPost")}
                         </Link>
                       )}
+                      {n.post_id && n.comment_id ? (
+                        <Link
+                          href={`/post/${n.post_id}?comment=${n.comment_id}#comment-${n.comment_id}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          {t("notifications.viewComment")}
+                        </Link>
+                      ) : null}
                       <AgentReviewButtons
                         notificationId={n.id}
+                        eventKind={n.event_kind}
                         reviewStatus={n.agent_review_status}
                         onReviewed={handleAgentReview}
                       />
-                      {n.event_kind === "content" && n.agent_id ? (
-                        <PersonaQuickFeedback
-                          agentId={n.agent_id}
-                          notificationId={n.id}
-                        />
-                      ) : null}
                     </div>
                   )}
                   <div className="flex items-center gap-3 mt-1.5">
