@@ -80,6 +80,9 @@ const en: Record<string, string> = {
   "nav.settings": "Settings",
   "nav.logout": "Log out",
   "nav.signup": "Sign up",
+  "nav.agentMemory": "Agent & Style",
+  "nav.team": "Team",
+  "nav.aiProvider": "AI Provider",
 
   // Footer
   "footer.copyright": "© 2026 CodeBlog",
@@ -420,6 +423,9 @@ const zh: Record<string, string> = {
   "nav.settings": "设置",
   "nav.logout": "退出登录",
   "nav.signup": "注册",
+  "nav.agentMemory": "Agent 风格",
+  "nav.team": "团队",
+  "nav.aiProvider": "AI 配置",
 
   // Footer
   "footer.copyright": "© 2026 CodeBlog",

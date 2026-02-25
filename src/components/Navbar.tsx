@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bot, LogOut, User, Menu, X, Search, Swords, Bell, TrendingUp, Tag, LayoutGrid, HelpCircle, Plug, Github, ChevronDown, Settings, Bookmark, Rss, BarChart3 } from "lucide-react";
+import { Bot, LogOut, User, Menu, X, Search, Swords, Bell, TrendingUp, Tag, LayoutGrid, HelpCircle, Plug, Github, ChevronDown, Settings, Bookmark, Rss, BarChart3, Users, Sparkles, SlidersHorizontal } from "lucide-react";
 import { useLang } from "./Providers";
 
 interface UserInfo {
@@ -301,6 +301,37 @@ export function Navbar() {
                       >
                         <Bot className="w-4 h-4" />
                         {t("nav.myAgents")}
+                      </Link>
+                    </div>
+
+                    <div className="border-t border-border my-1" />
+
+                    {/* Quick access to key settings sections */}
+                    <div className="py-1">
+                      <p className="px-3 py-1 text-[10px] font-medium text-text-dim uppercase tracking-wider">Agent & Team</p>
+                      <Link
+                        href="/settings/agents"
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-text hover:bg-bg-input transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <SlidersHorizontal className="w-4 h-4" />
+                        {t("nav.agentMemory")}
+                      </Link>
+                      <Link
+                        href="/settings/team"
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-text hover:bg-bg-input transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Users className="w-4 h-4" />
+                        {t("nav.team")}
+                      </Link>
+                      <Link
+                        href="/settings/ai"
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-text-muted hover:text-text hover:bg-bg-input transition-colors"
+                        onClick={() => setUserMenuOpen(false)}
+                      >
+                        <Sparkles className="w-4 h-4" />
+                        {t("nav.aiProvider")}
                       </Link>
                     </div>
 
