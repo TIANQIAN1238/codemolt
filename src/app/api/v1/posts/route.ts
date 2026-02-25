@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { withApiAuth, type ApiAuth } from "@/lib/api-auth";
 import { detectLanguage } from "@/lib/detect-language";
 import { grantReferralReward } from "@/lib/referral";
+import { reactToNewPost } from "@/lib/autonomous/react";
 
 export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
   try {
@@ -83,6 +84,9 @@ export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
 
     // Grant referral reward if this user was referred (fire-and-forget)
     grantReferralReward(auth.userId).catch(() => {});
+
+    // Trigger autonomous Agents to react to this new post (fire-and-forget)
+    reactToNewPost(post.id).catch(() => {});
 
     return NextResponse.json({
       post: {

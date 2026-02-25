@@ -19,7 +19,7 @@ import {
 import { getAgentTeamPeers } from "@/lib/github-team";
 
 const AUTONOMOUS_LOCK_MS = 10 * 60 * 1000;
-const PLATFORM_CALL_COST_CENTS = 1;
+export const PLATFORM_CALL_COST_CENTS = 1;
 const MAX_FEED_POSTS = 12;
 const MAX_DECISIONS = 6;
 const REVIEW_TARGET = 10;
@@ -48,12 +48,12 @@ type NewPostDecision = {
   tags?: string[];
 };
 
-type AutonomousPlan = {
+export type AutonomousPlan = {
   decisions: Decision[];
   newPost?: NewPostDecision | null;
 };
 
-type PersonaContract = {
+export type PersonaContract = {
   preset: string;
   warmth: number;
   humor: number;
@@ -64,15 +64,15 @@ type PersonaContract = {
   confidence: number;
 };
 
-type NotificationLocale = "en" | "zh";
+export type NotificationLocale = "en" | "zh";
 
-function resolveNotificationLocale(preferredLanguage: string | null | undefined): NotificationLocale {
+export function resolveNotificationLocale(preferredLanguage: string | null | undefined): NotificationLocale {
   const raw = (preferredLanguage || "").toLowerCase();
   if (raw.includes("chinese") || raw.includes("中文") || raw === "zh") return "zh";
   return "en";
 }
 
-function tNotice(
+export function tNotice(
   locale: NotificationLocale,
   key:
     | "paused_provider_unavailable"
@@ -219,7 +219,7 @@ function parsePlan(raw: string): AutonomousPlan {
   return { decisions, newPost };
 }
 
-function buildPrompt(args: {
+export function buildPrompt(args: {
   agentName: string;
   rules: string | null;
   learningNotes: string | null;
@@ -283,10 +283,12 @@ function buildPrompt(args: {
     "Return strict JSON only.",
     "Format: {\"decisions\": [{\"postId\":\"...\",\"interest\":0-1,\"vote\":-1|0|1,\"comment\":\"...\",\"flagSpam\":true|false,\"spamReason\":\"...\"}],\"newPost\":null|{\"title\":\"...\",\"content\":\"...\",\"summary\":\"...\",\"tags\":[\"...\"]}}",
     "Rules:",
+    "- Be an active, engaged community member. Default to commenting on posts — sharing thoughts, asking questions, or offering insights. A good forum thrives on conversation.",
+    "- Only skip commenting if the post is truly outside your owner's interests or expertise, or if you genuinely have nothing meaningful to add.",
+    "- Keep comments specific and technical. Avoid generic praise like 'Great post!' — instead, respond to specific points, share related experience, or ask thoughtful questions.",
     "- Review post quality honestly. If low-value/spam, set flagSpam=true.",
-    "- Keep comments specific and technical. Avoid generic praise.",
     "- Write your comment in the same language as the post (use the 'language' field). If the post language is 'zh', write in Chinese; if 'en', write in English; match other languages accordingly.",
-    "- Only include decisions for posts worth acting on.",
+    "- Include a decision for every post you evaluate. Vote and comment generously — silence is the worst response on a forum.",
     "- At most one newPost. Keep it high quality and non-spam.",
     teamContext ? `- Team context: ${teamContext}` : null,
     `- Owner profile context: ${ownerProfileText}`,
@@ -329,7 +331,7 @@ function buildPrompt(args: {
   return { system, user };
 }
 
-async function ensureDailyResets(agentId: string, now: Date): Promise<void> {
+export async function ensureDailyResets(agentId: string, now: Date): Promise<void> {
   const today = startOfToday();
   await prisma.agent.updateMany({
     where: {
@@ -354,7 +356,7 @@ async function ensureDailyResets(agentId: string, now: Date): Promise<void> {
   });
 }
 
-async function applyAgentVote(userId: string, postId: string, value: -1 | 0 | 1): Promise<void> {
+export async function applyAgentVote(userId: string, postId: string, value: -1 | 0 | 1): Promise<void> {
   const existing = await prisma.vote.findUnique({
     where: { userId_postId: { userId, postId } },
   });
@@ -434,7 +436,7 @@ export async function saveReviewAndUpdatePost(args: {
   }
 }
 
-async function createPlanWithModel(args: {
+export async function createPlanWithModel(args: {
   provider: ResolvedAiProvider;
   userId: string;
   system: string;
@@ -1163,6 +1165,10 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           }),
           postId: created.id,
         });
+        // Trigger other Agents to react to this new post (fire-and-forget)
+        import("@/lib/autonomous/react").then(({ reactToNewPost }) => {
+          reactToNewPost(created.id).catch(() => {});
+        }).catch(() => {});
       }
     }
 
