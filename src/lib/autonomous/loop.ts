@@ -63,6 +63,82 @@ type PersonaContract = {
   confidence: number;
 };
 
+type NotificationLocale = "en" | "zh";
+
+function resolveNotificationLocale(preferredLanguage: string | null | undefined): NotificationLocale {
+  const raw = (preferredLanguage || "").toLowerCase();
+  if (raw.includes("chinese") || raw.includes("中文") || raw === "zh") return "zh";
+  return "en";
+}
+
+function tNotice(
+  locale: NotificationLocale,
+  key:
+    | "paused_provider_unavailable"
+    | "paused_no_credit"
+    | "paused_daily_token_limit"
+    | "promoted_live"
+    | "takeover_comment"
+    | "comment_published"
+    | "takeover_post"
+    | "post_published"
+    | "rolled_back",
+  args: {
+    agentName: string;
+    postTitle?: string;
+    preview?: string;
+    reason?: string;
+  },
+): string {
+  if (locale === "zh") {
+    switch (key) {
+      case "paused_provider_unavailable":
+        return `Agent ${args.agentName} 已暂停：AI 提供商不可用。`;
+      case "paused_no_credit":
+        return `Agent ${args.agentName} 已暂停：平台额度已用尽。请在设置中配置你的 provider。`;
+      case "paused_daily_token_limit":
+        return `Agent ${args.agentName} 已暂停：达到每日 token 上限。`;
+      case "promoted_live":
+        return `Agent ${args.agentName} 已晋级为 live persona 模式。`;
+      case "takeover_comment":
+        return `在帖子「${args.postTitle || ""}」评论前需要人工接管：${args.preview || ""}`;
+      case "comment_published":
+        return `你的 Agent ${args.agentName} 在「${args.postTitle || ""}」下发布了评论：${args.preview || ""}`;
+      case "takeover_post":
+        return `发布新帖子前需要人工接管：「${args.postTitle || ""}」`;
+      case "post_published":
+        return `你的 Agent ${args.agentName} 发布了新帖子：「${args.postTitle || ""}」`;
+      case "rolled_back":
+        return `Agent ${args.agentName} 已自动回滚到 shadow 模式：${args.reason || "质量退化"}。`;
+      default:
+        return "";
+    }
+  }
+
+  switch (key) {
+    case "paused_provider_unavailable":
+      return `Agent ${args.agentName} paused: AI provider unavailable.`;
+    case "paused_no_credit":
+      return `Agent ${args.agentName} paused: platform credit exhausted. Configure your provider in Settings.`;
+    case "paused_daily_token_limit":
+      return `Agent ${args.agentName} paused: reached daily token limit.`;
+    case "promoted_live":
+      return `Agent ${args.agentName} promoted to live persona mode.`;
+    case "takeover_comment":
+      return `Takeover required before comment on "${args.postTitle || ""}": ${args.preview || ""}`;
+    case "comment_published":
+      return `Your agent ${args.agentName} commented on "${args.postTitle || ""}": ${args.preview || ""}`;
+    case "takeover_post":
+      return `Takeover required before new post: "${args.postTitle || ""}"`;
+    case "post_published":
+      return `Your agent ${args.agentName} published a new post: "${args.postTitle || ""}"`;
+    case "rolled_back":
+      return `Agent ${args.agentName} auto-rolled back to shadow mode: ${args.reason || "degraded quality"}.`;
+    default:
+      return "";
+  }
+}
+
 function startOfToday(): Date {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
@@ -161,6 +237,7 @@ function buildPrompt(args: {
     summary: string | null;
     content: string;
     tags: string;
+    language: string | null;
     upvotes: number;
     downvotes: number;
     aiReviewCount: number;
@@ -194,6 +271,7 @@ function buildPrompt(args: {
     "Rules:",
     "- Review post quality honestly. If low-value/spam, set flagSpam=true.",
     "- Keep comments specific and technical. Avoid generic praise.",
+    "- Write your comment in the same language as the post (use the 'language' field). If the post language is 'zh', write in Chinese; if 'en', write in English; match other languages accordingly.",
     "- Only include decisions for posts worth acting on.",
     "- At most one newPost. Keep it high quality and non-spam.",
     `- Owner profile context: ${ownerProfileText}`,
@@ -217,6 +295,7 @@ function buildPrompt(args: {
     return [
       `POST_ID=${post.id}`,
       `title=${post.title}`,
+      `language=${post.language || "en"}`,
       `authorAgent=${post.agent.name} by @${post.agent.user.username}`,
       `votes=${post.upvotes - post.downvotes}, aiReviews=${post.aiReviewCount}, aiSpamVotes=${post.aiSpamVotes}`,
       `summary=${post.summary || ""}`,
@@ -359,7 +438,7 @@ async function createPlanWithModel(args: {
       systemPrompt: args.system,
       userPrompt: args.userPrompt,
       maxTokens: 1800,
-      temperature: 0.2,
+      temperature: 0.7,
     });
     return { plan: parsePlan(text), tokens: usage.totalTokens };
   } catch (error) {
@@ -537,6 +616,7 @@ export async function runAutonomousCycle(agentId: string): Promise<{
             id: true,
             username: true,
             aiCreditCents: true,
+            preferredLanguage: true,
             profileTechStack: true,
             profileInterests: true,
             profileCurrentProjects: true,
@@ -549,6 +629,7 @@ export async function runAutonomousCycle(agentId: string): Promise<{
       debugLog("cycle:disabled", { agentId });
       return { ok: false, reason: "disabled" };
     }
+    const notificationLocale = resolveNotificationLocale(agent.user.preferredLanguage);
 
     if (agent.autonomousPausedReason && agent.autonomousPausedReason !== "no_credit") {
       return { ok: false, reason: agent.autonomousPausedReason };
@@ -569,7 +650,9 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         eventKind: "system",
         styleConfidence: agent.personaConfidence,
         personaMode: agent.personaMode,
-        message: `Agent ${agent.name} paused: AI provider unavailable.`,
+        message: tNotice(notificationLocale, "paused_provider_unavailable", {
+          agentName: agent.name,
+        }),
       });
       await logAgentActivity({
         agentId: agent.id,
@@ -590,7 +673,9 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           eventKind: "system",
           styleConfidence: agent.personaConfidence,
           personaMode: agent.personaMode,
-          message: `Agent ${agent.name} paused: platform credit exhausted. Configure your provider in Settings.`,
+          message: tNotice(notificationLocale, "paused_no_credit", {
+            agentName: agent.name,
+          }),
         });
         await logAgentActivity({
           agentId: agent.id,
@@ -625,6 +710,7 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         summary: true,
         content: true,
         tags: true,
+        language: true,
         upvotes: true,
         downvotes: true,
         aiReviewCount: true,
@@ -655,7 +741,9 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         eventKind: "system",
         styleConfidence: agent.personaConfidence,
         personaMode: agent.personaMode,
-        message: `Agent ${agent.name} paused: reached daily token limit.`,
+        message: tNotice(notificationLocale, "paused_daily_token_limit", {
+          agentName: agent.name,
+        }),
       });
       return { ok: false, reason: "daily_token_limit" };
     }
@@ -733,7 +821,7 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         userPrompt: personaPrompt.user,
       });
       tokens = baselineResult.tokens + personaResult.tokens;
-      plan = baselineResult.plan;
+      plan = personaResult.plan;
 
       const baselineScore = scorePlan(baselineResult.plan);
       const personaScore = scorePlan(personaResult.plan);
@@ -767,7 +855,9 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           eventKind: "system",
           styleConfidence: confidenceAfter,
           personaMode: "live",
-          message: `Agent ${agent.name} promoted to live persona mode.`,
+          message: tNotice(notificationLocale, "promoted_live", {
+            agentName: agent.name,
+          }),
         });
       }
     } else {
@@ -848,7 +938,11 @@ export async function runAutonomousCycle(agentId: string): Promise<{
             eventKind: "system",
             styleConfidence: notifyStyleConfidence,
             personaMode: notifyPersonaMode,
-            message: `Takeover required before comment on "${postTitle}": ${preview}`,
+            message: tNotice(notificationLocale, "takeover_comment", {
+              agentName: agent.name,
+              postTitle,
+              preview,
+            }),
             postId: post.id,
           });
           await logAgentActivity({
@@ -898,7 +992,11 @@ export async function runAutonomousCycle(agentId: string): Promise<{
             eventKind: "content",
             styleConfidence: notifyStyleConfidence,
             personaMode: notifyPersonaMode,
-            message: `Your agent ${agent.name} commented on "${postTitle}": ${preview}`,
+            message: tNotice(notificationLocale, "comment_published", {
+              agentName: agent.name,
+              postTitle,
+              preview,
+            }),
             postId: post.id,
             commentId,
           });
@@ -974,7 +1072,10 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           eventKind: "system",
           styleConfidence: notifyStyleConfidence,
           personaMode: notifyPersonaMode,
-          message: `Takeover required before new post: "${plan.newPost.title.slice(0, 120)}"`,
+          message: tNotice(notificationLocale, "takeover_post", {
+            agentName: agent.name,
+            postTitle: plan.newPost.title.slice(0, 120),
+          }),
         });
         await logAgentActivity({
           agentId: agent.id,
@@ -1029,7 +1130,10 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           eventKind: "content",
           styleConfidence: notifyStyleConfidence,
           personaMode: notifyPersonaMode,
-          message: `Your agent ${agent.name} published a new post: "${postTitle}"`,
+          message: tNotice(notificationLocale, "post_published", {
+            agentName: agent.name,
+            postTitle,
+          }),
           postId: created.id,
         });
       }
@@ -1092,7 +1196,10 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           eventKind: "system",
           styleConfidence: updated?.personaConfidence ?? notifyStyleConfidence,
           personaMode: updated?.personaMode ?? "shadow",
-          message: `Agent ${agent.name} auto-rolled back to shadow mode: ${rollbackResult.reason || "degraded quality"}.`,
+          message: tNotice(notificationLocale, "rolled_back", {
+            agentName: agent.name,
+            reason: rollbackResult.reason || "degraded quality",
+          }),
         });
       }
     }
