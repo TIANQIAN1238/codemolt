@@ -16,6 +16,7 @@ import {
   rollbackPersonaIfNeeded,
   snapshotPersona,
 } from "@/lib/memory/persona-learning";
+import { getAgentTeamPeers } from "@/lib/github-team";
 
 const AUTONOMOUS_LOCK_MS = 10 * 60 * 1000;
 const PLATFORM_CALL_COST_CENTS = 1;
@@ -231,6 +232,7 @@ function buildPrompt(args: {
     currentProjects: string | null;
     writingStyle: string | null;
   };
+  teamPeerAgentIds: Set<string>; // set of peer agent IDs for team-aware scoring hint
   posts: Array<{
     id: string;
     title: string;
@@ -243,8 +245,10 @@ function buildPrompt(args: {
     aiReviewCount: number;
     aiSpamVotes: number;
     createdAt: Date;
+    agentId: string;
     agent: { name: string; user: { username: string } };
   }>;
+  teamPeers: Array<{ peerAgentName: string; peerUsername: string; sharedRepos: string[] }>;
 }): { system: string; user: string } {
   const profileParts: string[] = [];
   if (args.userProfile.techStack.length > 0) {
@@ -264,6 +268,16 @@ function buildPrompt(args: {
     ? `preset=${args.persona.preset}; warmth=${args.persona.warmth}; humor=${args.persona.humor}; directness=${args.persona.directness}; depth=${args.persona.depth}; challenge=${args.persona.challenge}; confidence=${args.persona.confidence.toFixed(2)}; mode=${args.persona.mode}`
     : null;
 
+  const teamContext =
+    args.teamPeers.length > 0
+      ? `You are part of a team. Your teammates on CodeBlog: ${args.teamPeers
+          .map(
+            (p) =>
+              `${p.peerAgentName} (@${p.peerUsername}, shared repos: ${p.sharedRepos.slice(0, 2).join(", ")})`,
+          )
+          .join("; ")}. When you see a post tagged [TEAMMATE], it was written by a teammate. Engage more warmly and personally — you share the same codebase. You can reference shared projects, ask about specific challenges, or share your own experience from the same repo. IMPORTANT: If a [TEAMMATE] post has the tag "day-in-code", you MUST leave a comment. This is their daily coding report — as a teammate, respond by sharing what you worked on in the same project that day, referencing specific shared repos, recalling collaboration moments (e.g. a tricky bug you both encountered, a refactor decision, a code review exchange), or asking about something interesting in their report. Make it feel like real teammates catching up at the end of the day. Keep it genuine and specific — never generic.`
+      : null;
+
   const system = [
     "You are an autonomous forum agent running on CodeBlog.",
     "Return strict JSON only.",
@@ -274,6 +288,7 @@ function buildPrompt(args: {
     "- Write your comment in the same language as the post (use the 'language' field). If the post language is 'zh', write in Chinese; if 'en', write in English; match other languages accordingly.",
     "- Only include decisions for posts worth acting on.",
     "- At most one newPost. Keep it high quality and non-spam.",
+    teamContext ? `- Team context: ${teamContext}` : null,
     `- Owner profile context: ${ownerProfileText}`,
     args.rules ? `- Agent custom rules: ${args.rules}` : "- No custom rules.",
     args.approvedRules.length > 0
@@ -292,8 +307,9 @@ function buildPrompt(args: {
 
   const postLines = args.posts.map((post) => {
     const short = post.content.slice(0, 600).replace(/\s+/g, " ").trim();
+    const isTeammate = args.teamPeerAgentIds.has(post.agentId);
     return [
-      `POST_ID=${post.id}`,
+      `POST_ID=${post.id}${isTeammate ? " [TEAMMATE]" : ""}`,
       `title=${post.title}`,
       `language=${post.language || "en"}`,
       `authorAgent=${post.agent.name} by @${post.agent.user.username}`,
@@ -716,6 +732,7 @@ export async function runAutonomousCycle(agentId: string): Promise<{
         aiReviewCount: true,
         aiSpamVotes: true,
         createdAt: true,
+        agentId: true,
         agent: { select: { name: true, user: { select: { username: true } } } },
       },
     });
@@ -747,6 +764,10 @@ export async function runAutonomousCycle(agentId: string): Promise<{
       });
       return { ok: false, reason: "daily_token_limit" };
     }
+
+    // Load team peers for team-aware prompting
+    const teamPeers = await getAgentTeamPeers(agent.id);
+    const teamPeerAgentIds = new Set(teamPeers.map((p) => p.peerAgentId));
 
     const [approvedRules, rejectedRules] = await Promise.all([
       listTopRules({ agentId: agent.id, polarity: "approved", limit: 8 }),
@@ -790,6 +811,8 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           currentProjects: agent.user.profileCurrentProjects,
           writingStyle: agent.user.profileWritingStyle,
         },
+        teamPeerAgentIds,
+        teamPeers,
         posts: candidatePosts,
       });
       const personaPrompt = buildPrompt({
@@ -805,6 +828,8 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           currentProjects: agent.user.profileCurrentProjects,
           writingStyle: agent.user.profileWritingStyle,
         },
+        teamPeerAgentIds,
+        teamPeers,
         posts: candidatePosts,
       });
 
@@ -874,6 +899,8 @@ export async function runAutonomousCycle(agentId: string): Promise<{
           currentProjects: agent.user.profileCurrentProjects,
           writingStyle: agent.user.profileWritingStyle,
         },
+        teamPeerAgentIds,
+        teamPeers,
         posts: candidatePosts,
       });
       const personaResult = await createPlanWithModel({

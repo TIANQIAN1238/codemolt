@@ -4,6 +4,7 @@ import { createToken, verifyToken } from "@/lib/auth";
 import { getOAuthOrigin } from "@/lib/oauth-origin";
 import { linkReferral } from "@/lib/referral";
 import { syncGitHubProfileToUser } from "@/lib/profile-sync";
+import { discoverGitHubTeamRelations } from "@/lib/github-team";
 
 function cleanupOAuthCookies(response: NextResponse) {
   response.cookies.delete("oauth_state_github");
@@ -155,6 +156,9 @@ export async function GET(req: NextRequest) {
       if (avatar && !user.avatar) {
         updates.avatar = avatar;
       }
+      if (username && !user.githubUsername) {
+        updates.githubUsername = username;
+      }
       if (Object.keys(updates).length > 0) {
         await prisma.user.update({ where: { id: user.id }, data: updates });
       }
@@ -168,6 +172,11 @@ export async function GET(req: NextRequest) {
           blog: githubUser.blog,
           html_url: githubUser.html_url,
         },
+      }).catch(() => {});
+
+      discoverGitHubTeamRelations({
+        userId: user.id,
+        githubUsername: username,
       }).catch(() => {});
 
       const response = NextResponse.redirect(`${origin}${returnTo}?linked=github`);
@@ -209,6 +218,9 @@ export async function GET(req: NextRequest) {
       if (avatar && !user.avatar) {
         updates.avatar = avatar;
       }
+      if (username && !user.githubUsername) {
+        updates.githubUsername = username;
+      }
       if (Object.keys(updates).length > 0) {
         user = await prisma.user.update({ where: { id: user.id }, data: updates });
       }
@@ -228,6 +240,7 @@ export async function GET(req: NextRequest) {
           avatar,
           provider,
           providerId,
+          githubUsername: username,
           oauthAccounts: {
             create: {
               provider,
@@ -280,6 +293,12 @@ export async function GET(req: NextRequest) {
         },
       }).catch(() => {});
     }
+
+    // Trigger team discovery for all GitHub users (new or returning)
+    discoverGitHubTeamRelations({
+      userId: user.id,
+      githubUsername: username,
+    }).catch(() => {});
 
     return response;
   } catch (error) {

@@ -19,6 +19,7 @@ model User {
   bio                String?
   provider           String? // "github", "google", or null for email/password
   providerId         String? // external provider user ID
+  githubUsername     String?   // GitHub login username, used for team discovery API calls
   preferredLanguage  String    @default("English") // @deprecated — will be replaced by frontend-only language filtering
   aiCreditCents      Int       @default(0) // remaining AI credit in cents (500 = $5.00)
   aiCreditGranted    Boolean   @default(false) // whether the initial credit grant has been given
@@ -107,6 +108,8 @@ model Agent {
   personaVersion            Int       @default(1)
   personaLastLearnAt        DateTime?
   personaLastPromotedAt     DateTime?
+  teamManualRepos           String[]  @default([]) // manually added GitHub repo full_names, e.g. ["owner/repo"]
+  teamLastSyncedAt          DateTime? // last time GitHub team discovery ran
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
@@ -123,6 +126,8 @@ model Agent {
   personaSignals AgentPersonaSignal[]
   personaSnapshots AgentPersonaSnapshot[]
   notifications  Notification[]
+  teamRelationsFrom AgentTeamRelation[] @relation("TeamRelationFrom")
+  teamRelationsTo   AgentTeamRelation[] @relation("TeamRelationTo")
 
   @@index([userId])
   @@index([apiKey])
@@ -547,4 +552,22 @@ model AgentPersonaSnapshot {
 
   @@unique([agentId, version])
   @@index([agentId, createdAt])
+}
+
+model AgentTeamRelation {
+  id           String   @id @default(cuid())
+  sharedRepos  String[] // GitHub repo full_names both agents contributed to, e.g. ["owner/repo"]
+  strength     Float    @default(1.0) // number of shared repos, used for weighting
+  source       String   @default("github") // "github" | "manual"
+  discoveredAt DateTime @default(now())
+  verifiedAt   DateTime @default(now()) // refreshed on re-scan
+
+  agentId    String
+  agent      Agent  @relation("TeamRelationFrom", fields: [agentId], references: [id], onDelete: Cascade)
+  peerAgentId String
+  peerAgent   Agent  @relation("TeamRelationTo", fields: [peerAgentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, peerAgentId])
+  @@index([agentId])
+  @@index([peerAgentId])
 }
