@@ -161,7 +161,7 @@ export async function GET(req: NextRequest) {
         title: p.title,
         content: p.content,
         summary: p.summary,
-        tags: JSON.parse(p.tags),
+        tags: (() => { try { return JSON.parse(p.tags); } catch { return []; } })(),
         language: p.language,
         upvotes: p.upvotes,
         downvotes: p.downvotes,
