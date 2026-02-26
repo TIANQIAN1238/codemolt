@@ -95,7 +95,12 @@ export default function PostPageClient({
   const searchParams = useSearchParams();
   const { t } = useLang();
   const [post, setPost] = useState<PostDetail | null>(null);
-  const { userVote, score: votes, vote, sync: syncVote } = useVote(0, 0, id, (msg) => {
+  const {
+    userVote,
+    score: votes,
+    vote,
+    sync: syncVote,
+  } = useVote(0, 0, id, (msg) => {
     showActionMessage("error", msg);
   });
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -128,9 +133,20 @@ export default function PostPageClient({
   const [rewritePanelOpen, setRewritePanelOpen] = useState(false);
   const [showPosterModal, setShowPosterModal] = useState(false);
   const [posterText, setPosterText] = useState("");
+  const [commentPosterData, setCommentPosterData] = useState<{
+    text: string;
+    displayName: string;
+    userName: string;
+    avatar: string | null | undefined;
+    commentId: string;
+  } | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [highlightedFields, setHighlightedFields] = useState<Set<string>>(new Set());
-  const [highlightedTags, setHighlightedTags] = useState<Set<string>>(new Set());
+  const [highlightedFields, setHighlightedFields] = useState<Set<string>>(
+    new Set(),
+  );
+  const [highlightedTags, setHighlightedTags] = useState<Set<string>>(
+    new Set(),
+  );
   const [highlightKey, setHighlightKey] = useState(0);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [focusedCommentId, setFocusedCommentId] = useState<string | null>(null);
@@ -209,7 +225,9 @@ export default function PostPageClient({
     setFocusedCommentId(targetCommentId);
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     const timer = setTimeout(() => {
-      setFocusedCommentId((current) => (current === targetCommentId ? null : current));
+      setFocusedCommentId((current) =>
+        current === targetCommentId ? null : current,
+      );
     }, 2200);
     return () => clearTimeout(timer);
   }, [post, searchParams]);
@@ -750,6 +768,22 @@ export default function PostPageClient({
                 Reply
               </button>
             )}
+            <button
+              onClick={() => {
+                setCommentPosterData({
+                  text: comment.content,
+                  displayName: comment.agent?.name || comment.user.username,
+                  userName: comment.user.username,
+                  avatar: comment.agent?.avatar || comment.user.avatar,
+                  commentId: comment.id,
+                });
+                setShowPosterModal(true);
+              }}
+              className="flex items-center gap-1 text-xs text-text-dim hover:text-primary transition-colors"
+              title={t("post.shareAsImage")}
+            >
+              <Share2 className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {/* Inline reply form */}
@@ -816,7 +850,7 @@ export default function PostPageClient({
       <article className="bg-bg-card border border-border rounded-lg p-4 sm:p-5">
         <div className="flex gap-4">
           {/* Vote column */}
-          <div className="hidden sm:flex flex-col items-center gap-0.5 min-w-[44px]">
+          <div className="hidden sm:flex flex-col items-center gap-0.5 min-w-11">
             <button
               onClick={() => handleVote(1)}
               className={`p-1 rounded transition-colors ${
@@ -926,7 +960,7 @@ export default function PostPageClient({
                   <textarea
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary min-h-[200px] font-mono"
+                    className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary min-h-50 font-mono"
                     rows={12}
                   />
                 </div>
@@ -1096,7 +1130,7 @@ export default function PostPageClient({
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
                 placeholder="Share your thoughts... (your feedback helps the AI improve!)"
-                className="w-full bg-transparent text-sm text-text resize-none focus:outline-none min-h-[80px] placeholder-text-dim"
+                className="w-full bg-transparent text-sm text-text resize-none focus:outline-none min-h-20 placeholder-text-dim"
                 rows={3}
               />
               <div className="flex justify-end mt-2">
@@ -1239,13 +1273,18 @@ export default function PostPageClient({
       {isPostOwner && (
         <div
           className="hidden sm:block fixed z-40 transition-[bottom] duration-200 ease-out"
-          style={{ bottom: `${mobileFabBottomPx}px`, right: "calc(2rem + 56px + 16px)" }}
+          style={{
+            bottom: `${mobileFabBottomPx}px`,
+            right: "calc(2rem + 56px + 16px)",
+          }}
         >
           <button
             data-rewrite-trigger
             onClick={() => setRewritePanelOpen(true)}
             className={`flex items-center justify-center w-14 h-14 rounded-full border bg-bg shadow-lg hover:shadow-xl text-text-muted hover:text-text hover:scale-105 active:scale-95 transition-all duration-200 ${
-              rewritePanelOpen ? "border-primary/50 text-primary shadow-xl" : "border-border"
+              rewritePanelOpen
+                ? "border-primary/50 text-primary shadow-xl"
+                : "border-border"
             }`}
             title="Rewrite with AI"
           >
@@ -1269,9 +1308,15 @@ export default function PostPageClient({
               if (!prev) return prev;
               return {
                 ...prev,
-                ...(updated.title !== undefined ? { title: updated.title } : {}),
-                ...(updated.content !== undefined ? { content: updated.content } : {}),
-                ...(updated.summary !== undefined ? { summary: updated.summary } : {}),
+                ...(updated.title !== undefined
+                  ? { title: updated.title }
+                  : {}),
+                ...(updated.content !== undefined
+                  ? { content: updated.content }
+                  : {}),
+                ...(updated.summary !== undefined
+                  ? { summary: updated.summary }
+                  : {}),
                 ...(updated.tags !== undefined ? { tags: updated.tags } : {}),
               };
             });
@@ -1284,10 +1329,13 @@ export default function PostPageClient({
               if (updated.changedFields.includes("tags") && updated.tags) {
                 const newTags = parseTags(updated.tags);
                 const addedTags = newTags.filter((t) => !oldTags.includes(t));
-                setHighlightedTags(new Set(addedTags.length > 0 ? addedTags : newTags));
+                setHighlightedTags(
+                  new Set(addedTags.length > 0 ? addedTags : newTags),
+                );
               }
 
-              if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+              if (highlightTimerRef.current)
+                clearTimeout(highlightTimerRef.current);
               highlightTimerRef.current = setTimeout(() => {
                 setHighlightedFields(new Set());
                 setHighlightedTags(new Set());
@@ -1309,12 +1357,20 @@ export default function PostPageClient({
       {/* Share Poster Modal */}
       {showPosterModal && post && (
         <SharePosterModal
-          selectedText={posterText}
+          selectedText={commentPosterData?.text || posterText}
           postTitle={post.title}
-          agentName={post.agent.name}
-          userName={post.agent.user.username}
-          authorAvatar={post.agent.avatar}
-          onClose={() => setShowPosterModal(false)}
+          agentName={commentPosterData?.displayName || post.agent.name}
+          userName={commentPosterData?.userName || post.agent.user.username}
+          authorAvatar={commentPosterData?.avatar || post.agent.avatar}
+          postUrl={
+            commentPosterData
+              ? `${window.location.origin}/post/${post.id}?comment=${commentPosterData.commentId}`
+              : undefined
+          }
+          onClose={() => {
+            setShowPosterModal(false);
+            setCommentPosterData(null);
+          }}
         />
       )}
 

@@ -12,6 +12,8 @@ interface SharePosterModalProps {
   agentName: string;
   userName: string;
   authorAvatar?: string | null;
+  /** Override the URL used for QR code, share-to-X, and copy-link. Defaults to current page URL. */
+  postUrl?: string;
   onClose: () => void;
 }
 
@@ -46,8 +48,8 @@ function xSlice(text: string, budget: number): string {
   return text.slice(0, i) + "…";
 }
 
-function buildTextFragmentUrl(selectedText: string): string {
-  const base = window.location.href.split("#")[0];
+function buildTextFragmentUrl(selectedText: string, baseUrl: string): string {
+  const base = baseUrl.split("#")[0];
   const trimmed = selectedText.trim();
   if (trimmed.length <= 80) {
     return `${base}#:~:text=${encodeURIComponent(trimmed)}`;
@@ -67,6 +69,7 @@ export function SharePosterModal({
   agentName,
   userName,
   authorAvatar,
+  postUrl: postUrlProp,
   onClose,
 }: SharePosterModalProps) {
   const { t } = useLang();
@@ -112,6 +115,8 @@ export function SharePosterModal({
     }, 200);
   }, [closing, onClose]);
 
+  const pageUrl = postUrlProp || (typeof window !== "undefined" ? window.location.href.split("#")[0] : "");
+
   const draw = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -121,7 +126,7 @@ export function SharePosterModal({
       agentName,
       userName,
       authorAvatar,
-      postUrl: typeof window !== "undefined" ? window.location.href.split("#")[0] : undefined,
+      postUrl: pageUrl || undefined,
       theme: posterTheme,
     };
     await renderPoster(canvas, options);
@@ -129,7 +134,7 @@ export function SharePosterModal({
       readyRef.current = true;
       setReady(true);
     }
-  }, [selectedText, postTitle, agentName, userName, authorAvatar, posterTheme]);
+  }, [selectedText, postTitle, agentName, userName, authorAvatar, posterTheme, pageUrl]);
 
   useEffect(() => {
     draw();
@@ -150,17 +155,14 @@ export function SharePosterModal({
   const handleCopyLink = useCallback(async () => {
     if (linkSuccess) return;
     try {
-      const url = buildTextFragmentUrl(selectedText);
+      const url = postUrlProp ? pageUrl : buildTextFragmentUrl(selectedText, pageUrl);
       await navigator.clipboard.writeText(url);
       setLinkSuccess(true);
       setTimeout(() => setLinkSuccess(false), 2000);
     } catch {
       // Silently fail
     }
-  }, [selectedText, linkSuccess]);
-
-  const pageUrl =
-    typeof window !== "undefined" ? window.location.href.split("#")[0] : "";
+  }, [selectedText, linkSuccess, pageUrl]);
 
   const handleShareToX = useCallback(() => {
     const budgetForText = 280 - 2 - pageUrl.length - 1; // 2 for "\n\n", 1 for trailing spaces
