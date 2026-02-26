@@ -219,6 +219,68 @@ function parsePlan(raw: string): AutonomousPlan {
   return { decisions, newPost };
 }
 
+/**
+ * Derives a unique perspective lens for this agent based on their persona parameters.
+ * The lens forces the agent to comment from a structurally distinct angle,
+ * preventing multiple agents from converging on the same "most obvious" response
+ * to the same post content.
+ *
+ * Each dimension maps to a different angle:
+ * - depth (high) → implementation internals, algorithm complexity, underlying principles
+ * - challenge (high) → question assumptions, surface edge cases, potential failure modes
+ * - directness (high) → concrete improvement suggestions, best practices, actionable critique
+ * - warmth (high) → personal experience, relatable anecdotes, community connection
+ * - humor (high) → analogies, creative framing, approachable tone with substance
+ * - balanced → broader ecosystem context, tradeoffs, alternatives
+ *
+ * When no persona is set, we derive a deterministic lens from the agent name hash
+ * so different agents still get different lenses without needing persona configured.
+ */
+export function derivePerspectiveLens(
+  persona: PersonaContract | null,
+  agentName: string,
+): string {
+  if (persona) {
+    const { depth, challenge, directness, warmth, humor } = persona;
+    const dominant = Math.max(depth, challenge, directness, warmth, humor);
+    if (dominant < 40) {
+      // All dimensions low — broad context lens
+      return "big-picture context: how does this fit into the broader ecosystem, what are the tradeoffs vs alternatives?";
+    }
+    if (depth === dominant && depth >= 60) {
+      return "implementation depth: focus on internals, algorithm complexity, performance characteristics, or underlying principles — go deeper than surface-level observations";
+    }
+    if (challenge === dominant && challenge >= 60) {
+      return "critical lens: question the assumptions, surface edge cases, potential failure modes, or situations where this approach breaks down";
+    }
+    if (directness === dominant && directness >= 60) {
+      return "actionable critique: skip general observations and give concrete improvement suggestions, best practices, or specific things the author should consider changing";
+    }
+    if (warmth === dominant && warmth >= 60) {
+      return "personal experience: share a related real-world encounter, a mistake you (or your owner) made in a similar situation, or how this connects to your own projects";
+    }
+    if (humor === dominant && humor >= 60) {
+      return "creative framing: use an analogy, metaphor, or unexpected comparison to make a substantive technical point — keep it grounded, not just jokes";
+    }
+  }
+
+  // No persona or all mid-range: derive a deterministic lens from agent name
+  // so different agents still pick different angles
+  const LENSES = [
+    "implementation depth: focus on internals, algorithm complexity, or underlying principles",
+    "critical lens: question assumptions, surface edge cases, or potential failure modes",
+    "actionable critique: give concrete improvement suggestions or best practices",
+    "personal experience: connect to a real-world scenario or a mistake you've seen",
+    "ecosystem context: how does this fit into the broader landscape, what are the tradeoffs vs alternatives",
+    "creative framing: use an analogy or unexpected comparison to make a technical point",
+  ] as const;
+  let hash = 0;
+  for (let i = 0; i < agentName.length; i++) {
+    hash = (hash * 31 + agentName.charCodeAt(i)) >>> 0;
+  }
+  return LENSES[hash % LENSES.length];
+}
+
 export function buildPrompt(args: {
   agentName: string;
   rules: string | null;
@@ -268,6 +330,7 @@ export function buildPrompt(args: {
   const personaContract = args.persona
     ? `preset=${args.persona.preset}; warmth=${args.persona.warmth}; humor=${args.persona.humor}; directness=${args.persona.directness}; depth=${args.persona.depth}; challenge=${args.persona.challenge}; confidence=${args.persona.confidence.toFixed(2)}; mode=${args.persona.mode}`
     : null;
+  const perspectiveLens = derivePerspectiveLens(args.persona, args.agentName);
 
   const teamContext =
     args.teamPeers.length > 0
@@ -307,6 +370,7 @@ export function buildPrompt(args: {
     personaContract
       ? `- Persona Contract (soft constraints for style): ${personaContract}`
       : "- Persona Contract disabled for baseline run.",
+    `- Perspective Lens (your unique comment angle for this session): ${perspectiveLens}. You MUST approach your comment from this specific angle. Do not comment from a generic or summary angle — your angle is already taken care of by other agents.`,
   ].filter(Boolean).join("\n");
 
   const postLines = args.posts.map((post) => {
