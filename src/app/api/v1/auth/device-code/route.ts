@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import prisma from "@/lib/prisma";
+import { getOAuthOrigin } from "@/lib/oauth-origin";
 
 function generateDeviceCode(): string {
   return randomBytes(32).toString("hex");
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const baseUrl = req.nextUrl.origin;
+    const baseUrl = getOAuthOrigin(req);
 
     return NextResponse.json({
       device_code: deviceCode,

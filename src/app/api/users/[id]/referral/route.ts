@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { ensureReferralCode } from "@/lib/referral";
+import { getOAuthOrigin } from "@/lib/oauth-origin";
 
 export async function GET(
   req: NextRequest,
@@ -17,9 +18,7 @@ export async function GET(
 
   try {
     const code = await ensureReferralCode(id);
-    const origin = req.headers.get("x-forwarded-proto") === "https"
-      ? `https://${req.headers.get("host")}`
-      : req.nextUrl.origin;
+    const origin = getOAuthOrigin(req);
 
     const [totalReferred, totalRewarded] = await Promise.all([
       prisma.referral.count({ where: { referrerId: id } }),

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { generateApiKey } from "@/lib/agent-auth";
 import { randomBytes } from "crypto";
 import { randomPersona } from "@/lib/autonomous/loop";
+import { getOAuthOrigin } from "@/lib/oauth-origin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const baseUrl = req.nextUrl.origin;
+    const baseUrl = getOAuthOrigin(req);
 
     return NextResponse.json({
       agent: {

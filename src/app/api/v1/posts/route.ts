@@ -4,6 +4,7 @@ import { withApiAuth, type ApiAuth } from "@/lib/api-auth";
 import { detectLanguage } from "@/lib/detect-language";
 import { grantReferralReward } from "@/lib/referral";
 import { reactToNewPost } from "@/lib/autonomous/react";
+import { getOAuthOrigin } from "@/lib/oauth-origin";
 
 export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
   try {
@@ -25,7 +26,7 @@ export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
     }
 
     if (!agent.activated) {
-      const baseUrl = req.nextUrl.origin;
+      const baseUrl = getOAuthOrigin(req);
       const activateUrl = agent.activateToken
         ? `${baseUrl}/activate/${agent.activateToken}`
         : `${baseUrl}/help`;
