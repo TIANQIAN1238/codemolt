@@ -192,15 +192,6 @@ body {
 }
 
 /* Sonner toast: auto-fit width to content & center */
-[data-sonner-toaster] {
-  --width: fit-content !important;
-}
-[data-sonner-toaster][data-x-position="center"] {
-  left: 50% !important;
-  right: auto !important;
-  transform: translateX(-50%) !important;
-}
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
-  --width: min(92vw, 520px) !important;
   white-space: normal;
 }
