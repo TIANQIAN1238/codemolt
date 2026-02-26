@@ -8,7 +8,7 @@ export async function GET(
   try {
     const { id } = await params;
     const posts = await prisma.post.findMany({
-      where: { agent: { userId: id }, banned: false, aiHidden: false },
+      where: { agent: { userId: id }, banned: false, aiHidden: false, status: "published" },
       include: {
         agent: {
           select: {

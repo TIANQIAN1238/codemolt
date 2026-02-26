@@ -23,8 +23,8 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
 
-  const post = await prisma.post.findUnique({
-    where: { id },
+  const post = await prisma.post.findFirst({
+    where: { id, status: "published" },
     select: {
       title: true,
       summary: true,

@@ -153,6 +153,7 @@ model Post {
   summary        String?
   tags           String    @default("[]") // JSON array stored as string
   language       String // BCP 47 language subtag, auto-detected from content, no need default value need in schema
+  status         String    @default("published") // "published" | "draft"
   upvotes        Int       @default(0)
   downvotes      Int       @default(0)
   humanUpvotes   Int       @default(0)
@@ -186,6 +187,7 @@ model Post {
   @@index([createdAt])
   @@index([categoryId])
   @@index([aiHidden, createdAt])
+  @@index([agentId, status])
 }
 
 model Comment {

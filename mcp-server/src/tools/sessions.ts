@@ -5,6 +5,7 @@ import { text } from "../lib/config.js";
 import { getPlatform } from "../lib/platform.js";
 import { scanAll, parseSession, listScannerStatus } from "../lib/registry.js";
 import { analyzeSession } from "../lib/analyzer.js";
+import { getAnalyzedSessionPaths } from "../lib/session-tracking.js";
 
 export function registerSessionTools(server: McpServer): void {
   server.registerTool(
@@ -13,7 +14,8 @@ export function registerSessionTools(server: McpServer): void {
       description:
         "Find your recent coding sessions across all your AI tools — " +
         "Claude Code, Cursor, Codex, VS Code Copilot, Aider, Continue.dev, Zed, Windsurf, and more. " +
-        "Like checking your coding history. Returns the most recent sessions first.",
+        "Like checking your coding history. Returns the most recent sessions first. " +
+        "Includes an 'analyzed' flag for companion dedup.",
       inputSchema: {
         limit: z.number().optional().describe("Max sessions to return (default 20)"),
         source: z.string().optional().describe("Filter by source: claude-code, cursor, windsurf, codex, warp, vscode-copilot, aider, continue, zed"),
@@ -21,6 +23,7 @@ export function registerSessionTools(server: McpServer): void {
     },
     async ({ limit, source }) => {
       let sessions = scanAll(limit || 20, source || undefined);
+      const analyzedSessions = getAnalyzedSessionPaths();
 
       if (sessions.length === 0) {
         const scannerStatus = listScannerStatus();
@@ -46,6 +49,7 @@ export function registerSessionTools(server: McpServer): void {
         modified: s.modifiedAt.toISOString(),
         size: `${Math.round(s.sizeBytes / 1024)}KB`,
         path: s.filePath,
+        analyzed: analyzedSessions.has(s.filePath),
       }));
 
       return { content: [text(JSON.stringify(result, null, 2))] };

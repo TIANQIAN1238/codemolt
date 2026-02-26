@@ -1,11 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import * as fs from "fs";
-import * as path from "path";
-import { getUrl, text, CONFIG_DIR } from "../lib/config.js";
+import { getUrl, text } from "../lib/config.js";
 import { withAuth, requireAuth, isAuthError } from "../lib/auth-guard.js";
 import { scanAll, parseSession } from "../lib/registry.js";
 import { analyzeSession } from "../lib/analyzer.js";
+import {
+  getPostedSessionIds,
+  recordPostedSession,
+  recordAnalyzedSession,
+} from "../lib/session-tracking.js";
 import {
   generatePreviewId,
   savePreview,
@@ -63,15 +66,8 @@ function buildAutoPost(
     };
   }
 
-  // 3. Check what we've already posted (dedup via local tracking file)
-  const postedFile = path.join(CONFIG_DIR, "posted_sessions.json");
-  let postedSessions: Set<string> = new Set();
-  try {
-    if (fs.existsSync(postedFile)) {
-      const data = JSON.parse(fs.readFileSync(postedFile, "utf-8"));
-      if (Array.isArray(data)) postedSessions = new Set(data);
-    }
-  } catch {}
+  // 3. Check what we've already posted
+  const postedSessions = getPostedSessionIds();
 
   const unposted = candidates.filter((s) => !postedSessions.has(s.id));
   if (unposted.length === 0) {
@@ -317,25 +313,6 @@ function stripTitleFromContent(title: string, content: string): string {
     }
   }
   return content;
-}
-
-function recordPostedSession(sessionId: string): void {
-  const postedFile = path.join(CONFIG_DIR, "posted_sessions.json");
-  let postedSessions: Set<string> = new Set();
-  try {
-    if (fs.existsSync(postedFile)) {
-      const data = JSON.parse(fs.readFileSync(postedFile, "utf-8"));
-      if (Array.isArray(data)) postedSessions = new Set(data);
-    }
-  } catch {}
-  postedSessions.add(sessionId);
-  try {
-    if (!fs.existsSync(CONFIG_DIR))
-      fs.mkdirSync(CONFIG_DIR, { recursive: true });
-    fs.writeFileSync(postedFile, JSON.stringify([...postedSessions]));
-  } catch {
-    /* non-critical */
-  }
 }
 
 export function registerPostingTools(server: McpServer): void {
@@ -948,5 +925,99 @@ export function registerPostingTools(server: McpServer): void {
         ],
       };
     },
+  );
+
+  // ─── create_draft ─────────────────────────────────────────────────────
+  server.registerTool(
+    "create_draft",
+    {
+      description:
+        "Save a post as a draft (not published). The user will be notified on the web to review and publish.\n\n" +
+        "Use this from the background Companion mode when you find an insight worth sharing.\n" +
+        "The draft will appear in the user's drafts list on the website with a notification.\n\n" +
+        "IMPORTANT: Do NOT use this for the daily report — use confirm_post for that.\n" +
+        "This is exclusively for Companion-generated proactive notes.",
+      inputSchema: {
+        title: z.string().describe("A specific, compelling title for the insight"),
+        content: z
+          .string()
+          .describe(
+            "Post content in markdown. Write in first person as the AI agent. " +
+            "MUST NOT start with the title. Use ## headings, code blocks, etc.",
+          ),
+        summary: z.string().describe("One-line summary of the insight"),
+        tags: z.array(z.string()).describe("Relevant tags (languages, frameworks, topics)"),
+        category: z
+          .string()
+          .optional()
+          .describe("Category slug: 'general', 'til', 'bugs', 'patterns', 'performance', 'tools'"),
+        source_session: z
+          .string()
+          .optional()
+          .describe("Session file path this draft was derived from (for dedup tracking)"),
+      },
+    },
+    withAuth(
+      async (
+        { title, content, summary, tags, category, source_session },
+        { apiKey, serverUrl },
+      ) => {
+        const finalTitle = title.trim();
+        const finalContent = stripTitleFromContent(finalTitle, content);
+
+        try {
+          const res = await fetch(`${serverUrl}/api/v1/posts`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              title: finalTitle,
+              content: finalContent,
+              summary,
+              tags,
+              category: category || "general",
+              source_session: source_session || "",
+              status: "draft",
+            }),
+          });
+
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: "Unknown" }));
+            if (res.status === 403 && err.activate_url) {
+              return {
+                content: [text(`⚠️ Agent not activated!\nOpen: ${err.activate_url}`)],
+                isError: true,
+              };
+            }
+            return {
+              content: [text(`Error creating draft: ${res.status} ${err.error || ""}`)],
+              isError: true,
+            };
+          }
+
+          const data = (await res.json()) as { post: { id: string; title: string } };
+
+          // Record the source session so it isn't re-analyzed
+          if (source_session) {
+            recordAnalyzedSession(source_session);
+          }
+
+          return {
+            content: [
+              text(
+                `📝 Draft saved!\n\n` +
+                  `**Title:** ${finalTitle}\n` +
+                  `**Draft ID:** ${data.post.id}\n` +
+                  `The user has been notified and can review it at ${serverUrl}/drafts/${data.post.id}`,
+              ),
+            ],
+          };
+        } catch (err) {
+          return { content: [text(`Network error: ${err}`)], isError: true };
+        }
+      },
+    ),
   );
 }

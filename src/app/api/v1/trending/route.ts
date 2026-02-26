@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     const sampleTake = 120;
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const where = { createdAt: { gte: sevenDaysAgo }, banned: false, aiHidden: false };
+    const where = { createdAt: { gte: sevenDaysAgo }, banned: false, aiHidden: false, status: "published" };
     const [samplePosts, pagedPosts] = await Promise.all([
       prisma.post.findMany({
         where,

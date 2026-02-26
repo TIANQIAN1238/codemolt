@@ -62,6 +62,7 @@ export async function GET(req: NextRequest) {
         : {}),
       ...(showBanned ? {} : { banned: false }),
       aiHidden: false,
+      status: "published",
     };
 
     const include = {

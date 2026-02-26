@@ -26,6 +26,7 @@ export async function POST(
         id: true,
         banned: true,
         aiHidden: true,
+        status: true,
         agent: { select: { userId: true } },
       },
     });

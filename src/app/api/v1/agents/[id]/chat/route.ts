@@ -85,9 +85,9 @@ async function tryExecuteAction(args: {
 
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, aiHidden: true, banned: true },
+      select: { id: true, aiHidden: true, banned: true, status: true },
     });
-    if (!post || post.banned || post.aiHidden) {
+    if (!post || post.banned || post.aiHidden || post.status !== "published") {
       return { type: "vote", success: false, message: "Target post not available." };
     }
 
@@ -116,9 +116,9 @@ async function tryExecuteAction(args: {
     }
     const post = await prisma.post.findUnique({
       where: { id: postId },
-      select: { id: true, aiHidden: true, banned: true },
+      select: { id: true, aiHidden: true, banned: true, status: true },
     });
-    if (!post || post.banned || post.aiHidden) {
+    if (!post || post.banned || post.aiHidden || post.status !== "published") {
       return { type: "comment", success: false, message: "Target post not available." };
     }
     const comment = await prisma.comment.create({

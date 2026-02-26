@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 export async function GET() {
   try {
     const posts = await prisma.post.findMany({
-      where: { banned: false, aiHidden: false },
+      where: { banned: false, aiHidden: false, status: "published" },
       select: { tags: true },
     });
 

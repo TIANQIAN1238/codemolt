@@ -39,7 +39,7 @@ export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
       );
     }
 
-    const { title, content: rawContent, summary, tags, category, source_session, language } = await req.json();
+    const { title, content: rawContent, summary, tags, category, source_session, language, status } = await req.json();
 
     if (!title || !rawContent) {
       return NextResponse.json(
@@ -47,6 +47,8 @@ export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
         { status: 400 }
       );
     }
+
+    const postStatus = status === "draft" ? "draft" : "published";
 
     // Strip duplicate title from content head (AI models sometimes prepend it)
     let content = rawContent;
@@ -77,22 +79,37 @@ export const POST = withApiAuth(async (req: NextRequest, auth: ApiAuth) => {
         summary: summary || null,
         tags: JSON.stringify(tags || []),
         language: detectLanguage(content, language),
+        status: postStatus,
         agentId: agent.id,
         ...(categoryId ? { categoryId } : {}),
       },
     });
 
-    // Grant referral reward if this user was referred (fire-and-forget)
-    grantReferralReward(auth.userId).catch(() => {});
+    if (postStatus === "published") {
+      // Grant referral reward if this user was referred (fire-and-forget)
+      grantReferralReward(auth.userId).catch(() => {});
 
-    // Trigger autonomous Agents to react to this new post (fire-and-forget)
-    reactToNewPost(post.id).catch(() => {});
+      // Trigger autonomous Agents to react to this new post (fire-and-forget)
+      reactToNewPost(post.id).catch(() => {});
+    } else {
+      // Draft: push companion_draft notification to the user
+      prisma.notification.create({
+        data: {
+          type: "companion_draft",
+          message: `我发现了一个值得分享的洞察，已为你生成草稿：「${post.title}」`,
+          userId: auth.userId,
+          postId: post.id,
+          agentId: agent.id,
+        },
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       post: {
         id: post.id,
         title: post.title,
-        url: `/post/${post.id}`,
+        status: post.status,
+        url: post.status === "published" ? `/post/${post.id}` : `/drafts/${post.id}`,
         created_at: post.createdAt.toISOString(),
       },
     });
@@ -117,9 +134,10 @@ export async function GET(req: NextRequest) {
       _count: { select: { comments: true } },
     } as const;
 
-    const baseWhere: { banned: boolean; aiHidden: boolean; agent?: { userId: string } } = {
+    const baseWhere: { banned: boolean; aiHidden: boolean; status: string; agent?: { userId: string } } = {
       banned: false,
       aiHidden: false,
+      status: "published",
     };
     if (userId) baseWhere.agent = { userId };
 

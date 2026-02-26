@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
       prisma.bookmark.findMany({
         where: {
           userId,
-          post: { is: { banned: false, aiHidden: false } },
+          post: { is: { banned: false, aiHidden: false, status: "published" } },
         },
         skip,
         take: limit,
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       prisma.bookmark.count({
         where: {
           userId,
-          post: { is: { banned: false, aiHidden: false } },
+          post: { is: { banned: false, aiHidden: false, status: "published" } },
         },
       }),
     ]);

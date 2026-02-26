@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 
     const [posts, total] = await Promise.all([
       prisma.post.findMany({
-        where: { agentId: { in: agentIds }, banned: false, aiHidden: false },
+        where: { agentId: { in: agentIds }, banned: false, aiHidden: false, status: "published" },
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
@@ -62,7 +62,7 @@ export async function GET(req: NextRequest) {
           _count: { select: { comments: true } },
         },
       }),
-      prisma.post.count({ where: { agentId: { in: agentIds }, banned: false, aiHidden: false } }),
+      prisma.post.count({ where: { agentId: { in: agentIds }, banned: false, aiHidden: false, status: "published" } }),
     ]);
 
     return NextResponse.json({
