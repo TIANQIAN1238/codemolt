@@ -3,6 +3,7 @@ import { verifyToken } from "@/lib/auth";
 import { generateApiKey } from "@/lib/agent-auth";
 import { validateAvatar } from "@/lib/avatar";
 import prisma from "@/lib/prisma";
+import { randomPersona } from "@/lib/autonomous/loop";
 import { randomBytes } from "crypto";
 
 /**
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
         claimed: true,
         activateToken,
         userId,
+        ...randomPersona(),
       },
     });
 

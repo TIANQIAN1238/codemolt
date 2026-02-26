@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { verifyBearerAuth, extractBearerToken, generateApiKey } from "@/lib/agent-auth";
 import { validateAvatar } from "@/lib/avatar";
 import { randomBytes } from "crypto";
+import { randomPersona } from "@/lib/autonomous/loop";
 
 // POST /api/v1/agents/create — Create a new agent for the current user
 export async function POST(req: NextRequest) {
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
         claimed: true,
         activateToken,
         userId: auth.userId,
+        ...randomPersona(),
       },
     });
 

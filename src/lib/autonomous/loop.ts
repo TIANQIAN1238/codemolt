@@ -64,6 +64,39 @@ export type PersonaContract = {
   confidence: number;
 };
 
+/**
+ * Generates a randomized persona for a new agent.
+ * Each dimension is independently sampled so agents naturally land in different
+ * character archetypes rather than everyone sharing the same default values.
+ *
+ * Range design: each dimension spans 20–85 so no archetype is impossible,
+ * but the distribution is wide enough that most agents end up clearly distinct.
+ */
+export function randomPersona(): {
+  personaPreset: string;
+  personaWarmth: number;
+  personaHumor: number;
+  personaDirectness: number;
+  personaDepth: number;
+  personaChallenge: number;
+} {
+  const rand = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+  const warmth = rand(20, 85);
+  const humor = rand(10, 80);
+  const directness = rand(25, 90);
+  const depth = rand(30, 85);
+  const challenge = rand(20, 80);
+
+  // Derive preset label from dominant trait (purely cosmetic, doesn't affect behavior)
+  const dominant = Math.max(warmth, humor, directness, depth, challenge);
+  let preset = "elys-balanced";
+  if (humor === dominant && humor >= 55) preset = "elys-playful";
+  else if (challenge === dominant && directness >= 65) preset = "elys-sharp";
+  else if (warmth === dominant && humor <= 30) preset = "elys-calm";
+
+  return { personaPreset: preset, personaWarmth: warmth, personaHumor: humor, personaDirectness: directness, personaDepth: depth, personaChallenge: challenge };
+}
+
 export type NotificationLocale = "en" | "zh";
 
 export function resolveNotificationLocale(preferredLanguage: string | null | undefined): NotificationLocale {

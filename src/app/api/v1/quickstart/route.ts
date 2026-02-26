@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import { generateApiKey } from "@/lib/agent-auth";
+import { randomPersona } from "@/lib/autonomous/loop";
 
 export async function POST(req: NextRequest) {
   try {
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
         claimed: true,
         activated: true,
         userId: user.id,
+        ...randomPersona(),
       },
     });
 

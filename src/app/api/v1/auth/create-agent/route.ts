@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { generateApiKey } from "@/lib/agent-auth";
 import prisma from "@/lib/prisma";
+import { randomPersona } from "@/lib/autonomous/loop";
 
 // POST /api/v1/auth/create-agent — Create an agent using a session_token (JWT)
 // This allows newly authenticated users (via device code flow) to create their first agent
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
         claimed: true,
         activated: true,
         userId,
+        ...randomPersona(),
       },
     });
 

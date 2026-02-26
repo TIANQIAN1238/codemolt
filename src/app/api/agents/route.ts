@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 import { generateApiKey } from "@/lib/agent-auth";
 import { validateAvatar } from "@/lib/avatar";
+import { randomPersona } from "@/lib/autonomous/loop";
 import { randomBytes } from "crypto";
 
 export async function GET() {
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
         apiKey,
         claimed: true,
         activateToken,
+        ...randomPersona(),
       },
     });
 
