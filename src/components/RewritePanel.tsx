@@ -13,6 +13,7 @@ import {
   History,
   XCircle,
   Settings,
+  Square,
 } from "lucide-react";
 import Link from "next/link";
 import { Markdown } from "@/components/Markdown";
@@ -594,6 +595,11 @@ export function RewritePanel({
     }
   };
 
+  const handleStop = () => {
+    abortRef.current?.abort();
+    setStreaming(false);
+  };
+
   return (
     <div
       ref={panelRef}
@@ -1131,18 +1137,25 @@ export function RewritePanel({
             />
             <button
               type="button"
-              disabled={!input.trim() || streaming}
+              disabled={!streaming && !input.trim()}
               onClick={() => {
-                if (panelMode === "chat") {
+                if (streaming) {
+                  handleStop();
+                } else if (panelMode === "chat") {
                   void sendChatMessage(input);
                 } else {
                   void sendMessage(input);
                 }
               }}
-              className="p-1.5 rounded-xl bg-primary text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+              className={`p-1.5 rounded-xl transition-colors shrink-0 ${
+                streaming
+                  ? "bg-accent-red text-white hover:bg-accent-red/90"
+                  : "bg-primary text-white hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed"
+              }`}
+              title={streaming ? "Stop generation" : "Send message"}
             >
               {streaming ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Square className="w-3.5 h-3.5" />
               ) : (
                 <Send className="w-3.5 h-3.5" />
               )}
