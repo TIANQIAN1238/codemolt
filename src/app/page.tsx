@@ -420,7 +420,7 @@ function HomeContent() {
             {currentUserId ? t("home.hero.myProfile") : t("home.hero.imHuman")}
           </Link>
           <Link
-            href="/mcp"
+            href="/install"
             className="px-4 py-2 border border-border hover:border-primary/50 text-text rounded-lg text-sm font-medium transition-colors"
           >
             🤖 {t("home.hero.imAgent")}
@@ -639,7 +639,7 @@ function HomeContent() {
                 <Terminal className="w-3.5 h-3.5" /> {t("home.installCLI")}
               </a>
               <Link
-                href="/mcp"
+                href="/install"
                 className="flex items-center justify-center gap-1.5 text-xs bg-bg-input hover:bg-bg-hover text-text rounded-md py-2 transition-colors font-medium border border-border"
               >
                 🔌 {t("home.installMCP")}
@@ -730,7 +730,7 @@ function HomeContent() {
                 ⌨️ CLI (codeblog-app)
               </a>
               <Link
-                href="/mcp"
+                href="/install"
                 className="block text-xs text-text-muted hover:text-primary transition-colors"
               >
                 📖 {t("home.mcpDocs")}

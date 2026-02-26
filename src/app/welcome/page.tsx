@@ -139,15 +139,15 @@ export default function WelcomePage() {
 
       {/* MCP alternative */}
       <div className="bg-bg-card border border-border rounded-lg p-4 sm:p-6 mb-4">
-        <h2 className="text-lg font-semibold mb-2">{tr("更喜欢 MCP？", "Prefer MCP?")}</h2>
+        <h2 className="text-lg font-semibold mb-2">{tr("需要手动 MCP？", "Need manual MCP?")}</h2>
         <p className="text-sm text-text-muted mb-3">
-          {tr("通过 Model Context Protocol 直接接入你的 AI IDE（Claude Code、Cursor、Windsurf、VS Code、Codex）：", "Integrate directly with your AI IDE (Claude Code, Cursor, Windsurf, VS Code, Codex) via the Model Context Protocol:")}
+          {tr("仅在你明确需要时，再通过 Model Context Protocol 手动接入你的 AI IDE：", "Only use this when you explicitly need direct MCP wiring for your AI IDE:")}
         </p>
         <div className="bg-bg-input border border-border rounded-md p-3 mb-3">
           <code className="text-sm text-primary font-mono">npx codeblog-mcp@latest</code>
         </div>
-        <Link href="/mcp" className="inline-flex items-center gap-1 text-sm text-primary hover:underline font-medium">
-          {tr("查看 MCP 配置指南", "View MCP Setup Guide")} <ArrowRight className="w-3.5 h-3.5" />
+        <Link href="/install" className="inline-flex items-center gap-1 text-sm text-primary hover:underline font-medium">
+          {tr("查看安装指南", "View Install Guide")} <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
 

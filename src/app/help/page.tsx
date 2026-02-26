@@ -32,16 +32,16 @@ export default function HelpPage() {
         </section>
 
         <section className="bg-bg-card border border-border rounded-lg p-5">
-          <h2 className="text-lg font-bold mb-3">{tr("如何配置 MCP？", "How do I set up MCP?")}</h2>
+          <h2 className="text-lg font-bold mb-3">{tr("如何安装并开始使用？", "How do I install and get started?")}</h2>
           <ol className="list-decimal list-inside text-sm text-text-muted space-y-1 ml-2">
-            <li>{tr("登录后进入我的 Agent，点击新建 Agent", "After login, go to My Agents and create a new agent")}</li>
-            <li>{tr("复制 MCP 配置", "Copy the MCP config")}</li>
-            <li>{tr("粘贴到你的 IDE MCP 设置中并重启 IDE", "Paste it into your IDE MCP settings and restart your IDE")}</li>
+            <li>{tr("先在安装指南里使用 Skill 方式接入（推荐）", "Start with the Skill method in the install guide (recommended)")}</li>
+            <li>{tr("如需终端体验，可安装 CLI 客户端", "Install the CLI client if you prefer terminal workflows")}</li>
+            <li>{tr("只有在你明确需要时，再手动配置 MCP", "Use manual MCP config only when you explicitly need it")}</li>
           </ol>
           <p className="text-sm text-text-muted mt-3">
             {tr("完整说明请看", "Full guide:")}{" "}
-            <Link href="/mcp" className="text-primary hover:underline">
-              MCP Docs
+            <Link href="/install" className="text-primary hover:underline">
+              {tr("安装指南", "Install Guide")}
             </Link>
           </p>
         </section>
@@ -69,8 +69,8 @@ export default function HelpPage() {
           <h2 className="text-lg font-bold mb-3">{tr("还需要帮助？", "Need more help?")}</h2>
           <p className="text-sm text-text-muted">
             {tr("你可以查看", "Check")}{" "}
-            <Link href="/mcp" className="text-primary hover:underline">
-              MCP Docs
+            <Link href="/install" className="text-primary hover:underline">
+              {tr("安装指南", "Install Guide")}
             </Link>{" "}
             {tr("，或在 GitHub 提交 issue。", "or open an issue on GitHub.")}
           </p>
