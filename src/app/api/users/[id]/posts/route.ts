@@ -7,22 +7,39 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
     const posts = await prisma.post.findMany({
       where: { agent: { userId: id }, banned: false, aiHidden: false, status: "published" },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        summary: true,
+        tags: true,
+        language: true,
+        upvotes: true,
+        downvotes: true,
+        humanUpvotes: true,
+        humanDownvotes: true,
+        views: true,
+        createdAt: true,
+        updatedAt: true,
+        agentId: true,
+        categoryId: true,
         agent: {
           select: {
             id: true, name: true, sourceType: true, avatar: true,
             user: { select: { id: true, username: true } },
           },
         },
+        category: { select: { id: true, name: true, slug: true } },
         _count: { select: { comments: true } },
       },
       orderBy: { createdAt: "desc" },
+      take: 200,
     });
 
     return NextResponse.json({
-      posts: posts.map((p: { createdAt: Date; updatedAt: Date; [key: string]: unknown }) => ({
+      posts: posts.map((p) => ({
         ...p,
         createdAt: p.createdAt.toISOString(),
         updatedAt: p.updatedAt.toISOString(),

@@ -92,7 +92,11 @@ export async function POST(
   }
 }
 
-// GET /api/v1/users/[id]/follow — Get followers and following lists
+// GET /api/v1/users/[id]/follow — Get followers/following count or list
+// Query params:
+//   type=followers|following (default: followers)
+//   count_only=true — return only { total } (and optionally isFollowing)
+//   check_user=<userId> — when count_only, also check if this user is in the followers list
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -101,7 +105,25 @@ export async function GET(
 
   try {
     const { searchParams } = new URL(req.url);
-    const type = searchParams.get("type") || "followers"; // "followers" or "following"
+    const type = searchParams.get("type") || "followers";
+    const countOnly = searchParams.get("count_only") === "true";
+    const checkUser = searchParams.get("check_user") || "";
+
+    if (countOnly) {
+      const total = await prisma.follow.count({
+        where: type === "following" ? { followerId: userId } : { followingId: userId },
+      });
+      // Optionally check if a specific user is following this profile
+      let isFollowing: boolean | undefined;
+      if (checkUser && type === "followers") {
+        const rel = await prisma.follow.findUnique({
+          where: { followerId_followingId: { followerId: checkUser, followingId: userId } },
+          select: { id: true },
+        });
+        isFollowing = !!rel;
+      }
+      return NextResponse.json({ users: [], total, ...(isFollowing !== undefined && { isFollowing }) });
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -121,6 +143,7 @@ export async function GET(
           },
         },
         orderBy: { createdAt: "desc" },
+        take: 200,
       });
 
       return NextResponse.json({
@@ -144,6 +167,7 @@ export async function GET(
         },
       },
       orderBy: { createdAt: "desc" },
+      take: 200,
     });
 
     return NextResponse.json({

@@ -152,8 +152,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       fetch(`/api/users/${id}`).then((r) => r.json()),
       fetch(`/api/users/${id}/agents`).then((r) => r.json()),
       fetch(`/api/users/${id}/posts`).then((r) => r.json()),
-      fetch(`/api/v1/users/${id}/follow?type=followers`).then((r) => r.ok ? r.json() : { users: [], total: 0 }),
-      fetch(`/api/v1/users/${id}/follow?type=following`).then((r) => r.ok ? r.json() : { users: [], total: 0 }),
+      fetch(`/api/v1/users/${id}/follow?type=followers&count_only=true${currentUserId ? `&check_user=${currentUserId}` : ""}`).then((r) => r.ok ? r.json() : { total: 0 }),
+      fetch(`/api/v1/users/${id}/follow?type=following&count_only=true`).then((r) => r.ok ? r.json() : { total: 0 }),
     ])
       .then(([userData, agentsData, postsData, followersData, followingData]) => {
         if (userData.user) setProfileUser(userData.user);
@@ -161,9 +161,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         if (postsData.posts) setPosts(postsData.posts);
         setFollowersCount(followersData.total || 0);
         setFollowingCount(followingData.total || 0);
-        // Check if current user is following this profile
-        if (followersData.users && currentUserId) {
-          setIsFollowing(followersData.users.some((u: { id: string }) => u.id === currentUserId));
+        if (currentUserId && followersData.isFollowing !== undefined) {
+          setIsFollowing(followersData.isFollowing);
         }
       })
       .catch(() => {})
