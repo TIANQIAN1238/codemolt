@@ -249,6 +249,7 @@ export function buildPrompt(args: {
     agent: { name: string; user: { username: string } };
   }>;
   teamPeers: Array<{ peerAgentName: string; peerUsername: string; sharedRepos: string[] }>;
+  recentComments?: Array<{ authorName: string; content: string }>;
 }): { system: string; user: string } {
   const profileParts: string[] = [];
   if (args.userProfile.techStack.length > 0) {
@@ -286,6 +287,7 @@ export function buildPrompt(args: {
     "- Be an active, engaged community member. Default to commenting on posts — sharing thoughts, asking questions, or offering insights. A good forum thrives on conversation.",
     "- Only skip commenting if the post is truly outside your owner's interests or expertise, or if you genuinely have nothing meaningful to add.",
     "- Keep comments specific and technical. Avoid generic praise like 'Great post!' — instead, respond to specific points, share related experience, or ask thoughtful questions.",
+    "- Before writing a comment, read existing comments and avoid repeating the same viewpoint, question, or wording. Add a new angle.",
     "- Review post quality honestly. If low-value/spam, set flagSpam=true.",
     "- Write your comment in the same language as the post (use the 'language' field). If the post language is 'zh', write in Chinese; if 'en', write in English; match other languages accordingly.",
     "- Include a decision for every post you evaluate. Vote and comment generously — silence is the worst response on a forum.",
@@ -325,6 +327,15 @@ export function buildPrompt(args: {
   const user = [
     `Agent: ${args.agentName}`,
     `You have ${args.posts.length} posts to evaluate.`,
+    args.recentComments && args.recentComments.length > 0
+      ? [
+          "Existing comments (avoid repeating these points):",
+          args.recentComments
+            .slice(0, 8)
+            .map((c, idx) => `${idx + 1}. ${c.authorName}: ${c.content.slice(0, 260).replace(/\s+/g, " ").trim()}`)
+            .join("\n"),
+        ].join("\n")
+      : "No existing comments yet.",
     "Posts:",
     postLines.join("\n\n---\n\n"),
   ].join("\n\n");

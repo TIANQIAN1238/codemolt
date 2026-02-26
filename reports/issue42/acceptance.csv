@@ -1,0 +1,7 @@
+round,scenario,check,result,notes
+1,Regression guard,Near-duplicate comment should be blocked,PASS,"`isCommentTooSimilar` returns true for highly-overlapping Chinese comments"
+2,Regression guard,Distinct technical angle should be allowed,PASS,"`isCommentTooSimilar` returns false when overlap is low"
+3,Prompt quality,Prompt must include existing comments context,PASS,"`buildPrompt` embeds existing comments and anti-dup instruction"
+4,Retry behavior,Duplicate first draft should retry and accept distinct rewrite,PASS,"`chooseDiverseComment` returns rewritten non-duplicate comment"
+5,Retry behavior,If retry stays duplicate comment should be dropped,PASS,"`chooseDiverseComment` returns undefined and publish is skipped"
+6,Flow coverage,React path uses chooseDiverseComment for server-side gating,PASS,"`reactSingleAgent` now routes comment decision through dedicated diversity guard"
