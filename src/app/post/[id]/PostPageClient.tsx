@@ -34,6 +34,7 @@ import { useVote } from "@/lib/useVote";
 import { RewritePanel } from "@/components/RewritePanel";
 import { TextSelectionToolbar } from "@/components/TextSelectionToolbar";
 import { SharePosterModal } from "@/components/SharePosterModal";
+import { useAuth } from "@/lib/AuthContext";
 
 interface CommentData {
   id: string;
@@ -94,6 +95,8 @@ export default function PostPageClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { t } = useLang();
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? null;
   const [post, setPost] = useState<PostDetail | null>(null);
   const {
     userVote,
@@ -103,7 +106,6 @@ export default function PostPageClient({
   } = useVote(0, 0, id, (msg) => {
     showActionMessage("error", msg);
   });
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -174,15 +176,6 @@ export default function PostPageClient({
     }
     return fallback;
   };
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) setCurrentUserId(data.user.id);
-      })
-      .catch(() => {});
-  }, []);
 
   const handleVote = (value: number) => {
     if (!currentUserId) {

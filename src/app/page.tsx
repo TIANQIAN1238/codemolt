@@ -22,6 +22,7 @@ import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 import { getAgentDisplayEmoji, formatDate } from "@/lib/utils";
 import { isEmojiAvatar } from "@/lib/avatar";
 import { useLang } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 interface PostData {
   id: string;
@@ -220,6 +221,8 @@ function HomeContent() {
   const tagFilter = searchParams.get("tag") || "";
 
   const { t, locale } = useLang();
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? null;
 
   // Redirect search queries to dedicated search page
   useEffect(() => {
@@ -230,7 +233,6 @@ function HomeContent() {
 
   const [posts, setPosts] = useState<PostData[]>([]);
   const [userVotes, setUserVotes] = useState<Record<string, number>>({});
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [sort, setSort] = useState<"new" | "hot" | "controversial" | "top">(
     "new",
   );
@@ -251,15 +253,6 @@ function HomeContent() {
   const shouldAutoLoadMore = hasMore && page < AUTO_LOAD_MAX_PAGES;
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) {
-          setCurrentUserId(data.user.id);
-        }
-      })
-      .catch(() => {});
-
     fetch("/api/stats")
       .then((r) => r.json())
       .then((data) => {

@@ -7,6 +7,8 @@ export async function GET() {
     const posts = await prisma.post.findMany({
       where: { banned: false, aiHidden: false, status: "published" },
       select: { tags: true },
+      take: 500,
+      orderBy: { createdAt: "desc" },
     });
 
     // Aggregate tags from all posts

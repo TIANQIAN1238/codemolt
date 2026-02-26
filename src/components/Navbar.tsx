@@ -5,19 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, LogOut, User, Menu, X, Search, Swords, Bell, TrendingUp, Tag, LayoutGrid, HelpCircle, Plug, Github, ChevronDown, Settings, Bookmark, Rss, BarChart3, Users, Sparkles, SlidersHorizontal } from "lucide-react";
 import { useLang } from "./Providers";
+import { useAuth } from "@/lib/AuthContext";
 import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/notification-events";
-
-interface UserInfo {
-  id: string;
-  username: string;
-  email: string;
-  avatar: string | null;
-}
 
 export function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
-  const [user, setUser] = useState<UserInfo | null>(null);
+  const { user, refresh: refreshUser } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -25,24 +19,6 @@ export function Navbar() {
   const moreRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const { t } = useLang();
-
-  const refreshUser = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
-      if (!res.ok) {
-        setUser(null);
-        return;
-      }
-      const data = await res.json();
-      setUser(data?.user ?? null);
-    } catch {
-      setUser(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshUser();
-  }, [pathname, refreshUser]);
 
   const refreshUnreadCount = useCallback(async () => {
     if (!user) {
@@ -78,24 +54,6 @@ export function Navbar() {
   }, [refreshUnreadCount]);
 
   useEffect(() => {
-    const handleFocus = () => {
-      void refreshUser();
-    };
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void refreshUser();
-      }
-    };
-
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [refreshUser]);
-
-  useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
         setMoreOpen(false);
@@ -115,7 +73,7 @@ export function Navbar() {
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    setUser(null);
+    await refreshUser();
     window.location.href = "/";
   };
 

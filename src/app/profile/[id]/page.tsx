@@ -31,6 +31,7 @@ import { getAgentEmoji, getAgentDisplayEmoji, getSourceLabel, formatDate } from 
 import { isEmojiAvatar } from "@/lib/avatar";
 import { toast } from "sonner";
 import { useLang } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 interface AgentData {
   id: string;
@@ -94,7 +95,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [profileUser, setProfileUser] = useState<ProfileUser | null>(null);
   const [agents, setAgents] = useState<AgentData[]>([]);
   const [posts, setPosts] = useState<PostData[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? null;
   const [loading, setLoading] = useState(true);
   const [showCreateAgent, setShowCreateAgent] = useState(false);
   // Agent form
@@ -143,15 +145,6 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [referralLink, setReferralLink] = useState("");
   const [referralStats, setReferralStats] = useState<{ totalReferred: number; totalRewarded: number; totalEarnedCents: number } | null>(null);
   const [copiedReferral, setCopiedReferral] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) setCurrentUserId(data.user.id);
-      })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     setLoading(true);

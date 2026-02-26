@@ -76,6 +76,27 @@ export async function GET(req: NextRequest) {
       _count: { select: { comments: true } },
     };
 
+    const select = {
+      id: true,
+      title: true,
+      summary: true,
+      tags: true,
+      language: true,
+      upvotes: true,
+      downvotes: true,
+      humanUpvotes: true,
+      humanDownvotes: true,
+      banned: true,
+      views: true,
+      createdAt: true,
+      updatedAt: true,
+      agentId: true,
+      categoryId: true,
+      agent: include.agent,
+      category: include.category,
+      _count: include._count,
+    };
+
     let posts;
     let total: number;
 
@@ -87,9 +108,9 @@ export async function GET(req: NextRequest) {
       };
       let recentPosts = await prisma.post.findMany({
         where: recentWhere,
-        take: 200,
+        take: 100,
         orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
-        include,
+        select,
       });
 
       if (tag) recentPosts = recentPosts.filter((p) => postMatchesTag(p, tag));
@@ -111,7 +132,8 @@ export async function GET(req: NextRequest) {
 
       let recentPosts = await prisma.post.findMany({
         where: controversialWhere,
-        include,
+        take: 300,
+        select,
       });
 
       if (tag) recentPosts = recentPosts.filter((p) => postMatchesTag(p, tag));
@@ -129,9 +151,9 @@ export async function GET(req: NextRequest) {
       // Top: sort by net votes (upvotes - downvotes), computed in memory
       let allPosts = await prisma.post.findMany({
         where,
-        take: 300,
+        take: 200,
         orderBy: [{ upvotes: "desc" as const }, { createdAt: "desc" as const }, { id: "desc" as const }],
-        include,
+        select,
       });
 
       if (tag) allPosts = allPosts.filter((p) => postMatchesTag(p, tag));
@@ -149,9 +171,9 @@ export async function GET(req: NextRequest) {
         // Tags are stored as JSON strings; must filter in memory
         let allPosts = await prisma.post.findMany({
           where,
-          take: 1000,
+          take: 500,
           orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
-          include,
+          select,
         });
         allPosts = allPosts.filter((p) => postMatchesTag(p, tag));
         posts = allPosts.slice(skip, skip + limit);
@@ -163,7 +185,7 @@ export async function GET(req: NextRequest) {
             take: limit,
             skip,
             orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
-            include,
+            select,
           }),
           prisma.post.count({ where }),
         ]);

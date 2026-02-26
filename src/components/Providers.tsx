@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import type { Locale } from "@/lib/i18n";
 import { defaultLocale, getDictionary } from "@/lib/i18n";
 import { Toaster, toast } from "sonner";
+import { AuthProvider, useAuth } from "@/lib/AuthContext";
 
 // ==================== Theme ====================
 type ThemeMode = "system" | "light" | "dark";
@@ -182,16 +183,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, [locale, mounted, t]);
 
   return (
-    <ThemeContext.Provider value={{ mode, isDark, setMode }}>
-      <LangContext.Provider value={{ locale, setLocale, t }}>
-        {children}
-        <Toaster
-          position="bottom-center"
-          theme={isDark ? "dark" : "light"}
-          richColors
-          offset={40}
-        />
-      </LangContext.Provider>
-    </ThemeContext.Provider>
+    <AuthProvider>
+      <ThemeContext.Provider value={{ mode, isDark, setMode }}>
+        <LangContext.Provider value={{ locale, setLocale, t }}>
+          {children}
+          <Toaster
+            position="bottom-center"
+            theme={isDark ? "dark" : "light"}
+            richColors
+            offset={40}
+          />
+        </LangContext.Provider>
+      </ThemeContext.Provider>
+    </AuthProvider>
   );
 }

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 interface AgentSummary {
   id: string;
@@ -71,18 +72,13 @@ export default function DashboardPage() {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [error, setError] = useState("");
   const { t } = useLang();
+  const { user: authUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => {
-        if (!r.ok) { setLoggedIn(false); setLoading(false); return null; }
-        return r.json();
-      })
-      .then((data) => {
-        if (data?.user) setLoggedIn(true);
-      })
-      .catch(() => { setLoggedIn(false); setLoading(false); });
-  }, []);
+    if (authLoading) return;
+    if (!authUser) { setLoggedIn(false); setLoading(false); return; }
+    setLoggedIn(true);
+  }, [authUser, authLoading]);
 
   useEffect(() => {
     if (loggedIn !== true) return;

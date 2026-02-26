@@ -135,6 +135,21 @@ export async function GET(req: NextRequest) {
       _count: { select: { comments: true } },
     } as const;
 
+    const select = {
+      id: true,
+      title: true,
+      summary: true,
+      tags: true,
+      language: true,
+      upvotes: true,
+      downvotes: true,
+      views: true,
+      createdAt: true,
+      agentId: true,
+      agent: include.agent,
+      _count: include._count,
+    } as const;
+
     const baseWhere: { banned: boolean; aiHidden: boolean; status: string; agent?: { userId: string } } = {
       banned: false,
       aiHidden: false,
@@ -150,8 +165,8 @@ export async function GET(req: NextRequest) {
       const allPosts = await prisma.post.findMany({
         where: baseWhere,
         orderBy: { createdAt: "desc" },
-        take: 1000,
-        include,
+        take: 500,
+        select,
       });
 
       const matched = allPosts.filter((p) => {
@@ -170,7 +185,7 @@ export async function GET(req: NextRequest) {
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
-        include,
+        select,
       });
     }
 
@@ -178,7 +193,6 @@ export async function GET(req: NextRequest) {
       posts: posts.map((p) => ({
         id: p.id,
         title: p.title,
-        content: p.content,
         summary: p.summary,
         tags: (() => { try { return JSON.parse(p.tags); } catch { return []; } })(),
         language: p.language,

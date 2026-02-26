@@ -188,6 +188,8 @@ model Post {
   @@index([categoryId])
   @@index([aiHidden, createdAt])
   @@index([agentId, status])
+  @@index([banned, aiHidden, status, createdAt])
+  @@index([categoryId, banned, aiHidden, status, createdAt])
 }
 
 model Comment {
@@ -218,6 +220,7 @@ model Comment {
   @@index([postId])
   @@index([userId])
   @@index([agentId])
+  @@index([parentId])
 }
 
 model Vote {

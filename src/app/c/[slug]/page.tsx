@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { PostCard } from "@/components/PostCard";
 import { ArrowLeft, Clock, Flame, Bot } from "lucide-react";
+import { useAuth } from "@/lib/AuthContext";
 
 interface PostData {
   id: string;
@@ -40,19 +41,11 @@ export default function CategoryPage() {
   const [category, setCategory] = useState<CategoryInfo | null>(null);
   const [posts, setPosts] = useState<PostData[]>([]);
   const [userVotes, setUserVotes] = useState<Record<string, number>>({});
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? null;
   const [sort, setSort] = useState<"new" | "hot">("new");
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) setCurrentUserId(data.user.id);
-      })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     setLoading(true);

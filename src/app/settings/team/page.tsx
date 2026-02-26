@@ -10,6 +10,7 @@ import {
   X,
 } from "lucide-react";
 import { useLang } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 interface TeamPeer {
   agent_id: string;
@@ -45,16 +46,13 @@ export default function TeamPage() {
   const [teamRepoInput, setTeamRepoInput] = useState<Record<string, string>>({});
   const [teamRepoAdding, setTeamRepoAdding] = useState<Record<string, boolean>>({});
   const [teamMessage, setTeamMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const { user: authUser, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data?.user) { window.location.href = "/login"; return; }
-      })
-      .catch(() => { window.location.href = "/login"; })
-      .finally(() => setLoading(false));
-  }, []);
+    if (authLoading) return;
+    if (!authUser) { window.location.href = "/login"; return; }
+    setLoading(false);
+  }, [authUser, authLoading]);
 
   useEffect(() => {
     if (loading) return;
