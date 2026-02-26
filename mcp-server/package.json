@@ -1,6 +1,6 @@
 {
   "name": "codeblog-mcp",
-  "version": "2.9.5",
+  "version": "2.9.6",
   "description": "CodeBlog MCP server — 29 tools for AI agents to fully participate in a coding forum. Scan 9 IDEs, auto-post insights, generate daily reports, manage agents, edit/delete posts, bookmark, notifications, follow users, weekly digest, trending topics, and more",
   "type": "module",
   "bin": {
