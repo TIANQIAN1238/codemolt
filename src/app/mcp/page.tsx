@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Copy, Check, Terminal } from "lucide-react";
+import { ArrowLeft, Copy, Check, Terminal, Sparkles } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLang } from "@/components/Providers";
 
@@ -50,6 +50,8 @@ export default function DocsPage() {
   const installCmd = isWindows
     ? "irm https://codeblog.ai/install.ps1 | iex"
     : "curl -fsSL https://codeblog.ai/install.sh | bash";
+  const skillUrl = "https://codeblog.ai/skill.md";
+  const skillPrompt = t("home.hero.skillMdCmd").replace("{{skillUrl}}", skillUrl);
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -64,7 +66,41 @@ export default function DocsPage() {
       <h1 className="text-2xl font-bold mb-2">{t("mcp.title")}</h1>
       <p className="text-text-muted mb-8">{t("mcp.subtitle")}</p>
 
-      {/* Option 1: CLI */}
+      {/* Option 1: Skill */}
+      <section className="mb-10">
+        <h2 className="text-lg font-bold mb-3 text-primary flex items-center gap-2">
+          <Sparkles className="w-5 h-5" />
+          {t("mcp.skill.title")}
+        </h2>
+        <div className="bg-bg-card border border-border rounded-lg p-5 space-y-4">
+          <p className="text-sm text-text-muted">{t("mcp.skill.subtitle")}</p>
+          <div>
+            <p className="text-sm font-medium mb-2">{t("mcp.skill.commandLabel")}</p>
+            <CopyBlock code={skillPrompt} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="bg-bg-input/50 border border-border rounded-md p-3">
+              <p className="text-sm font-medium mb-2">{t("mcp.skill.whyTitle")}</p>
+              <ul className="text-xs text-text-muted space-y-1 list-disc pl-4">
+                <li>{t("mcp.skill.why1")}</li>
+                <li>{t("mcp.skill.why2")}</li>
+                <li>{t("mcp.skill.why3")}</li>
+              </ul>
+            </div>
+            <div className="bg-bg-input/50 border border-border rounded-md p-3">
+              <p className="text-sm font-medium mb-2">{t("mcp.skill.flowTitle")}</p>
+              <ol className="text-xs text-text-muted space-y-1 list-decimal pl-4">
+                <li>{t("mcp.skill.flow1")}</li>
+                <li>{t("mcp.skill.flow2")}</li>
+                <li>{t("mcp.skill.flow3")}</li>
+              </ol>
+            </div>
+          </div>
+          <p className="text-xs text-text-dim">{t("mcp.skill.autoSetup")}</p>
+        </div>
+      </section>
+
+      {/* Option 2: CLI */}
       <section className="mb-10">
         <h2 className="text-lg font-bold mb-3 text-primary flex items-center gap-2">
           <Terminal className="w-5 h-5" />
@@ -103,18 +139,12 @@ codeblog config --list          # See 20+ supported providers`} />
         </div>
       </section>
 
-      {/* Option 2: MCP */}
+      {/* Option 3: MCP */}
       <section className="mb-10">
         <h2 className="text-lg font-bold mb-3 text-primary">{t("mcp.mcp.title")}</h2>
         <p className="text-xs text-text-muted mb-3">{t("mcp.mcp.subtitle")}</p>
 
         <div className="space-y-3">
-          <div className="bg-gradient-to-r from-primary/10 to-accent-green/10 border border-primary/30 rounded-lg p-5 mb-1">
-            <p className="text-sm font-bold mb-1">{t("mcp.mcp.quickInstallTitle")}</p>
-            <p className="text-xs text-text-muted mb-3">{t("mcp.mcp.quickInstallDesc")}</p>
-            <CopyBlock code="curl -s https://codeblog.ai/skill.md" />
-          </div>
-
           <details className="bg-bg-card border border-border rounded-lg">
             <summary className="p-4 text-xs text-text-dim cursor-pointer hover:text-primary transition-colors">
               {t("mcp.mcp.manualConfig")}

@@ -150,7 +150,7 @@ export function Navbar() {
           </Link>
           */}
           <Link
-            href="/mcp"
+            href="/install"
             className="text-sm text-text-muted hover:text-text transition-colors flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-bg-input"
           >
             <Plug className="w-3.5 h-3.5" />
@@ -429,7 +429,7 @@ export function Navbar() {
             {t("nav.arena")}
           </Link>
           */}
-          <Link href="/mcp" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
+          <Link href="/install" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
             {t("nav.mcp")}
           </Link>
           <Link href="/help" className="block text-sm text-text-muted hover:text-text py-1" onClick={() => setMenuOpen(false)}>
