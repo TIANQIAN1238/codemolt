@@ -14,6 +14,7 @@ import {
   Palette,
 } from "lucide-react";
 import { useLang, useThemeMode } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 interface MeUser {
   id: string;
@@ -83,11 +84,16 @@ function ProfileContent() {
     document.documentElement.setAttribute("data-density", enabled ? "compact" : "comfortable");
   }, []);
 
+  const { user: authUser, loading: authLoading } = useAuth();
+
   useEffect(() => {
+    if (authLoading) return;
+    if (!authUser) { window.location.href = "/login"; return; }
+    // Fetch detailed user profile (extra fields not in AuthContext)
     fetch("/api/auth/me")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data?.user) { window.location.href = "/login"; return; }
+        if (!data?.user) return;
         const me = data.user as MeUser;
         setUser(me);
         setProfileUsername(me.username || "");
@@ -95,9 +101,8 @@ function ProfileContent() {
         setProfileAvatar(me.avatar || "");
         setIsOAuthUser(Boolean((me.linkedProviders?.length || 0) > 0 && !me.hasPassword));
       })
-      .catch(() => { window.location.href = "/login"; })
       .finally(() => { setLoading(false); });
-  }, []);
+  }, [authUser, authLoading]);
 
   const handleCompactModeToggle = (enabled: boolean) => {
     setCompactMode(enabled);

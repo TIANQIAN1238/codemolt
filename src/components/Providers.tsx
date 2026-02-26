@@ -49,7 +49,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(defaultLocale);
   const [dict, setDict] = useState<Record<string, string>>(getDictionary(defaultLocale));
   const [mounted, setMounted] = useState(false);
-  const presenceStartedRef = useRef(false);
 
   const syncLocaleToServer = useCallback((l: Locale) => {
     void fetch("/api/auth/locale", {
@@ -118,8 +117,31 @@ export function Providers({ children }: { children: React.ReactNode }) {
     [dict]
   );
 
+  return (
+    <AuthProvider>
+      <ThemeContext.Provider value={{ mode, isDark, setMode }}>
+        <LangContext.Provider value={{ locale, setLocale, t }}>
+          <PresenceManager locale={locale} t={t} />
+          {children}
+          <Toaster
+            position="bottom-center"
+            theme={isDark ? "dark" : "light"}
+            richColors
+            offset={40}
+          />
+        </LangContext.Provider>
+      </ThemeContext.Provider>
+    </AuthProvider>
+  );
+}
+
+// ==================== Presence (uses AuthContext) ====================
+function PresenceManager({ locale, t }: { locale: Locale; t: (key: string) => string }) {
+  const { user, loading } = useAuth();
+  const presenceStartedRef = useRef(false);
+
   useEffect(() => {
-    if (!mounted || presenceStartedRef.current) return;
+    if (loading || !user || presenceStartedRef.current) return;
     presenceStartedRef.current = true;
 
     let timer: ReturnType<typeof setInterval> | null = null;
@@ -144,12 +166,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       reportPresence("offline");
     };
 
-    const bootstrapPresence = async () => {
-      const me = await fetch("/api/auth/me").catch(() => null);
-      if (!active || !me?.ok) return;
-      const data = await me.json().catch(() => null);
-      if (!active || !data?.user) return;
-
+    const bootstrap = async () => {
       const summaryRes = await fetch(`/api/v1/agents/me/away-summary?locale=${locale}`).catch(() => null);
       if (active && summaryRes?.ok) {
         const summaryData = await summaryRes.json().catch(() => null);
@@ -172,7 +189,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       window.addEventListener("pagehide", onPageHide);
     };
 
-    void bootstrapPresence();
+    void bootstrap();
 
     return () => {
       active = false;
@@ -180,21 +197,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
     };
-  }, [locale, mounted, t]);
+  }, [loading, user, locale, t]);
 
-  return (
-    <AuthProvider>
-      <ThemeContext.Provider value={{ mode, isDark, setMode }}>
-        <LangContext.Provider value={{ locale, setLocale, t }}>
-          {children}
-          <Toaster
-            position="bottom-center"
-            theme={isDark ? "dark" : "light"}
-            richColors
-            offset={40}
-          />
-        </LangContext.Provider>
-      </ThemeContext.Provider>
-    </AuthProvider>
-  );
+  return null;
 }

@@ -12,6 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useLang } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function AiProviderPage() {
   const { locale } = useLang();
@@ -33,15 +34,13 @@ export default function AiProviderPage() {
   const [aiMessage, setAiMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [aiChoices, setAiChoices] = useState<{ name: string; providerID: string; api: string; baseURL: string }[]>([]);
 
+  const { user: authUser, loading: authLoading } = useAuth();
+
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data?.user) { window.location.href = "/login"; return; }
-      })
-      .catch(() => { window.location.href = "/login"; })
-      .finally(() => setLoading(false));
-  }, []);
+    if (authLoading) return;
+    if (!authUser) { window.location.href = "/login"; return; }
+    setLoading(false);
+  }, [authUser, authLoading]);
 
   useEffect(() => {
     fetch("/api/auth/ai-provider")

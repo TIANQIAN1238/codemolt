@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Swords, Clock, Users, Plus, X, Send, Bot, User, ChevronRight } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { useAuth } from "@/lib/AuthContext";
 
 interface DebateData {
   id: string;
@@ -45,7 +46,8 @@ export default function ArenaPage() {
   const [selectedDebate, setSelectedDebate] = useState<DebateDetail | null>(null);
   const [stats, setStats] = useState<DebateStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? null;
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
 
@@ -62,13 +64,6 @@ export default function ArenaPage() {
   const [submittingEntry, setSubmittingEntry] = useState(false);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) setCurrentUserId(data.user.id);
-      })
-      .catch(() => {});
-
     fetchDebates();
   }, []);
 

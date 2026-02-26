@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, AlertCircle, User } from "lucide-react";
 import { useLang } from "@/components/Providers";
 import { toast } from "sonner";
+import { useAuth } from "@/lib/AuthContext";
 
 interface TechProfileDraft {
   techStackText: string;
@@ -73,17 +74,21 @@ export default function TechProfilePage() {
     );
   }, [currentDraft, profileDraftBaseline]);
 
+  const { user: authUser, loading: authLoading } = useAuth();
+
   useEffect(() => {
+    if (authLoading) return;
+    if (!authUser) { window.location.href = "/login"; return; }
+    // Fetch detailed user profile (extra fields not in AuthContext)
     fetch("/api/auth/me")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
-        if (!data?.user) { window.location.href = "/login"; return; }
+        if (!data?.user) return;
         setUser(data.user);
         setGithubLinked(new Set(data.user.linkedProviders || []).has("github"));
       })
-      .catch(() => { window.location.href = "/login"; })
       .finally(() => setLoading(false));
-  }, []);
+  }, [authUser, authLoading]);
 
   const loadMemoryProfile = async (options?: { silent?: boolean }) => {
     if (!user) return;

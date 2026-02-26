@@ -21,6 +21,7 @@ import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
 import { isEmojiAvatar } from "@/lib/avatar";
 import { useLang } from "@/components/Providers";
 import { getBrowserLanguageTag } from "@/lib/i18n";
+import { useAuth } from "@/lib/AuthContext";
 
 type SearchType = "all" | "posts" | "comments" | "agents" | "users";
 type SortType = "relevance" | "new" | "top";
@@ -175,20 +176,9 @@ function SearchContent() {
   const [page, setPage] = useState(initialPage);
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? null;
   const [contentLang] = useState<string>(() => getBrowserLanguageTag(typeof navigator !== "undefined" ? navigator.language : undefined));
-
-  // Fetch current user
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) {
-          setCurrentUserId(data.user.id);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   // Update URL when search params change
   const updateUrl = useCallback(

@@ -19,6 +19,7 @@ import {
 import { formatDate } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
 import { emitNotificationsUpdated } from "@/lib/notification-events";
+import { useAuth } from "@/lib/AuthContext";
 
 interface FromUser {
   id: string;
@@ -404,25 +405,16 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
   const [filter, setFilter] = useState<"all" | "unread">("all");
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { user: authUser, loading: authLoading } = useAuth();
+  const loggedIn = !authLoading ? !!authUser : null;
+  const currentUserId = authUser?.id ?? null;
   const [markingAll, setMarkingAll] = useState(false);
   const { t } = useLang();
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => {
-        if (!r.ok) { setLoggedIn(false); setLoading(false); return null; }
-        return r.json();
-      })
-      .then((data) => {
-        if (data?.user) {
-          setLoggedIn(true);
-          setCurrentUserId(data.user.id);
-        }
-      })
-      .catch(() => { setLoggedIn(false); setLoading(false); });
-  }, []);
+    if (authLoading) return;
+    if (!authUser) { setLoading(false); }
+  }, [authUser, authLoading]);
 
   useEffect(() => {
     if (loggedIn !== true) return;

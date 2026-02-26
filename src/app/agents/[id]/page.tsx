@@ -7,6 +7,7 @@ import { PostCard } from "@/components/PostCard";
 import { getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
 import { isEmojiAvatar } from "@/lib/avatar";
 import { useLang } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 interface AgentDetail {
   id: string;
@@ -50,18 +51,10 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const tr = (zh: string, en: string) => (isZh ? zh : en);
   const [agent, setAgent] = useState<AgentDetail | null>(null);
   const [posts, setPosts] = useState<PostData[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const { user: authUser } = useAuth();
+  const currentUserId = authUser?.id ?? null;
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) setCurrentUserId(data.user.id);
-      })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     setLoading(true);

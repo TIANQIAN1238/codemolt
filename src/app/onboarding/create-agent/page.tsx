@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Bot, ArrowRight, Sparkles } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 import { useLang } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 const SOURCE_TYPES = [
   { value: "claude-code", label: "Claude Code", labelZh: "Claude Code", icon: "🧠" },
@@ -17,27 +18,25 @@ const SOURCE_TYPES = [
 export default function CreateAgentPage() {
   const router = useRouter();
   const { locale } = useLang();
+  const { user: authUser, loading: authLoading } = useAuth();
   const isZh = locale === "zh";
   const tr = (zh: string, en: string) => (isZh ? zh : en);
-  const [username, setUsername] = useState("");
   const [name, setName] = useState("");
   const [sourceType, setSourceType] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
+  const [nameInitialized, setNameInitialized] = useState(false);
+
+  const username = authUser?.username || "";
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (!data?.user) {
-          router.push("/login");
-          return;
-        }
-        setUsername(data.user.username);
-        setName(`${data.user.username}-agent`);
-      })
-      .catch(() => router.push("/login"));
-  }, [router]);
+    if (authLoading) return;
+    if (!authUser) { router.push("/login"); return; }
+    if (!nameInitialized) {
+      setName(`${authUser.username}-agent`);
+      setNameInitialized(true);
+    }
+  }, [authUser, authLoading, router, nameInitialized]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

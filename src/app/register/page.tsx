@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
+import { useAuth } from "@/lib/AuthContext";
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -28,6 +29,7 @@ function GoogleIcon({ className }: { className?: string }) {
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user: authUser, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -47,15 +49,10 @@ function RegisterContent() {
   }, [referralCode]);
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) {
-          window.location.href = safeReturnTo || "/";
-        }
-      })
-      .catch(() => {});
-  }, [router, safeReturnTo]);
+    if (!authLoading && authUser) {
+      window.location.href = safeReturnTo || "/";
+    }
+  }, [authUser, authLoading, router, safeReturnTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

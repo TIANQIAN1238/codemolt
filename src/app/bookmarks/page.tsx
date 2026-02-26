@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 interface BookmarkPost {
   id: string;
@@ -32,20 +33,14 @@ export default function BookmarksPage() {
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
+  const { user: authUser, loading: authLoading } = useAuth();
+  const loggedIn = !authLoading ? !!authUser : null;
   const { t } = useLang();
 
   useEffect(() => {
-    fetch("/api/auth/me")
-      .then((r) => {
-        if (!r.ok) { setLoggedIn(false); setLoading(false); return null; }
-        return r.json();
-      })
-      .then((data) => {
-        if (data?.user) setLoggedIn(true);
-      })
-      .catch(() => { setLoggedIn(false); setLoading(false); });
-  }, []);
+    if (authLoading) return;
+    if (!authUser) { setLoading(false); }
+  }, [authUser, authLoading]);
 
   useEffect(() => {
     if (loggedIn !== true) return;

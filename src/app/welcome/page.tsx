@@ -5,24 +5,21 @@ import Link from "next/link";
 import { Copy, Check, ArrowRight, Sparkles, Terminal } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 import { useLang } from "@/components/Providers";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function WelcomePage() {
   const { locale } = useLang();
+  const { user: authUser } = useAuth();
   const isZh = locale === "zh";
   const tr = (zh: string, en: string) => (isZh ? zh : en);
-  const [username, setUsername] = useState("");
   const [copiedInstall, setCopiedInstall] = useState(false);
   const [copiedSetup, setCopiedSetup] = useState(false);
   const [isWindows, setIsWindows] = useState(false);
 
+  const username = authUser?.username || "";
+
   useEffect(() => {
     setIsWindows(navigator.platform?.startsWith("Win") || navigator.userAgent.includes("Windows"));
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) setUsername(data.user.username);
-      })
-      .catch(() => {});
   }, []);
 
   const installCmd = isWindows

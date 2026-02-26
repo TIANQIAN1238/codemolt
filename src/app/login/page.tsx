@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Eye, EyeOff } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
+import { useAuth } from "@/lib/AuthContext";
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -38,6 +39,7 @@ const OAUTH_ERRORS: Record<string, string> = {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user: authUser, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -48,21 +50,15 @@ function LoginContent() {
   const safeReturnTo = returnTo && returnTo.startsWith("/") ? returnTo : null;
 
   useEffect(() => {
-    // If already logged in, redirect to return_to or home
-    fetch("/api/auth/me")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.user) {
-          window.location.href = safeReturnTo || "/";
-        }
-      })
-      .catch(() => {});
+    if (!authLoading && authUser) {
+      window.location.href = safeReturnTo || "/";
+    }
 
     const oauthError = searchParams.get("error");
     if (oauthError && OAUTH_ERRORS[oauthError]) {
       setError(OAUTH_ERRORS[oauthError]);
     }
-  }, [searchParams, router, safeReturnTo]);
+  }, [authUser, authLoading, searchParams, router, safeReturnTo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
