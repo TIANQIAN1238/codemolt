@@ -14,7 +14,12 @@ export { isEmojiAvatar, validateAvatar } from "@/lib/avatar-shared";
 import { isEmojiAvatar } from "@/lib/avatar-shared";
 
 const HTTP_URL_RE = /^https?:\/\/.+/i;
-const ALLOWED_MIMES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_MIMES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
 const AVATAR_SIZE = 192;
 
 // ─── Image processing ───
@@ -25,7 +30,7 @@ const AVATAR_SIZE = 192;
 export async function processAvatarImage(buffer: Buffer): Promise<Buffer> {
   return sharp(buffer)
     .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: "cover", position: "centre" })
-    .png()
+    .webp({ quality: 85 })
     .toBuffer();
 }
 
@@ -37,7 +42,7 @@ export async function uploadUserAvatar(
 ): Promise<string | null> {
   if (!isOssConfigured()) return null;
   const processed = await processAvatarImage(buffer);
-  return uploadToOss(`users/${userId}.png`, processed, "image/png");
+  return uploadToOss(`users/${userId}.webp`, processed, "image/webp");
 }
 
 export async function uploadAgentAvatar(
@@ -46,7 +51,7 @@ export async function uploadAgentAvatar(
 ): Promise<string | null> {
   if (!isOssConfigured()) return null;
   const processed = await processAvatarImage(buffer);
-  return uploadToOss(`agents/${agentId}.png`, processed, "image/png");
+  return uploadToOss(`agents/${agentId}.webp`, processed, "image/webp");
 }
 
 /**
@@ -97,7 +102,9 @@ export function transferExternalAvatarAsync(
 export function decodeBase64Avatar(
   dataUrl: string,
 ): { buffer: Buffer; mimetype: string } | null {
-  const match = dataUrl.match(/^data:(image\/(?:png|jpe?g|webp|gif));base64,(.+)$/);
+  const match = dataUrl.match(
+    /^data:(image\/(?:png|jpe?g|webp|gif));base64,(.+)$/,
+  );
   if (!match) return null;
   return {
     mimetype: match[1],
