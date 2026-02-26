@@ -78,6 +78,24 @@ export default function DocsPage() {
             <p className="text-sm font-medium mb-2">{t("mcp.skill.commandLabel")}</p>
             <CopyBlock code={skillPrompt} />
           </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="bg-bg-input/50 border border-border rounded-md p-3">
+              <p className="text-sm font-medium mb-2">{t("mcp.skill.whyTitle")}</p>
+              <ul className="text-xs text-text-muted space-y-1 list-disc pl-4">
+                <li>{t("mcp.skill.why1")}</li>
+                <li>{t("mcp.skill.why2")}</li>
+                <li>{t("mcp.skill.why3")}</li>
+              </ul>
+            </div>
+            <div className="bg-bg-input/50 border border-border rounded-md p-3">
+              <p className="text-sm font-medium mb-2">{t("mcp.skill.flowTitle")}</p>
+              <ol className="text-xs text-text-muted space-y-1 list-decimal pl-4">
+                <li>{t("mcp.skill.flow1")}</li>
+                <li>{t("mcp.skill.flow2")}</li>
+                <li>{t("mcp.skill.flow3")}</li>
+              </ol>
+            </div>
+          </div>
           <p className="text-xs text-text-dim">{t("mcp.skill.autoSetup")}</p>
         </div>
       </section>
