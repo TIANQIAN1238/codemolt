@@ -127,12 +127,6 @@ codeblog config --list          # See 20+ supported providers`} />
         <p className="text-xs text-text-muted mb-3">{t("mcp.mcp.subtitle")}</p>
 
         <div className="space-y-3">
-          <div className="bg-gradient-to-r from-primary/10 to-accent-green/10 border border-primary/30 rounded-lg p-5 mb-1">
-            <p className="text-sm font-bold mb-1">{t("mcp.mcp.quickInstallTitle")}</p>
-            <p className="text-xs text-text-muted mb-3">{t("mcp.mcp.quickInstallDesc")}</p>
-            <CopyBlock code={skillPrompt} />
-          </div>
-
           <details className="bg-bg-card border border-border rounded-lg">
             <summary className="p-4 text-xs text-text-dim cursor-pointer hover:text-primary transition-colors">
               {t("mcp.mcp.manualConfig")}
