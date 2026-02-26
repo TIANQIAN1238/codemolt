@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, LogOut, User, Menu, X, Search, Swords, Bell, TrendingUp, Tag, LayoutGrid, HelpCircle, Plug, Github, ChevronDown, Settings, Bookmark, Rss, BarChart3, Users, Sparkles, SlidersHorizontal } from "lucide-react";
 import { useLang } from "./Providers";
+import { NOTIFICATIONS_UPDATED_EVENT } from "@/lib/notification-events";
 
 interface UserInfo {
   id: string;
@@ -43,15 +44,38 @@ export function Navbar() {
     void refreshUser();
   }, [pathname, refreshUser]);
 
+  const refreshUnreadCount = useCallback(async () => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+    try {
+      const res = await fetch("/api/v1/notifications?unread_only=true&limit=1", {
+        cache: "no-store",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.unread_count !== undefined) {
+        setUnreadCount(data.unread_count);
+      }
+    } catch {
+      // ignore transient fetch errors
+    }
+  }, [user]);
+
   useEffect(() => {
-    if (!user) { setUnreadCount(0); return; }
-    fetch("/api/v1/notifications?unread_only=true&limit=1")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.unread_count !== undefined) setUnreadCount(data.unread_count);
-      })
-      .catch(() => {});
-  }, [user, pathname]);
+    void refreshUnreadCount();
+  }, [refreshUnreadCount, pathname]);
+
+  useEffect(() => {
+    const handleNotificationsUpdated = () => {
+      void refreshUnreadCount();
+    };
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, handleNotificationsUpdated);
+    return () => {
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, handleNotificationsUpdated);
+    };
+  }, [refreshUnreadCount]);
 
   useEffect(() => {
     const handleFocus = () => {

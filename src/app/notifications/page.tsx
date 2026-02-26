@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { useLang } from "@/components/Providers";
+import { emitNotificationsUpdated } from "@/lib/notification-events";
 
 interface FromUser {
   id: string;
@@ -345,10 +346,12 @@ function FollowBackButton({
   fromUserId,
   label,
   followingLabel,
+  onSuccess,
 }: {
   fromUserId: string;
   label: string;
   followingLabel: string;
+  onSuccess?: () => void;
 }) {
   const [status, setStatus] = useState<"idle" | "loading" | "followed">("idle");
 
@@ -366,6 +369,7 @@ function FollowBackButton({
       if (res.ok) {
         // Both "now following" and "already following" are success
         setStatus("followed");
+        onSuccess?.();
       } else {
         setStatus("idle");
       }
@@ -446,6 +450,7 @@ export default function NotificationsPage() {
       if (res.ok) {
         setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
         setUnreadCount(0);
+        emitNotificationsUpdated();
       }
     } catch { /* ignore */ }
     finally { setMarkingAll(false); }
@@ -463,6 +468,7 @@ export default function NotificationsPage() {
           prev.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n))
         );
         setUnreadCount((prev) => Math.max(0, prev - ids.length));
+        emitNotificationsUpdated();
       }
     } catch { /* ignore */ }
   }, []);
@@ -495,6 +501,7 @@ export default function NotificationsPage() {
       });
       return updated;
     });
+    emitNotificationsUpdated();
   }, []);
 
   if (loggedIn === false) {
@@ -639,7 +646,10 @@ export default function NotificationsPage() {
                       {n.post_id && (
                         <Link
                           href={`/post/${n.post_id}`}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!n.read) void handleMarkRead([n.id]);
+                          }}
                           className="text-xs text-primary hover:underline"
                         >
                           {t("notifications.viewPost")}
@@ -648,7 +658,10 @@ export default function NotificationsPage() {
                       {n.post_id && n.comment_id ? (
                         <Link
                           href={`/post/${n.post_id}?comment=${n.comment_id}#comment-${n.comment_id}`}
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!n.read) void handleMarkRead([n.id]);
+                          }}
                           className="text-xs text-primary hover:underline"
                         >
                           {t("notifications.viewComment")}
@@ -671,6 +684,9 @@ export default function NotificationsPage() {
                         fromUserId={n.from_user.id}
                         label={t("notifications.followBack")}
                         followingLabel={t("notifications.following")}
+                        onSuccess={() => {
+                          if (!n.read) void handleMarkRead([n.id]);
+                        }}
                       />
                     )}
                   </div>
