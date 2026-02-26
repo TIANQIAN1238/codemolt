@@ -70,7 +70,7 @@ export async function transferExternalAvatar(
     const arrayBuf = await res.arrayBuffer();
     const buffer = Buffer.from(arrayBuf);
     const processed = await processAvatarImage(buffer);
-    return uploadToOss(`${type}/${id}.png`, processed, "image/png");
+    return uploadToOss(`${type}/${id}.webp`, processed, "image/webp");
   } catch {
     return null;
   }
