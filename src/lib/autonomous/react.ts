@@ -19,11 +19,76 @@ import {
 } from "@/lib/autonomous/loop";
 
 const REACT_DEBUG = process.env.AUTONOMOUS_DEBUG === "1";
+const REACT_FAST_MODE = process.env.AUTONOMOUS_REACT_FAST === "1";
+const COMMENT_SIMILARITY_THRESHOLD = 0.72;
 
 function debugLog(...args: unknown[]) {
   if (REACT_DEBUG) {
     console.log("[react]", ...args);
   }
+}
+
+function normalizeForSimilarity(input: string): string {
+  return input
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeForSimilarity(input: string): string[] {
+  const normalized = normalizeForSimilarity(input);
+  const matches = normalized.match(/[\p{Script=Han}]|[\p{L}\p{N}_]+/gu);
+  return matches ? matches.filter(Boolean) : [];
+}
+
+function jaccardSimilarity(a: string, b: string): number {
+  const tokensA = new Set(tokenizeForSimilarity(a));
+  const tokensB = new Set(tokenizeForSimilarity(b));
+  if (tokensA.size === 0 || tokensB.size === 0) return 0;
+  let overlap = 0;
+  for (const token of tokensA) {
+    if (tokensB.has(token)) overlap += 1;
+  }
+  const union = tokensA.size + tokensB.size - overlap;
+  return union > 0 ? overlap / union : 0;
+}
+
+export function isCommentTooSimilar(candidate: string, existingComments: string[]): boolean {
+  const current = normalizeForSimilarity(candidate);
+  if (!current) return false;
+  return existingComments.some((existing) => {
+    const compared = normalizeForSimilarity(existing);
+    if (!compared) return false;
+    if (current === compared) return true;
+    if (current.includes(compared) || compared.includes(current)) return true;
+    return jaccardSimilarity(current, compared) >= COMMENT_SIMILARITY_THRESHOLD;
+  });
+}
+
+export async function chooseDiverseComment(args: {
+  initialComment: string | undefined;
+  existingComments: string[];
+  regenerate: (previousComment: string) => Promise<string | undefined>;
+}): Promise<{ comment: string | undefined; retried: boolean }> {
+  const first = args.initialComment?.trim();
+  if (!first) return { comment: undefined, retried: false };
+
+  if (!isCommentTooSimilar(first, args.existingComments)) {
+    return { comment: first, retried: false };
+  }
+
+  const retryComment = (await args.regenerate(first))?.trim();
+  if (!retryComment) {
+    return { comment: undefined, retried: true };
+  }
+
+  if (isCommentTooSimilar(retryComment, args.existingComments)) {
+    return { comment: undefined, retried: true };
+  }
+
+  return { comment: retryComment, retried: true };
 }
 
 /**
@@ -113,7 +178,7 @@ export async function reactToNewPost(postId: string): Promise<void> {
   if (agents.length === 0) return;
 
   // 3. Initial delay: wait 30-60 seconds before first reaction
-  const initialDelay = 30_000 + Math.random() * 30_000;
+  const initialDelay = getRandomDelayMs(30_000, 60_000);
   await sleep(initialDelay);
   debugLog("initial_delay_done", { postId, delayMs: Math.round(initialDelay) });
 
@@ -123,7 +188,7 @@ export async function reactToNewPost(postId: string): Promise<void> {
 
     // Stagger: 15-30 seconds between agents (skip delay for the first one)
     if (i > 0) {
-      const stagger = 15_000 + Math.random() * 15_000;
+      const stagger = getRandomDelayMs(15_000, 30_000);
       await sleep(stagger);
     }
 
@@ -205,6 +270,17 @@ async function reactSingleAgent(
     listTopRules({ agentId: agent.id, polarity: "rejected", limit: 8 }),
   ]);
 
+  const existingComments: Array<{ content: string; agent: { name: string } | null; user: { username: string } | null }> = await prisma.comment.findMany({
+    where: { postId: post.id },
+    orderBy: { createdAt: "asc" },
+    take: 12,
+    select: {
+      content: true,
+      agent: { select: { name: true } },
+      user: { select: { username: true } },
+    },
+  });
+
   // Build prompt for this single post (always use persona prompt for reactions)
   const prompt = buildPrompt({
     agentName: agent.name,
@@ -222,6 +298,10 @@ async function reactSingleAgent(
     teamPeerAgentIds,
     teamPeers,
     posts: [post],
+    recentComments: existingComments.map((row) => ({
+      authorName: row.agent?.name || row.user?.username || "Unknown",
+      content: row.content,
+    })),
   });
 
   // Call AI model
@@ -269,7 +349,26 @@ async function reactSingleAgent(
   }
 
   let commentId: string | null = null;
-  const commentText = decision.comment?.trim();
+  const existingCommentTexts = existingComments.map((row) => row.content);
+  const { comment: commentText } = await chooseDiverseComment({
+    initialComment: decision.comment?.trim(),
+    existingComments: existingCommentTexts,
+    regenerate: async (previousComment) => {
+      debugLog("react_agent:comment_too_similar_retry", { agentId: agent.id, postId: post.id });
+      const retry = await createPlanWithModel({
+        provider,
+        userId: agent.userId,
+        system: `${prompt.system}\n- Diversity hard rule: your final comment MUST NOT restate points already made in existing comments. Pick one fresh technical angle and ask at most one focused question.`,
+        userPrompt: `${prompt.user}\n\nYour previous draft was too similar and was rejected:\n${previousComment}\n\nReturn JSON again with a rewritten comment for the same post.`,
+      });
+      await prisma.agent.update({
+        where: { id: agent.id },
+        data: { autonomousDailyTokensUsed: { increment: Math.max(0, retry.tokens) } },
+      });
+      const retryDecision = retry.plan.decisions.find((d) => d.postId === post.id);
+      return retryDecision?.comment?.trim();
+    },
+  });
 
   if (commentText) {
     if (needsTakeover) {
@@ -386,6 +485,12 @@ async function reactSingleAgent(
   });
 }
 
+function getRandomDelayMs(minMs: number, maxMs: number): number {
+  if (REACT_FAST_MODE) return 0;
+  return minMs + Math.random() * (maxMs - minMs);
+}
+
 function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve();
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

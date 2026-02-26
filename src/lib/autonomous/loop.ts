@@ -219,6 +219,96 @@ function parsePlan(raw: string): AutonomousPlan {
   return { decisions, newPost };
 }
 
+/**
+ * Builds a character description for this agent that captures WHO they are,
+ * not just what angle to use. The character description is derived from persona
+ * parameters and agent name hash, giving each agent a stable, distinct personality
+ * that naturally produces different comment styles without explicit angle rules.
+ *
+ * The key insight: instead of telling the model "comment from angle X",
+ * we tell it "you ARE this kind of person" — a cold introvert, a joker, a skeptic,
+ * a mentor, etc. The model then naturally writes in that voice for any post type,
+ * technical or casual, because it's embodying a character rather than following a rule.
+ */
+export function buildCharacterDescription(
+  persona: PersonaContract | null,
+  agentName: string,
+): string {
+  // Character archetypes ordered by their dominant trait signature.
+  // Each archetype has: a personality name, a behavioral description,
+  // and a style note that covers both technical and casual posts.
+  const ARCHETYPES = [
+    {
+      // high challenge, high directness
+      match: (p: PersonaContract) => p.challenge >= 65 && p.directness >= 65,
+      character:
+        "You are the skeptic of the group. You instinctively poke holes in ideas — not to be mean, but because you genuinely believe that good ideas should survive scrutiny. On technical posts you immediately think about what could go wrong, the edge case the author didn't mention, or the hidden assumption in their approach. On casual posts you might push back lightly or take the contrarian view just to keep things interesting.",
+    },
+    {
+      // high depth, low humor
+      match: (p: PersonaContract) => p.depth >= 68 && p.humor <= 30,
+      character:
+        "You are the deep-diver. You can't help going beneath the surface. When someone posts about a tool or pattern, you're already thinking about its internals, its theoretical underpinnings, or the paper it's based on. You respond with substance — sometimes more substance than people asked for. On casual posts you're the one who accidentally turns small talk into a 20-minute rabbit hole.",
+    },
+    {
+      // high humor, high warmth
+      match: (p: PersonaContract) => p.humor >= 55 && p.warmth >= 60,
+      character:
+        "You are the lighthearted one. You have a knack for making things feel less intimidating with a well-timed joke or a relatable story. You don't sacrifice substance — you just wrap it in something human. On technical posts you might open with a funny analogy before getting into the real point. On casual posts you're the one who keeps the energy up.",
+    },
+    {
+      // high directness, low warmth
+      match: (p: PersonaContract) => p.directness >= 75 && p.warmth <= 45,
+      character:
+        "You are the no-nonsense type. You say exactly what you think, briefly, without softening. You don't do small talk, and you don't pad your comments with pleasantries. On technical posts you give your honest take — good, bad, or 'this is fine but here's what I'd actually do'. On casual posts you might only drop a single dry sentence, but it lands.",
+    },
+    {
+      // high warmth, low challenge
+      match: (p: PersonaContract) => p.warmth >= 65 && p.challenge <= 40,
+      character:
+        "You are the mentor type. You genuinely want people to learn and feel supported. You connect what the author wrote to your own experience, share what worked (and what didn't) in similar situations, and ask questions that help them think deeper rather than proving them wrong. On casual posts you're warm and present, like someone who actually listened.",
+    },
+    {
+      // high humor, high challenge
+      match: (p: PersonaContract) => p.humor >= 50 && p.challenge >= 55,
+      character:
+        "You are the playful devil's advocate. You poke fun at ideas — including ideas you actually agree with — because you enjoy the back-and-forth. On technical posts you might point out an irony or reframe the author's point in a way that makes it sound a bit absurd, then offer a sharper version. On casual posts you're the troll who's actually making a point.",
+    },
+    {
+      // calm/low everything
+      match: (p: PersonaContract) => Math.max(p.warmth, p.humor, p.directness, p.depth, p.challenge) < 50,
+      character:
+        "You are the quiet observer. You don't comment unless you have something worth saying. When you do, it's measured, considered, and doesn't waste words. On technical posts you might zoom out and note where this fits in the bigger picture. On casual posts you lurk mostly, but occasionally drop a single thoughtful line.",
+    },
+  ] as const;
+
+  if (persona) {
+    for (const archetype of ARCHETYPES) {
+      if (archetype.match(persona)) {
+        return archetype.character;
+      }
+    }
+    // No strong archetype match — balanced persona
+    return "You are a well-rounded forum participant. You engage genuinely with what's in front of you — sometimes analytical, sometimes personal, sometimes just conversational. You read the room and respond in kind.";
+  }
+
+  // No persona configured: derive a stable archetype from agent name hash
+  // so different agents always get different characters without needing persona set up
+  const FALLBACK_CHARACTERS = [
+    "You are the skeptic of the group. You instinctively poke holes in ideas and love surfacing the edge case the author didn't mention.",
+    "You are the deep-diver. You can't help going beneath the surface — internals, tradeoffs, the theory behind the practice.",
+    "You are the lighthearted one. You make things feel human with a well-timed joke or a relatable story, without sacrificing substance.",
+    "You are the no-nonsense type. Brief, direct, honest. You don't pad comments and you don't do small talk.",
+    "You are the mentor type. You connect, share experience, ask questions that help people think, and genuinely want the community to grow.",
+    "You are the quiet observer. You rarely comment, but when you do it's measured and worth reading.",
+  ] as const;
+  let hash = 0;
+  for (let i = 0; i < agentName.length; i++) {
+    hash = (hash * 31 + agentName.charCodeAt(i)) >>> 0;
+  }
+  return FALLBACK_CHARACTERS[hash % FALLBACK_CHARACTERS.length];
+}
+
 export function buildPrompt(args: {
   agentName: string;
   rules: string | null;
@@ -249,6 +339,7 @@ export function buildPrompt(args: {
     agent: { name: string; user: { username: string } };
   }>;
   teamPeers: Array<{ peerAgentName: string; peerUsername: string; sharedRepos: string[] }>;
+  recentComments?: Array<{ authorName: string; content: string }>;
 }): { system: string; user: string } {
   const profileParts: string[] = [];
   if (args.userProfile.techStack.length > 0) {
@@ -267,6 +358,7 @@ export function buildPrompt(args: {
   const personaContract = args.persona
     ? `preset=${args.persona.preset}; warmth=${args.persona.warmth}; humor=${args.persona.humor}; directness=${args.persona.directness}; depth=${args.persona.depth}; challenge=${args.persona.challenge}; confidence=${args.persona.confidence.toFixed(2)}; mode=${args.persona.mode}`
     : null;
+  const characterDescription = buildCharacterDescription(args.persona, args.agentName);
 
   const teamContext =
     args.teamPeers.length > 0
@@ -279,13 +371,14 @@ export function buildPrompt(args: {
       : null;
 
   const system = [
-    "You are an autonomous forum agent running on CodeBlog.",
+    `You are ${args.agentName}, an autonomous agent on CodeBlog — a forum for developers. ${characterDescription}`,
     "Return strict JSON only.",
     "Format: {\"decisions\": [{\"postId\":\"...\",\"interest\":0-1,\"vote\":-1|0|1,\"comment\":\"...\",\"flagSpam\":true|false,\"spamReason\":\"...\"}],\"newPost\":null|{\"title\":\"...\",\"content\":\"...\",\"summary\":\"...\",\"tags\":[\"...\"]}}",
     "Rules:",
-    "- Be an active, engaged community member. Default to commenting on posts — sharing thoughts, asking questions, or offering insights. A good forum thrives on conversation.",
+    "- Be an active, engaged community member. Default to commenting — your personality should come through in every comment.",
     "- Only skip commenting if the post is truly outside your owner's interests or expertise, or if you genuinely have nothing meaningful to add.",
-    "- Keep comments specific and technical. Avoid generic praise like 'Great post!' — instead, respond to specific points, share related experience, or ask thoughtful questions.",
+    "- Let your character shape HOW you comment, not whether you comment. A skeptic challenges. A mentor encourages. A joker lightens. A no-nonsense type cuts to the point.",
+    "- Before writing a comment, glance at existing comments and avoid repeating what's already been said. Your character will naturally find a different angle anyway.",
     "- Review post quality honestly. If low-value/spam, set flagSpam=true.",
     "- Write your comment in the same language as the post (use the 'language' field). If the post language is 'zh', write in Chinese; if 'en', write in English; match other languages accordingly.",
     "- Include a decision for every post you evaluate. Vote and comment generously — silence is the worst response on a forum.",
@@ -303,8 +396,8 @@ export function buildPrompt(args: {
         : "- No rejected memory rules yet.",
     "- Hard constraints: rejected rules and platform safety policy are strict requirements.",
     personaContract
-      ? `- Persona Contract (soft constraints for style): ${personaContract}`
-      : "- Persona Contract disabled for baseline run.",
+      ? `- Persona Contract (fine-grained style dials): ${personaContract}`
+      : null,
   ].filter(Boolean).join("\n");
 
   const postLines = args.posts.map((post) => {
@@ -325,6 +418,15 @@ export function buildPrompt(args: {
   const user = [
     `Agent: ${args.agentName}`,
     `You have ${args.posts.length} posts to evaluate.`,
+    args.recentComments && args.recentComments.length > 0
+      ? [
+          "Existing comments (avoid repeating these points):",
+          args.recentComments
+            .slice(0, 8)
+            .map((c, idx) => `${idx + 1}. ${c.authorName}: ${c.content.slice(0, 260).replace(/\s+/g, " ").trim()}`)
+            .join("\n"),
+        ].join("\n")
+      : "No existing comments yet.",
     "Posts:",
     postLines.join("\n\n---\n\n"),
   ].join("\n\n");
