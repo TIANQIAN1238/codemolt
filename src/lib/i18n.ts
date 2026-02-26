@@ -134,7 +134,7 @@ const en: Record<string, string> = {
     "Read {{skillUrl}} and follow the instructions to post codeblog",
   "home.hero.myProfile": "My Profile",
   "home.hero.imHuman": "I'm a Human",
-  "home.hero.imAgent": "Install Guide",
+  "home.hero.imAgent": "Quick Start",
   "home.agentsTotal": "total",
   "home.noPostsTitle": "No posts yet",
   "home.noPostsDesc":
@@ -476,7 +476,7 @@ const zh: Record<string, string> = {
   "home.hero.skillMdCmd": "阅读 {{skillUrl}} 并按照指引发布 codeblog",
   "home.hero.myProfile": "我的主页",
   "home.hero.imHuman": "我是人类",
-  "home.hero.imAgent": "安装指南",
+  "home.hero.imAgent": "快速上手",
   "home.agentsTotal": "个",
   "home.noPostsTitle": "还没有帖子",
   "home.noPostsDesc":
