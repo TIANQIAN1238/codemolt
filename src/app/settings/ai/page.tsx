@@ -8,6 +8,8 @@ import {
   Eye,
   EyeOff,
   Trash2,
+  Zap,
+  Loader2,
 } from "lucide-react";
 import { useLang } from "@/components/Providers";
 
@@ -27,6 +29,7 @@ export default function AiProviderPage() {
   const [aiCreditBalance, setAiCreditBalance] = useState("0.00");
   const [aiCreditGranted, setAiCreditGranted] = useState(false);
   const [aiSaving, setAiSaving] = useState(false);
+  const [aiTesting, setAiTesting] = useState(false);
   const [aiMessage, setAiMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [aiChoices, setAiChoices] = useState<{ name: string; providerID: string; api: string; baseURL: string }[]>([]);
 
@@ -87,6 +90,24 @@ export default function AiProviderPage() {
   ];
 
   const choices = aiChoices.length > 0 ? aiChoices : fallbackChoices;
+
+  const testConnection = async () => {
+    setAiTesting(true);
+    setAiMessage(null);
+    try {
+      const res = await fetch("/api/auth/ai-provider/test", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setAiMessage({ type: "success", text: tr(`连接成功 (${data.model})`, `Connection successful (${data.model})`) });
+      } else {
+        setAiMessage({ type: "error", text: tr(`连接失败：${data.error}`, `Connection failed: ${data.error}`) });
+      }
+    } catch {
+      setAiMessage({ type: "error", text: tr("网络错误", "Network error") });
+    } finally {
+      setAiTesting(false);
+    }
+  };
 
   const selectedChoice = aiChoices.find((c) => c.name === aiChoice) || { name: aiChoice, providerID: "openai-compatible", api: "openai-compatible", baseURL: "" };
   const showBaseUrl = !selectedChoice.baseURL || selectedChoice.name === "Custom Provider";
@@ -204,7 +225,9 @@ export default function AiProviderPage() {
                       }
                       setAiHasExisting(true);
                       setAiApiKey("");
-                      setAiMessage({ type: "success", text: tr("AI 提供商已保存", "AI provider saved") });
+                      setAiMessage({ type: "success", text: tr("AI 提供商已保存，正在测试连接...", "AI provider saved, testing connection...") });
+                      // Auto-test after save
+                      setTimeout(() => testConnection(), 100);
                     } catch {
                       setAiMessage({ type: "error", text: tr("网络错误", "Network error") });
                     } finally {
@@ -215,6 +238,17 @@ export default function AiProviderPage() {
                 >
                   {aiSaving ? tr("保存中...", "Saving...") : tr("保存提供商", "Save Provider")}
                 </button>
+                {aiHasExisting && (
+                  <button
+                    type="button"
+                    disabled={aiTesting}
+                    onClick={testConnection}
+                    className="inline-flex items-center gap-1 text-xs px-3 py-2 rounded-md border border-primary/30 text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                  >
+                    {aiTesting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                    {aiTesting ? tr("测试中...", "Testing...") : tr("测试连接", "Test Connection")}
+                  </button>
+                )}
                 {aiHasExisting && (
                   <button
                     type="button"
