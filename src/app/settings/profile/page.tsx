@@ -40,6 +40,8 @@ function ProfileContent() {
   const [profileUsername, setProfileUsername] = useState("");
   const [profileBio, setProfileBio] = useState("");
   const [profileAvatar, setProfileAvatar] = useState("");
+  const [profileAvatarFile, setProfileAvatarFile] = useState<File | null>(null);
+  const [profileAvatarPreview, setProfileAvatarPreview] = useState("");
   const [profileAvatarError, setProfileAvatarError] = useState("");
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState<{
@@ -119,22 +121,9 @@ function ProfileContent() {
       setProfileAvatarError(tr("图片大小不能超过 2MB", "Image size must be 2MB or less"));
       return;
     }
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("Failed to read image"));
-        reader.readAsDataURL(file);
-      });
-      if (!dataUrl.startsWith("data:image/")) {
-        setProfileAvatarError(tr("不支持的图片格式", "Unsupported image format"));
-        return;
-      }
-      setProfileAvatar(dataUrl);
-      setProfileAvatarError("");
-    } catch {
-      setProfileAvatarError(tr("图片处理失败", "Failed to process selected image"));
-    }
+    setProfileAvatarFile(file);
+    setProfileAvatarPreview(URL.createObjectURL(file));
+    setProfileAvatarError("");
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -144,10 +133,24 @@ function ProfileContent() {
     setProfileMessage(null);
     setProfileSaving(true);
     try {
+      // Upload new avatar file first if present
+      let avatarValue = profileAvatar;
+      if (profileAvatarFile) {
+        const formData = new FormData();
+        formData.append("file", profileAvatarFile);
+        const uploadRes = await fetch("/api/upload/avatar", { method: "POST", body: formData });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          setProfileMessage({ type: "error", text: uploadData.error || tr("头像上传失败", "Failed to upload avatar") });
+          return;
+        }
+        avatarValue = uploadData.url;
+      }
+
       const res = await fetch(`/api/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: profileUsername, bio: profileBio, avatar: profileAvatar }),
+        body: JSON.stringify({ username: profileUsername, bio: profileBio, avatar: avatarValue }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -155,6 +158,9 @@ function ProfileContent() {
         return;
       }
       setUser((prev) => (prev ? { ...prev, ...data.user } : prev));
+      setProfileAvatar(data.user.avatar || "");
+      setProfileAvatarFile(null);
+      setProfileAvatarPreview("");
       setProfileMessage({ type: "success", text: tr("资料更新成功", "Profile updated successfully") });
     } catch {
       setProfileMessage({ type: "error", text: tr("网络错误", "Network error") });
@@ -236,8 +242,8 @@ function ProfileContent() {
             <div>
               <label className="block text-xs text-text-muted mb-1">{tr("头像", "Avatar")}</label>
               <div className="flex items-center gap-3 mb-2">
-                {profileAvatar ? (
-                  <img src={profileAvatar} alt={tr("头像预览", "Avatar preview")} className="w-12 h-12 rounded-full object-cover border border-border" />
+                {(profileAvatarPreview || profileAvatar) ? (
+                  <img src={profileAvatarPreview || profileAvatar} alt={tr("头像预览", "Avatar preview")} className="w-12 h-12 rounded-full object-cover border border-border" />
                 ) : (
                   <div className="w-12 h-12 rounded-full border border-border bg-bg-input flex items-center justify-center">
                     <User className="w-5 h-5 text-text-dim" />
@@ -257,14 +263,16 @@ function ProfileContent() {
                     }}
                   />
                 </label>
+                {(profileAvatarPreview || profileAvatar) && (
+                  <button
+                    type="button"
+                    onClick={() => { setProfileAvatar(""); setProfileAvatarFile(null); setProfileAvatarPreview(""); }}
+                    className="text-xs text-text-dim hover:text-accent-red transition-colors"
+                  >
+                    {tr("移除", "Remove")}
+                  </button>
+                )}
               </div>
-              <input
-                type="url"
-                placeholder="https://example.com/avatar.png"
-                value={profileAvatar}
-                onChange={(e) => { setProfileAvatar(e.target.value); setProfileAvatarError(""); }}
-                className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary"
-              />
               {profileAvatarError && <p className="mt-1 text-xs text-accent-red">{profileAvatarError}</p>}
             </div>
             <div>

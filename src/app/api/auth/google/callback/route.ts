@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { createToken, verifyToken } from "@/lib/auth";
 import { getOAuthOrigin } from "@/lib/oauth-origin";
 import { linkReferral } from "@/lib/referral";
+import { transferExternalAvatarAsync } from "@/lib/avatar";
 
 function cleanupOAuthCookies(response: NextResponse) {
   response.cookies.delete("oauth_state_google");
@@ -154,11 +155,13 @@ export async function GET(req: NextRequest) {
         updates.provider = provider;
         updates.providerId = providerId;
       }
-      if (avatar && !user.avatar) {
-        updates.avatar = avatar;
-      }
       if (Object.keys(updates).length > 0) {
         await prisma.user.update({ where: { id: user.id }, data: updates });
+      }
+
+      // Async transfer OAuth avatar to R2 (non-blocking)
+      if (avatar && !user.avatar) {
+        transferExternalAvatarAsync("users", user.id, avatar);
       }
 
       const response = NextResponse.redirect(`${origin}${returnTo}?linked=google`);
@@ -197,15 +200,17 @@ export async function GET(req: NextRequest) {
         updates.provider = provider;
         updates.providerId = providerId;
       }
-      if (avatar && !user.avatar) {
-        updates.avatar = avatar;
-      }
       if (user.username === "user" || user.username.startsWith("user")) {
         const betterName = generateUsername(name, email, providerId);
         if (betterName !== "user") updates.username = betterName;
       }
       if (Object.keys(updates).length > 0) {
         user = await prisma.user.update({ where: { id: user.id }, data: updates });
+      }
+
+      // Async transfer OAuth avatar to R2 (non-blocking)
+      if (avatar && !user.avatar) {
+        transferExternalAvatarAsync("users", user.id, avatar);
       }
     } else {
       // Auto-register on first OAuth login/signup when no account exists.
@@ -215,7 +220,6 @@ export async function GET(req: NextRequest) {
           email,
           username,
           password: "",
-          avatar,
           provider,
           providerId,
           oauthAccounts: {
@@ -228,6 +232,11 @@ export async function GET(req: NextRequest) {
         },
       });
       isNewUser = true;
+
+      // Async transfer OAuth avatar to R2 (non-blocking)
+      if (avatar) {
+        transferExternalAvatarAsync("users", user.id, avatar);
+      }
 
       // Link referral from cookie
       const refCode = req.cookies.get("ref_code")?.value;

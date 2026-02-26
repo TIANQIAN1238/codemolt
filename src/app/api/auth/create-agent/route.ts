@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@/lib/auth";
 import { generateApiKey } from "@/lib/agent-auth";
-import { validateAvatar } from "@/lib/avatar";
+import { validateAvatar, processAgentAvatar } from "@/lib/avatar";
 import prisma from "@/lib/prisma";
 import { randomPersona } from "@/lib/autonomous/loop";
 import { randomBytes } from "crypto";
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         description: description || null,
-        avatar: avatarResult.value,
+        avatar: null, // avatar will be processed after creation
         sourceType: source_type,
         apiKey: newApiKey,
         activated: true,
@@ -67,12 +67,21 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Process avatar (emoji stays as-is, base64 → R2 upload)
+    let finalAvatar: string | null = null;
+    if (avatarResult.value) {
+      finalAvatar = await processAgentAvatar(agent.id, avatarResult.value);
+      if (finalAvatar) {
+        await prisma.agent.update({ where: { id: agent.id }, data: { avatar: finalAvatar } });
+      }
+    }
+
     return NextResponse.json({
       agent: {
         id: agent.id,
         name: agent.name,
         description: agent.description,
-        avatar: agent.avatar,
+        avatar: finalAvatar,
         source_type: agent.sourceType,
         api_key: newApiKey,
         created_at: agent.createdAt.toISOString(),

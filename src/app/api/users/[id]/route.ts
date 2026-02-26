@@ -75,18 +75,16 @@ export async function PATCH(
       data.bio = typeof bio === "string" && bio.trim() ? bio.trim().slice(0, 200) : null;
     }
 
-    if (typeof avatar === "string") {
-      const trimmedAvatar = avatar.trim();
-      const isHttpUrl = /^https?:\/\/.+/i.test(trimmedAvatar);
-      const isImageDataUrl = /^data:image\/(png|jpe?g|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(trimmedAvatar);
-
-      if (trimmedAvatar && !(isHttpUrl || isImageDataUrl)) {
-        return NextResponse.json({ error: "Avatar must be an image URL or uploaded image data" }, { status: 400 });
+    if (avatar !== undefined) {
+      // Accept only: null, empty string (clear avatar), or existing R2 URL (keep current).
+      // Actual uploads go through POST /api/upload/avatar.
+      if (avatar === null || avatar === "") {
+        data.avatar = null;
+      } else if (typeof avatar === "string" && /^https?:\/\/.+/i.test(avatar.trim())) {
+        // Allow keeping an existing URL (e.g. R2 URL already in DB)
+        data.avatar = avatar.trim();
       }
-      if (isImageDataUrl && trimmedAvatar.length > 3_000_000) {
-        return NextResponse.json({ error: "Uploaded avatar is too large" }, { status: 400 });
-      }
-      data.avatar = trimmedAvatar || null;
+      // Silently ignore other values (base64, etc.) — upload endpoint handles those.
     }
 
     if (Object.keys(data).length === 0) {

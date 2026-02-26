@@ -1,46 +1,151 @@
 /**
- * Shared avatar validation for agent avatars.
- * Supports: emoji strings, HTTP(S) image URLs, and base64 data URLs.
+ * Server-only avatar processing and OSS upload.
+ * DO NOT import this from client components — use `@/lib/avatar-shared` instead.
+ *
+ * Re-exports client-safe helpers for convenience in server code.
  */
 
-const HTTP_URL_RE = /^https?:\/\/.+/i;
-const IMAGE_DATA_URL_RE =
-  /^data:image\/(png|jpe?g|webp|gif);base64,[a-zA-Z0-9+/=]+$/;
-const MAX_DATA_URL_BYTES = 3_000_000;
-/** Emoji-only string: up to 16 chars, not a URL or data URI */
-const MAX_EMOJI_LENGTH = 16;
+import sharp from "sharp";
+import prisma from "@/lib/prisma";
+import { isOssConfigured, uploadToOss } from "@/lib/r2";
 
-export function isEmojiAvatar(avatar: string | null | undefined): boolean {
-  if (!avatar) return false;
-  return !HTTP_URL_RE.test(avatar) && !avatar.startsWith("data:");
+// Re-export client-safe helpers so server code can import everything from one place
+export { isEmojiAvatar, validateAvatar } from "@/lib/avatar-shared";
+import { isEmojiAvatar } from "@/lib/avatar-shared";
+
+const HTTP_URL_RE = /^https?:\/\/.+/i;
+const ALLOWED_MIMES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const AVATAR_SIZE = 192;
+
+// ─── Image processing ───
+
+/**
+ * Process a raw image buffer: crop to center square, resize to 192x192, output PNG.
+ */
+export async function processAvatarImage(buffer: Buffer): Promise<Buffer> {
+  return sharp(buffer)
+    .resize(AVATAR_SIZE, AVATAR_SIZE, { fit: "cover", position: "centre" })
+    .png()
+    .toBuffer();
 }
 
-export function validateAvatar(input: unknown): {
-  valid: boolean;
-  value: string | null;
-  error?: string;
-} {
-  if (typeof input !== "string") return { valid: true, value: null };
+// ─── Upload helpers ───
+
+export async function uploadUserAvatar(
+  userId: string,
+  buffer: Buffer,
+): Promise<string | null> {
+  if (!isOssConfigured()) return null;
+  const processed = await processAvatarImage(buffer);
+  return uploadToOss(`users/${userId}.png`, processed, "image/png");
+}
+
+export async function uploadAgentAvatar(
+  agentId: string,
+  buffer: Buffer,
+): Promise<string | null> {
+  if (!isOssConfigured()) return null;
+  const processed = await processAvatarImage(buffer);
+  return uploadToOss(`agents/${agentId}.png`, processed, "image/png");
+}
+
+/**
+ * Fetch an external avatar URL, process it, and upload to OSS.
+ * Returns the public URL or null on failure.
+ */
+export async function transferExternalAvatar(
+  type: "users" | "agents",
+  id: string,
+  sourceUrl: string,
+): Promise<string | null> {
+  if (!isOssConfigured()) return null;
+  try {
+    const res = await fetch(sourceUrl, { signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) return null;
+    const arrayBuf = await res.arrayBuffer();
+    const buffer = Buffer.from(arrayBuf);
+    const processed = await processAvatarImage(buffer);
+    return uploadToOss(`${type}/${id}.png`, processed, "image/png");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Async fire-and-forget: transfer an external avatar and update DB.
+ */
+export function transferExternalAvatarAsync(
+  type: "users" | "agents",
+  id: string,
+  sourceUrl: string,
+): void {
+  transferExternalAvatar(type, id, sourceUrl)
+    .then(async (url) => {
+      if (!url) return;
+      if (type === "users") {
+        await prisma.user.update({ where: { id }, data: { avatar: url } });
+      } else {
+        await prisma.agent.update({ where: { id }, data: { avatar: url } });
+      }
+    })
+    .catch(() => {});
+}
+
+/**
+ * Decode a base64 data URL into a raw buffer and mime type.
+ */
+export function decodeBase64Avatar(
+  dataUrl: string,
+): { buffer: Buffer; mimetype: string } | null {
+  const match = dataUrl.match(/^data:(image\/(?:png|jpe?g|webp|gif));base64,(.+)$/);
+  if (!match) return null;
+  return {
+    mimetype: match[1],
+    buffer: Buffer.from(match[2], "base64"),
+  };
+}
+
+/**
+ * Check if a mime type is an allowed avatar image type.
+ */
+export function isAllowedMime(mime: string): boolean {
+  return ALLOWED_MIMES.has(mime);
+}
+
+/**
+ * Process an agent avatar value:
+ * - Emoji → return as-is
+ * - Base64 data URL → decode, process, upload to OSS
+ * - HTTP URL → keep if it's our OSS URL, otherwise reject
+ * - null/empty → return null
+ *
+ * Returns the final value to store in DB.
+ */
+export async function processAgentAvatar(
+  agentId: string,
+  input: string | null | undefined,
+): Promise<string | null> {
+  if (!input || !input.trim()) return null;
 
   const trimmed = input.trim();
-  if (!trimmed) return { valid: true, value: null };
 
-  const isHttpUrl = HTTP_URL_RE.test(trimmed);
-  const isImageDataUrl = IMAGE_DATA_URL_RE.test(trimmed);
-  const isEmoji =
-    !isHttpUrl && !isImageDataUrl && trimmed.length <= MAX_EMOJI_LENGTH;
+  // Emoji — save as-is
+  if (isEmojiAvatar(trimmed)) return trimmed;
 
-  if (!(isHttpUrl || isImageDataUrl || isEmoji)) {
-    return {
-      valid: false,
-      value: null,
-      error: "avatar must be an emoji, image URL, or uploaded image data",
-    };
+  // Base64 data URL — decode, process, upload
+  if (trimmed.startsWith("data:")) {
+    const decoded = decodeBase64Avatar(trimmed);
+    if (!decoded) return null;
+    const url = await uploadAgentAvatar(agentId, decoded.buffer);
+    return url;
   }
 
-  if (isImageDataUrl && trimmed.length > MAX_DATA_URL_BYTES) {
-    return { valid: false, value: null, error: "uploaded avatar is too large" };
+  // HTTP URL — for existing OSS URLs, keep; otherwise reject
+  if (HTTP_URL_RE.test(trimmed)) {
+    const ossPublicUrl = process.env.OSS_PUBLIC_URL;
+    if (ossPublicUrl && trimmed.startsWith(ossPublicUrl)) return trimmed;
+    return null;
   }
 
-  return { valid: true, value: trimmed };
+  return null;
 }

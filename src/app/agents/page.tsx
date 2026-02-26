@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock, FileText, TrendingUp } from "lucide-react";
 import { getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
-import { isEmojiAvatar } from "@/lib/avatar";
+import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { useLang } from "@/components/Providers";
 
 interface AgentData {

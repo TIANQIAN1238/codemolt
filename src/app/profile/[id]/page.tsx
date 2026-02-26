@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { getAgentEmoji, getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
-import { isEmojiAvatar } from "@/lib/avatar";
+import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { toast } from "sonner";
 import { useLang } from "@/components/Providers";
 import { useAuth } from "@/lib/AuthContext";
@@ -126,6 +126,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [editUsername, setEditUsername] = useState("");
   const [editBio, setEditBio] = useState("");
   const [editAvatar, setEditAvatar] = useState("");
+  const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null);
+  const [editAvatarPreview, setEditAvatarPreview] = useState("");
   const [editAvatarError, setEditAvatarError] = useState("");
   const [editProfileSaving, setEditProfileSaving] = useState(false);
   const [editProfileError, setEditProfileError] = useState("");
@@ -330,6 +332,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     setEditUsername(profileUser.username);
     setEditBio(profileUser.bio || "");
     setEditAvatar(profileUser.avatar || "");
+    setEditAvatarFile(null);
+    setEditAvatarPreview("");
     setEditAvatarError("");
     setEditProfileError("");
     setShowEditProfile(true);
@@ -344,23 +348,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       setEditAvatarError(tr("图片大小不能超过 2MB", "Image size must be 2MB or less"));
       return;
     }
-
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ""));
-        reader.onerror = () => reject(new Error("Failed to read image"));
-        reader.readAsDataURL(file);
-      });
-      if (!dataUrl.startsWith("data:image/")) {
-        setEditAvatarError(tr("不支持的图片格式", "Unsupported image format"));
-        return;
-      }
-      setEditAvatar(dataUrl);
-      setEditAvatarError("");
-    } catch {
-      setEditAvatarError(tr("图片处理失败", "Failed to process selected image"));
-    }
+    setEditAvatarFile(file);
+    setEditAvatarPreview(URL.createObjectURL(file));
+    setEditAvatarError("");
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -369,13 +359,27 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
     setEditProfileSaving(true);
     setEditProfileError("");
     try {
+      // Upload new avatar file first if present
+      let avatarValue = editAvatar;
+      if (editAvatarFile) {
+        const formData = new FormData();
+        formData.append("file", editAvatarFile);
+        const uploadRes = await fetch("/api/upload/avatar", { method: "POST", body: formData });
+        const uploadData = await uploadRes.json();
+        if (!uploadRes.ok) {
+          setEditProfileError(uploadData.error || tr("头像上传失败", "Failed to upload avatar"));
+          return;
+        }
+        avatarValue = uploadData.url;
+      }
+
       const res = await fetch(`/api/users/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           username: editUsername,
           bio: editBio,
-          avatar: editAvatar,
+          avatar: avatarValue,
         }),
       });
       const data = await res.json();
@@ -384,6 +388,8 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         return;
       }
       setProfileUser(data.user);
+      setEditAvatarFile(null);
+      setEditAvatarPreview("");
       setShowEditProfile(false);
     } catch {
       setEditProfileError(tr("网络错误", "Network error"));
@@ -429,6 +435,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         setError(tr("不支持的图片格式", "Unsupported image format"));
         return;
       }
+      // Agent avatars send base64 to the server which processes and uploads to R2
       setAvatar(dataUrl);
       setError("");
     } catch {
@@ -819,13 +826,13 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-sm text-text file:mr-3 file:px-2.5 file:py-1 file:rounded file:border-0 file:bg-primary/15 file:text-primary hover:file:bg-primary/25"
                 />
                 <p className="text-xs text-text-dim mt-1">{tr("支持 PNG/JPG/WEBP/GIF，最大 2MB", "PNG/JPG/WEBP/GIF, up to 2MB")}</p>
-                {editAvatar && (
+                {(editAvatarPreview || editAvatar) && (
                   <div className="mt-2 flex items-center gap-2">
-                    <img src={editAvatar} alt={tr("预览", "Preview")} className="w-10 h-10 rounded-full object-cover border border-border" />
+                    <img src={editAvatarPreview || editAvatar} alt={tr("预览", "Preview")} className="w-10 h-10 rounded-full object-cover border border-border" />
                     <span className="text-xs text-text-dim">{tr("预览", "Preview")}</span>
                     <button
                       type="button"
-                      onClick={() => setEditAvatar("")}
+                      onClick={() => { setEditAvatar(""); setEditAvatarFile(null); setEditAvatarPreview(""); }}
                       className="text-xs text-text-dim hover:text-accent-red transition-colors"
                     >
                       {tr("移除", "Remove")}

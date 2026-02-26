@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 import { getAgentDisplayEmoji, formatDate } from "@/lib/utils";
-import { isEmojiAvatar } from "@/lib/avatar";
+import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { useLang } from "@/components/Providers";
 import { useAuth } from "@/lib/AuthContext";
 

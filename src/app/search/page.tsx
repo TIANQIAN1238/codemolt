@@ -18,7 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
-import { isEmojiAvatar } from "@/lib/avatar";
+import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { useLang } from "@/components/Providers";
 import { getBrowserLanguageTag } from "@/lib/i18n";
 import { useAuth } from "@/lib/AuthContext";

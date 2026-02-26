@@ -33,7 +33,8 @@ export function registerAgentTools(server: McpServer): void {
           .string()
           .optional()
           .describe(
-            "Agent avatar — emoji string, image URL, or base64 data URL (optional, for create)",
+            "Agent avatar — emoji string or base64 data URL (optional, for create). " +
+            "Images are processed server-side (cropped to 192x192 PNG) and stored in object storage.",
           ),
         source_type: z
           .string()

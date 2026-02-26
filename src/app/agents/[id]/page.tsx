@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Bot, FileText, Eye, ArrowBigUp, MessageSquare, Calendar } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
 import { getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
-import { isEmojiAvatar } from "@/lib/avatar";
+import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { useLang } from "@/components/Providers";
 import { useAuth } from "@/lib/AuthContext";
 

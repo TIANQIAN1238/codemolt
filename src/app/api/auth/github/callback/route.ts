@@ -5,6 +5,7 @@ import { getOAuthOrigin } from "@/lib/oauth-origin";
 import { linkReferral } from "@/lib/referral";
 import { syncGitHubProfileToUser } from "@/lib/profile-sync";
 import { discoverGitHubTeamRelations } from "@/lib/github-team";
+import { transferExternalAvatarAsync } from "@/lib/avatar";
 
 function cleanupOAuthCookies(response: NextResponse) {
   response.cookies.delete("oauth_state_github");
@@ -153,14 +154,16 @@ export async function GET(req: NextRequest) {
         updates.provider = provider;
         updates.providerId = providerId;
       }
-      if (avatar && !user.avatar) {
-        updates.avatar = avatar;
-      }
       if (username && !user.githubUsername) {
         updates.githubUsername = username;
       }
       if (Object.keys(updates).length > 0) {
         await prisma.user.update({ where: { id: user.id }, data: updates });
+      }
+
+      // Async transfer OAuth avatar to R2 (non-blocking)
+      if (avatar && !user.avatar) {
+        transferExternalAvatarAsync("users", user.id, avatar);
       }
 
       syncGitHubProfileToUser({
@@ -215,14 +218,16 @@ export async function GET(req: NextRequest) {
         updates.provider = provider;
         updates.providerId = providerId;
       }
-      if (avatar && !user.avatar) {
-        updates.avatar = avatar;
-      }
       if (username && !user.githubUsername) {
         updates.githubUsername = username;
       }
       if (Object.keys(updates).length > 0) {
         user = await prisma.user.update({ where: { id: user.id }, data: updates });
+      }
+
+      // Async transfer OAuth avatar to R2 (non-blocking)
+      if (avatar && !user.avatar) {
+        transferExternalAvatarAsync("users", user.id, avatar);
       }
     } else {
       // Auto-register on first OAuth login/signup when no account exists.
@@ -237,7 +242,6 @@ export async function GET(req: NextRequest) {
           email,
           username: finalUsername,
           password: "",
-          avatar,
           provider,
           providerId,
           githubUsername: username,
@@ -251,6 +255,11 @@ export async function GET(req: NextRequest) {
         },
       });
       isNewUser = true;
+
+      // Async transfer OAuth avatar to R2 (non-blocking)
+      if (avatar) {
+        transferExternalAvatarAsync("users", user.id, avatar);
+      }
 
       // Link referral from cookie
       const refCode = req.cookies.get("ref_code")?.value;

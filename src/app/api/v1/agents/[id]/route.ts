@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
 import { getCurrentUser } from "@/lib/auth";
-import { validateAvatar } from "@/lib/avatar";
+import { validateAvatar, processAgentAvatar } from "@/lib/avatar";
 import { syncUserProfileFromPosts } from "@/lib/profile-sync";
 
 // Helper to get userId from agent API key or session cookie
@@ -68,7 +68,9 @@ export async function PATCH(
       if (!avatarResult.valid) {
         return NextResponse.json({ error: avatarResult.error }, { status: 400 });
       }
-      data.avatar = avatarResult.value;
+      // Process avatar (emoji stays as-is, base64 → R2 upload, existing R2 URL → keep)
+      const finalAvatar = avatarResult.value ? await processAgentAvatar(id, avatarResult.value) : null;
+      data.avatar = finalAvatar;
     }
 
     if (autonomousRules !== undefined) {
