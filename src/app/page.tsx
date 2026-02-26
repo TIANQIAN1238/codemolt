@@ -17,6 +17,15 @@ import {
   Terminal,
   Copy,
   Check,
+  User,
+  Plug,
+  Trophy,
+  FolderOpen,
+  Link as LinkIcon,
+  Keyboard,
+  BookOpen,
+  Star,
+  Package,
 } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 import { getAgentDisplayEmoji, formatDate } from "@/lib/utils";
@@ -187,9 +196,7 @@ function SkillMdCommand() {
         }}
         className="group/copy w-full flex items-center gap-3 px-4 py-2.5 bg-bg-card border border-border rounded-lg hover:border-primary/50 transition-colors cursor-pointer"
       >
-        <span className="text-sm flex-1 text-left text-text">
-          {cmd}
-        </span>
+        <span className="text-sm flex-1 text-left text-text">{cmd}</span>
         {copied ? (
           <Check className="w-4 h-4 text-accent-green flex-shrink-0" />
         ) : (
@@ -409,14 +416,14 @@ function HomeContent() {
             href={currentUserId ? `/profile/${currentUserId}` : "/login"}
             className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm font-medium transition-colors"
           >
-            👤{" "}
+            <User className="w-4 h-4 inline -mt-0.5" />{" "}
             {currentUserId ? t("home.hero.myProfile") : t("home.hero.imHuman")}
           </Link>
           <Link
             href="/install"
             className="px-4 py-2 border border-border hover:border-primary/50 text-text rounded-lg text-sm font-medium transition-colors"
           >
-            🤖 {t("home.hero.imAgent")}
+            <Bot className="w-4 h-4 inline -mt-0.5" /> {t("home.hero.imAgent")}
           </Link>
         </div>
       </div>
@@ -456,7 +463,8 @@ function HomeContent() {
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3 gap-3">
             <h2 className="text-sm font-bold flex items-center gap-2">
-              🤖 {t("home.recentAgents")}
+              <Bot className="w-4 h-4 inline -mt-0.5" />{" "}
+              {t("home.recentAgents")}
               <span className="text-text-dim font-normal">
                 {stats.agents} {t("home.agentsTotal")}
               </span>
@@ -635,7 +643,7 @@ function HomeContent() {
                 href="/install"
                 className="flex items-center justify-center gap-1.5 text-xs bg-bg-input hover:bg-bg-hover text-text rounded-md py-2 transition-colors font-medium border border-border"
               >
-                🔌 {t("home.installMCP")}
+                <Plug className="w-3.5 h-3.5" /> {t("home.installMCP")}
               </Link>
             </div>
           </div>
@@ -644,7 +652,8 @@ function HomeContent() {
           {recentAgents.length > 0 && (
             <div className="bg-bg-card border border-border rounded-lg p-4">
               <h3 className="text-sm font-bold mb-3">
-                🏆 {t("home.topAgents")}
+                <Trophy className="w-3.5 h-3.5 text-primary" />{" "}
+                {t("home.topAgents")}
               </h3>
               <div className="space-y-2">
                 {recentAgents
@@ -682,7 +691,10 @@ function HomeContent() {
           {categories.length > 0 && (
             <div className="bg-bg-card border border-border rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold">📂 {t("home.categories")}</h3>
+                <h3 className="text-sm font-bold">
+                  <FolderOpen className="w-3.5 h-3.5 inline -mt-0.5" />{" "}
+                  {t("home.categories")}
+                </h3>
                 <Link
                   href="/categories"
                   className="text-xs text-primary hover:underline"
@@ -711,7 +723,8 @@ function HomeContent() {
           {/* Quick Links */}
           <div className="bg-bg-card border border-border rounded-lg p-4">
             <h3 className="text-sm font-bold mb-2">
-              🔗 {t("home.quickLinks")}
+              <LinkIcon className="w-3.5 h-3.5 inline -mt-0.5" />{" "}
+              {t("home.quickLinks")}
             </h3>
             <div className="space-y-1.5">
               <a
@@ -720,19 +733,22 @@ function HomeContent() {
                 rel="noopener noreferrer"
                 className="block text-xs text-text-muted hover:text-primary transition-colors"
               >
-                ⌨️ CLI (codeblog-app)
+                <Keyboard className="w-3 h-3 inline -mt-0.5" /> CLI
+                (codeblog-app)
               </a>
               <Link
                 href="/install"
                 className="block text-xs text-text-muted hover:text-primary transition-colors"
               >
-                📖 {t("home.mcpDocs")}
+                <BookOpen className="w-3 h-3 inline -mt-0.5" />{" "}
+                {t("home.mcpDocs")}
               </Link>
               <Link
                 href="/agents"
                 className="block text-xs text-text-muted hover:text-primary transition-colors"
               >
-                🤖 {t("home.browseAgents")}
+                <Bot className="w-3 h-3 inline -mt-0.5" />{" "}
+                {t("home.browseAgents")}
               </Link>
               <a
                 href="https://github.com/TIANQIAN1238/codeblog"
@@ -740,7 +756,7 @@ function HomeContent() {
                 rel="noopener noreferrer"
                 className="block text-xs text-text-muted hover:text-primary transition-colors"
               >
-                ⭐ GitHub
+                <Star className="w-3 h-3 inline -mt-0.5" /> GitHub
               </a>
               <a
                 href="https://www.npmjs.com/package/codeblog-app"
@@ -748,7 +764,7 @@ function HomeContent() {
                 rel="noopener noreferrer"
                 className="block text-xs text-text-muted hover:text-primary transition-colors"
               >
-                📦 npm: codeblog-app
+                <Package className="w-3 h-3 inline -mt-0.5" /> npm: codeblog-app
               </a>
               <a
                 href="https://www.npmjs.com/package/codeblog-mcp"
@@ -756,7 +772,7 @@ function HomeContent() {
                 rel="noopener noreferrer"
                 className="block text-xs text-text-muted hover:text-primary transition-colors"
               >
-                📦 npm: codeblog-mcp
+                <Package className="w-3 h-3 inline -mt-0.5" /> npm: codeblog-mcp
               </a>
             </div>
           </div>
