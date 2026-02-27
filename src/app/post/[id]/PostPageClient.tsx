@@ -72,7 +72,6 @@ interface PostDetail {
     avatar?: string | null;
     user: { id: string; username: string; avatar: string | null };
   };
-  comments: CommentData[];
   _count: { comments: number };
 }
 
@@ -106,6 +105,8 @@ export default function PostPageClient({
   } = useVote(0, 0, id, (msg) => {
     showActionMessage("error", msg);
   });
+  const [comments, setComments] = useState<CommentData[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(true);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -191,27 +192,38 @@ export default function PostPageClient({
   };
 
   useEffect(() => {
-    fetch(`/api/posts/${id}`)
+    // Fetch post and comments in parallel, render post as soon as it arrives
+    const postPromise = fetch(`/api/posts/${id}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.post) {
           setPost(data.post);
           syncVote(data.userVote || 0, data.post.upvotes - data.post.downvotes);
           setBookmarked(data.bookmarked || false);
-          if (data.userCommentLikes) {
-            setLikedComments(new Set(data.userCommentLikes));
-          }
         }
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    const commentsPromise = fetch(`/api/posts/${id}/comments`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.comments) {
+          setComments(data.comments);
+        }
+        if (data.userCommentLikes) {
+          setLikedComments(new Set(data.userCommentLikes));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setCommentsLoading(false));
   }, [id]);
 
   useEffect(() => {
-    if (!post) return;
+    if (!post || commentsLoading) return;
     const targetCommentId = searchParams.get("comment");
     if (!targetCommentId) return;
-    const matched = post.comments.find((c) => c.id === targetCommentId);
+    const matched = comments.find((c) => c.id === targetCommentId);
     if (!matched) return;
     const el = document.getElementById(`comment-${targetCommentId}`);
     if (!el) return;
@@ -223,7 +235,7 @@ export default function PostPageClient({
       );
     }, 2200);
     return () => clearTimeout(timer);
-  }, [post, searchParams]);
+  }, [post, comments, commentsLoading, searchParams]);
 
   useEffect(() => {
     updateMobileFabPosition();
@@ -450,17 +462,13 @@ export default function PostPageClient({
       else next.add(commentId);
       return next;
     });
-    setPost((prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        comments: prev.comments.map((c) =>
-          c.id === commentId
-            ? { ...c, likes: c.likes + (wasLiked ? -1 : 1) }
-            : c,
-        ),
-      };
-    });
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === commentId
+          ? { ...c, likes: c.likes + (wasLiked ? -1 : 1) }
+          : c,
+      ),
+    );
 
     const rollback = () => {
       setLikedComments((prev) => {
@@ -469,17 +477,13 @@ export default function PostPageClient({
         else next.delete(commentId);
         return next;
       });
-      setPost((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          comments: prev.comments.map((c) =>
-            c.id === commentId
-              ? { ...c, likes: Math.max(0, c.likes + (wasLiked ? 1 : -1)) }
-              : c,
-          ),
-        };
-      });
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === commentId
+            ? { ...c, likes: Math.max(0, c.likes + (wasLiked ? 1 : -1)) }
+            : c,
+        ),
+      );
     };
 
     try {
@@ -511,9 +515,9 @@ export default function PostPageClient({
       });
       if (res.ok) {
         const data = await res.json();
+        setComments((prev) => [...prev, data.comment]);
         setPost({
           ...post,
-          comments: [...post.comments, data.comment],
           _count: { comments: post._count.comments + 1 },
         });
         setCommentText("");
@@ -619,9 +623,9 @@ export default function PostPageClient({
       });
       if (res.ok) {
         const data = await res.json();
+        setComments((prev) => [...prev, data.comment]);
         setPost({
           ...post,
-          comments: [...post.comments, data.comment],
           _count: { comments: post._count.comments + 1 },
         });
         setReplyText("");
@@ -671,9 +675,9 @@ export default function PostPageClient({
   const tags = parseTags(post.tags);
 
   // Build nested comment tree
-  const topLevelComments = post.comments.filter((c) => !c.parentId);
+  const topLevelComments = comments.filter((c) => !c.parentId);
   const repliesMap = new Map<string, CommentData[]>();
-  post.comments.forEach((c) => {
+  comments.forEach((c) => {
     if (c.parentId) {
       const arr = repliesMap.get(c.parentId) || [];
       arr.push(c);
@@ -682,15 +686,8 @@ export default function PostPageClient({
   });
 
   const renderComment = (comment: CommentData, depth: number = 0) => {
-    // Determine display info: if agent posted, show agent; otherwise show user
-    const displayAvatar = comment.agent?.avatar || comment.user.avatar;
     const displayName = comment.agent?.name || comment.user.username;
-    const commentAgentInfo = comment.agent
-      ? getAgentAvatarInfo(comment.agent)
-      : null;
-    const profileLink = comment.agent
-      ? `/profile/${comment.user.id}` // Agent comments link to owner's profile
-      : `/profile/${comment.user.id}`;
+    const profileLink = `/profile/${comment.user.id}`;
 
     return (
       <div
@@ -704,16 +701,16 @@ export default function PostPageClient({
           } ${focusedCommentId === comment.id ? "border-primary/60 bg-primary/5" : ""}`}
         >
           <div className="flex items-center gap-2 mb-2">
-            {displayAvatar ? (
-              <img
-                src={displayAvatar}
-                alt={displayName}
-                className="w-6 h-6 rounded-full object-cover"
-              />
-            ) : comment.agent ? (
-              <div className="w-6 h-6 rounded-sm overflow-hidden flex items-center justify-center">
+            {comment.agent ? (
+              <div className="w-6 h-6 rounded-sm overflow-hidden flex items-center justify-center shrink-0">
                 <AgentLogo agent={comment.agent} size={24} />
               </div>
+            ) : comment.user.avatar ? (
+              <img
+                src={comment.user.avatar}
+                alt={comment.user.username}
+                className="w-6 h-6 rounded-full object-cover"
+              />
             ) : (
               <div className="w-6 h-6 rounded-full bg-accent-blue/20 flex items-center justify-center">
                 <User className="w-3.5 h-3.5 text-accent-blue" />
@@ -723,11 +720,6 @@ export default function PostPageClient({
               href={profileLink}
               className="text-sm font-medium hover:text-primary transition-colors"
             >
-              {comment.agent && commentAgentInfo && (
-                <span className="mr-1 inline-flex items-center align-text-bottom">
-                  <AgentLogo agent={comment.agent} size={14} />
-                </span>
-              )}
               {displayName}
             </Link>
             {comment.parentId && (
@@ -771,7 +763,11 @@ export default function PostPageClient({
                   text: comment.content,
                   displayName: comment.agent?.name || comment.user.username,
                   userName: comment.user.username,
-                  avatar: comment.agent?.avatar || comment.user.avatar,
+                  avatar: comment.agent
+                    ? (getAgentAvatarInfo(comment.agent).type === "image"
+                      ? (getAgentAvatarInfo(comment.agent) as { type: "image"; url: string }).url
+                      : null)
+                    : comment.user.avatar,
                   commentId: comment.id,
                 });
                 setShowPosterModal(true);
@@ -1154,12 +1150,27 @@ export default function PostPageClient({
 
         {/* Comment list (nested) */}
         <div className="space-y-3">
-          {topLevelComments.map((comment) => renderComment(comment))}
-
-          {post.comments.length === 0 && (
-            <p className="text-center text-sm text-text-dim py-6">
-              No comments yet. Be the first to review this AI-generated post!
-            </p>
+          {commentsLoading ? (
+            <div className="animate-pulse space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="bg-bg-card border border-border rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-bg-input" />
+                    <div className="h-4 bg-bg-input rounded w-24" />
+                  </div>
+                  <div className="h-4 bg-bg-input rounded w-3/4 ml-0 sm:ml-8" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              {topLevelComments.map((comment) => renderComment(comment))}
+              {comments.length === 0 && (
+                <p className="text-center text-sm text-text-dim py-6">
+                  No comments yet. Be the first to review this AI-generated post!
+                </p>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -2,6 +2,42 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: postId } = await params;
+    const userId = await getCurrentUser();
+
+    const comments = await prisma.comment.findMany({
+      where: { postId, hidden: false },
+      include: {
+        user: { select: { id: true, username: true, avatar: true } },
+        agent: { select: { id: true, name: true, sourceType: true, avatar: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    });
+
+    let userCommentLikes: string[] = [];
+    if (userId && comments.length > 0) {
+      const likes = await prisma.commentLike.findMany({
+        where: {
+          userId,
+          commentId: { in: comments.map((c) => c.id) },
+        },
+        select: { commentId: true },
+      });
+      userCommentLikes = likes.map((l) => l.commentId);
+    }
+
+    return NextResponse.json({ comments, userCommentLikes });
+  } catch (error) {
+    console.error("Get comments error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
