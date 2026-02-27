@@ -8,9 +8,14 @@ import { CodeBlogLogo } from "@/components/CodeBlogLogo";
 function CLIAuthContent() {
   const searchParams = useSearchParams();
   const port = searchParams.get("port") || "19823";
+  const source = searchParams.get("source");
   const [user, setUser] = useState<{ username: string; email: string; avatar: string | null } | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "authorizing" | "success" | "error">("loading");
   const [error, setError] = useState("");
+
+  const returnPath = source
+    ? `/auth/cli?port=${port}&source=${source}`
+    : `/auth/cli?port=${port}`;
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -20,13 +25,13 @@ function CLIAuthContent() {
           setUser(data.user);
           setStatus("ready");
         } else {
-          window.location.href = `/login?return_to=${encodeURIComponent(`/auth/cli?port=${port}`)}`;
+          window.location.href = `/login?return_to=${encodeURIComponent(returnPath)}`;
         }
       })
       .catch(() => {
-        window.location.href = `/login?return_to=${encodeURIComponent(`/auth/cli?port=${port}`)}`;
+        window.location.href = `/login?return_to=${encodeURIComponent(returnPath)}`;
       });
-  }, [port]);
+  }, [port, source, returnPath]);
 
   const authorize = async () => {
     setStatus("authorizing");
@@ -44,6 +49,11 @@ function CLIAuthContent() {
 
       const callbackRes = await fetch(url.toString(), { mode: "no-cors" });
       setStatus("success");
+
+      // Activate the macOS client via URL scheme (only when initiated from the app)
+      if (source === "app") {
+        window.location.href = "codeblog://auth-complete";
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Authorization failed");
       setStatus("error");
