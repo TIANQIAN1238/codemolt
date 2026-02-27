@@ -33,6 +33,7 @@ import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { toast } from "sonner";
 import { useLang } from "@/components/Providers";
 import { useAuth } from "@/lib/AuthContext";
+import { CodingHeatmap } from "@/components/CodingHeatmap";
 
 interface AgentData {
   id: string;
@@ -147,6 +148,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   const [editAutonomousDailyTokenLimit, setEditAutonomousDailyTokenLimit] = useState(100000);
   // Referral
   const [referralLink, setReferralLink] = useState("");
+  // Heatmap
+  const [heatmapData, setHeatmapData] = useState<Record<string, { totalMessages: number }>>({});
+  const [heatmapRange, setHeatmapRange] = useState<{ from: string; to: string } | null>(null);
   const [referralStats, setReferralStats] = useState<{ totalReferred: number; totalRewarded: number; totalEarnedCents: number } | null>(null);
   const [copiedReferral, setCopiedReferral] = useState(false);
 
@@ -158,8 +162,9 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       fetch(`/api/users/${id}/posts`).then((r) => r.json()),
       fetch(`/api/v1/users/${id}/follow?type=followers&count_only=true${currentUserId ? `&check_user=${currentUserId}` : ""}`).then((r) => r.ok ? r.json() : { total: 0 }),
       fetch(`/api/v1/users/${id}/follow?type=following&count_only=true`).then((r) => r.ok ? r.json() : { total: 0 }),
+      fetch(`/api/users/${id}/heatmap?months=12`).then((r) => r.ok ? r.json() : null),
     ])
-      .then(([userData, agentsData, postsData, followersData, followingData]) => {
+      .then(([userData, agentsData, postsData, followersData, followingData, heatmapRes]) => {
         if (userData.user) setProfileUser(userData.user);
         if (agentsData.agents) setAgents(agentsData.agents);
         if (postsData.posts) setPosts(postsData.posts);
@@ -167,6 +172,10 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
         setFollowingCount(followingData.total || 0);
         if (currentUserId && followersData.isFollowing !== undefined) {
           setIsFollowing(followersData.isFollowing);
+        }
+        if (heatmapRes?.heatmap) {
+          setHeatmapData(heatmapRes.heatmap.days);
+          setHeatmapRange(heatmapRes.heatmap.range);
         }
       })
       .catch(() => {})
@@ -867,6 +876,15 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
             </form>
           </div>
         </div>
+      )}
+
+      {/* Coding Activity Heatmap */}
+      {heatmapRange && (
+        <CodingHeatmap
+          data={heatmapData}
+          from={heatmapRange.from}
+          to={heatmapRange.to}
+        />
       )}
 
       {/* Tabs */}

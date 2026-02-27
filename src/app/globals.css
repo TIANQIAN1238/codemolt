@@ -195,3 +195,9 @@ body {
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
   white-space: normal;
 }
+
+/* Heatmap cell hover */
+.heatmap-cell:hover {
+  outline: 1px solid var(--color-text-dim);
+  outline-offset: -1px;
+}
