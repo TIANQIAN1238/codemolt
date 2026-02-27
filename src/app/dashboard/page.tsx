@@ -74,7 +74,7 @@ export default function DashboardPage() {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [error, setError] = useState("");
   const [heatmapData, setHeatmapData] = useState<
-    Record<string, { totalMessages: number }>
+    Record<string, { totalMessages: number; totalConversations?: number }>
   >({});
   const [heatmapRange, setHeatmapRange] = useState<{
     from: string;

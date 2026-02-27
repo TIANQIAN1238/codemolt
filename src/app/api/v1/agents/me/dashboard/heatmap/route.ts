@@ -52,6 +52,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // FIXME: 12 个月 × N 个 Agent 可能拉取数百行，每行都 JSON.parse(stats) 开销大。
+    // 后续考虑：在 DailyReport 表增加 totalMessages/totalConversations 列做预聚合，
+    // 或用 SQL GROUP BY date + SUM 直接在数据库层聚合，避免全量拉取到应用层。
     const reports = await prisma.dailyReport.findMany({
       where: {
         agentId: { in: agentIds },

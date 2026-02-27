@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, Fragment } from "react";
+import { useMemo, useRef, useState, useCallback, Fragment } from "react";
 import { Activity } from "lucide-react";
 
 const MONTH_LABELS = [
@@ -30,6 +30,7 @@ const LEVEL_BG: (string | undefined)[] = [
 interface HeatmapDay {
   date: string;
   count: number;
+  conversations: number;
   level: 0 | 1 | 2 | 3 | 4;
 }
 
@@ -43,10 +44,24 @@ interface MonthLabel {
   span: number;
 }
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
+// FIXME: 每个 cell 都带独立 title 字符串 + inline style，~365 个 DOM 节点，
+// buildGrid 在 data 变化时 O(days) 重算 + React reconciliation 开销明显。
+// 后续考虑：虚拟化 / canvas 渲染 / 将 tooltip 改为单个浮层按需定位。
 function buildGrid(
   from: string,
   to: string,
-  data: Record<string, { totalMessages: number }>,
+  data: Record<string, { totalMessages: number; totalConversations?: number }>,
 ) {
   const startDate = new Date(from + "T00:00:00");
   const endDate = new Date(to + "T00:00:00");
@@ -88,7 +103,8 @@ function buildGrid(
         const d = String(current.getDate()).padStart(2, "0");
         const dateStr = `${y}-${m}-${d}`;
         const count = data[dateStr]?.totalMessages || 0;
-        days.push({ date: dateStr, count, level: getLevel(count) });
+        const conversations = data[dateStr]?.totalConversations || 0;
+        days.push({ date: dateStr, count, conversations, level: getLevel(count) });
       } else {
         days.push(null);
       }
@@ -117,7 +133,7 @@ function buildGrid(
 }
 
 interface CodingHeatmapProps {
-  data: Record<string, { totalMessages: number }>;
+  data: Record<string, { totalMessages: number; totalConversations?: number }>;
   from: string;
   to: string;
   loading?: boolean;
@@ -138,6 +154,28 @@ export function CodingHeatmap({ data, from, to, loading }: CodingHeatmapProps) {
     () => Object.values(data).filter((d) => d.totalMessages > 0).length,
     [data],
   );
+
+  // Custom tooltip state — single shared floating div, positioned on hover
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+
+  const handleCellEnter = useCallback((e: React.MouseEvent, day: HeatmapDay) => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const cell = e.currentTarget.getBoundingClientRect();
+    const gridRect = grid.getBoundingClientRect();
+    const d = new Date(day.date + "T00:00:00");
+    const text = day.count > 0
+      ? `${day.count.toLocaleString()} messages on ${MONTH_NAMES[d.getMonth()]} ${ordinal(d.getDate())}`
+      : `No messages on ${MONTH_NAMES[d.getMonth()]} ${ordinal(d.getDate())}`;
+    setTooltip({
+      text,
+      x: cell.left + cell.width / 2 - gridRect.left,
+      y: cell.top - gridRect.top,
+    });
+  }, []);
+
+  const handleCellLeave = useCallback(() => setTooltip(null), []);
 
   if (loading) {
     return (
@@ -167,7 +205,8 @@ export function CodingHeatmap({ data, from, to, loading }: CodingHeatmapProps) {
 
       {/* CSS Grid heatmap — fills container width */}
       <div
-        className="heatmap-grid"
+        ref={gridRef}
+        className="heatmap-grid relative"
         style={{
           display: "grid",
           gridTemplateColumns: `26px repeat(${cols}, 1fr)`,
@@ -208,12 +247,38 @@ export function CodingHeatmap({ data, from, to, loading }: CodingHeatmapProps) {
                       ? { backgroundColor: LEVEL_BG[day.level] }
                       : undefined
                   }
-                  title={`${day.date}: ${day.count} messages`}
+                  onMouseEnter={(e) => handleCellEnter(e, day)}
+                  onMouseLeave={handleCellLeave}
                 />
               );
             })}
           </Fragment>
         ))}
+
+        {/* Custom tooltip */}
+        {tooltip && (
+          <div
+            className="absolute z-50 pointer-events-none"
+            style={{
+              left: tooltip.x,
+              top: tooltip.y,
+              transform: "translate(-50%, -100%)",
+            }}
+          >
+            <div className="bg-[#1b1f23] text-white text-xs px-2.5 py-1.5 rounded-md whitespace-nowrap mb-1 shadow-lg">
+              {tooltip.text}
+            </div>
+            <div
+              className="w-0 h-0 mx-auto"
+              style={{
+                borderLeft: "5px solid transparent",
+                borderRight: "5px solid transparent",
+                borderTop: "5px solid #1b1f23",
+                marginTop: -4,
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Legend */}

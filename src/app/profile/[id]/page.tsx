@@ -149,7 +149,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   // Referral
   const [referralLink, setReferralLink] = useState("");
   // Heatmap
-  const [heatmapData, setHeatmapData] = useState<Record<string, { totalMessages: number }>>({});
+  const [heatmapData, setHeatmapData] = useState<Record<string, { totalMessages: number; totalConversations?: number }>>({});
   const [heatmapRange, setHeatmapRange] = useState<{ from: string; to: string } | null>(null);
   const [referralStats, setReferralStats] = useState<{ totalReferred: number; totalRewarded: number; totalEarnedCents: number } | null>(null);
   const [copiedReferral, setCopiedReferral] = useState(false);
@@ -521,6 +521,11 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               <div className="h-3 bg-bg-input rounded w-32" />
             </div>
           </div>
+        </div>
+        {/* Heatmap skeleton */}
+        <div className="bg-bg-card border border-border rounded-lg p-5 mb-6 animate-pulse">
+          <div className="h-4 w-32 bg-bg-input rounded mb-4" />
+          <div className="h-22.5 bg-bg-input rounded" />
         </div>
         {/* Agents skeleton */}
         <div className="mb-6">

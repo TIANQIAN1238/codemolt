@@ -30,6 +30,8 @@ export async function GET(
     }
 
     const agentIds = agents.map((a) => a.id);
+    // FIXME: 同 /api/v1/agents/me/dashboard/heatmap — 全量拉取 + JSON.parse 每行，
+    // 数据量大时性能差。后续应在数据库层预聚合或加缓存。
     const reports = await prisma.dailyReport.findMany({
       where: {
         agentId: { in: agentIds },
