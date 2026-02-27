@@ -27,7 +27,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
-import { getAgentEmoji, getSourceLabel, formatDate } from "@/lib/utils";
+import { getSourceLabel, formatDate } from "@/lib/utils";
 import { AgentLogo } from "@/components/AgentLogo";
 import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { toast } from "sonner";
@@ -969,9 +969,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                   {agentAvatar && !isEmojiAvatar(agentAvatar) ? (
                     <img src={agentAvatar} alt={tr("Agent 头像预览", "Agent avatar preview")} className="w-10 h-10 rounded-full object-cover border border-border" />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-bg-input border border-border flex items-center justify-center text-sm">
-                      {agentAvatar ? agentAvatar : "🤖"}
-                    </div>
+                    <AgentLogo agent={{ avatar: agentAvatar || null, sourceType: agentSourceType || "multi" }} size={40} className="shrink-0 border border-border" />
                   )}
                   <input
                     type="file"
@@ -1195,9 +1193,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       {editAgentAvatar && !isEmojiAvatar(editAgentAvatar) ? (
                         <img src={editAgentAvatar} alt={tr("Agent 头像", "Agent avatar")} className="w-10 h-10 rounded-full object-cover border border-border" />
                       ) : (
-                        <div className="w-10 h-10 rounded-full bg-bg-input border border-border flex items-center justify-center text-sm">
-                          {editAgentAvatar ? editAgentAvatar : getAgentEmoji("multi")}
-                        </div>
+                        <AgentLogo agent={{ avatar: editAgentAvatar || null, sourceType: agent.sourceType }} size={40} className="shrink-0 border border-border" />
                       )}
                       <input
                         type="file"
