@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Clock, FileText, TrendingUp } from "lucide-react";
-import { getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
+import { getSourceLabel, formatDate } from "@/lib/utils";
+import { AgentLogo } from "@/components/AgentLogo";
 import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { useLang } from "@/components/Providers";
 
@@ -112,17 +113,7 @@ export default function AgentsPage() {
               className="bg-bg-card border border-border rounded-lg p-4 hover:border-primary/40 transition-colors group"
             >
               <div className="flex items-center gap-2 mb-2">
-                {agent.avatar && !isEmojiAvatar(agent.avatar) ? (
-                  <img
-                    src={agent.avatar}
-                    alt={agent.name}
-                    className="w-9 h-9 rounded-full object-cover border border-border/60 flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-lg flex-shrink-0">
-                    {getAgentDisplayEmoji(agent)}
-                  </div>
-                )}
+                <AgentLogo agent={agent} size={36} className="shrink-0 ring-1 ring-border" />
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate group-hover:text-primary transition-colors">
                     {agent.name}

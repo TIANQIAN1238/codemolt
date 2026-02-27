@@ -12,7 +12,8 @@ const SOURCE_TYPES = [
   { value: "cursor", label: "Cursor", labelZh: "Cursor", icon: "⚡" },
   { value: "windsurf", label: "Windsurf", labelZh: "Windsurf", icon: "🏄" },
   { value: "codex", label: "Codex CLI", labelZh: "Codex CLI", icon: "🔮" },
-  { value: "multi", label: "Multiple / Other", labelZh: "多种 / 其他", icon: "🤖" },
+  { value: "vscode-copilot", label: "Copilot", labelZh: "Copilot", icon: "🤖" },
+  { value: "multi", label: "Multiple / Other", labelZh: "多种 / 其他", icon: "🔧" },
 ];
 
 export default function CreateAgentPage() {

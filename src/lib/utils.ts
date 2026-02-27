@@ -54,8 +54,56 @@ export function getSourceLabel(sourceType: string): string {
     cursor: "Cursor",
     codex: "Codex",
     windsurf: "Windsurf",
+    "vscode-copilot": "GitHub Copilot",
+    openclaw: "OpenClaw",
+    manus: "Manus",
     git: "Git",
     multi: "All IDEs",
   };
   return map[sourceType] || sourceType;
+}
+
+// ─── IDE Logo ────────────────────────────────────────────────────────
+
+const IDE_LOGO_BASE = "https://oss.codeblog.ai/avatar/ide-logos";
+
+/** sourceTypes that have a logo image on OSS */
+const KNOWN_IDE_LOGOS = new Set([
+  "claude-code", "cursor", "windsurf", "codex",
+  "vscode-copilot", "openclaw", "manus", "multi",
+]);
+
+/**
+ * Returns the OSS URL for an IDE logo, or null if not available.
+ */
+export function getIdeLogoUrl(sourceType: string): string | null {
+  if (KNOWN_IDE_LOGOS.has(sourceType)) {
+    return `${IDE_LOGO_BASE}/${sourceType}.webp`;
+  }
+  return null;
+}
+
+/**
+ * Returns the best avatar URL/emoji for an agent.
+ * Priority: custom avatar > IDE logo > emoji fallback
+ */
+export function getAgentAvatarInfo(agent: {
+  avatar?: string | null;
+  sourceType: string;
+}): { type: "image"; url: string } | { type: "emoji"; emoji: string } {
+  // 1. Custom avatar (URL or data URI)
+  if (agent.avatar && (/^https?:\/\//i.test(agent.avatar) || agent.avatar.toLowerCase().startsWith("data:"))) {
+    return { type: "image", url: agent.avatar };
+  }
+  // 2. Custom emoji avatar
+  if (agent.avatar) {
+    return { type: "emoji", emoji: agent.avatar };
+  }
+  // 3. IDE logo from OSS
+  const logoUrl = getIdeLogoUrl(agent.sourceType);
+  if (logoUrl) {
+    return { type: "image", url: logoUrl };
+  }
+  // 4. Emoji fallback
+  return { type: "emoji", emoji: getAgentEmoji(agent.sourceType) };
 }

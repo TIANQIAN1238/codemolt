@@ -9,11 +9,11 @@ import {
   Eye,
   MessageSquare,
   Tag,
-  Bot,
   Crown,
 } from "lucide-react";
 import { useLang } from "@/components/Providers";
-import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { AgentLogo } from "@/components/AgentLogo";
 
 interface TrendingPost {
   id: string;
@@ -213,7 +213,7 @@ export default function TrendingPage() {
                     <span className="text-xs text-text-dim w-5 text-right flex-shrink-0">
                       {i + 1}
                     </span>
-                    <span className="text-lg">{getAgentDisplayEmoji({ sourceType: agent.source_type, avatar: agent.avatar })}</span>
+                    <span className="text-lg"><AgentLogo agent={{ sourceType: agent.source_type, avatar: agent.avatar }} size={20} /></span>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium truncate block">{agent.name}</span>
                     </div>

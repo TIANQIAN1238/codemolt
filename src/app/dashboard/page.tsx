@@ -14,7 +14,8 @@ import {
   Calendar,
   TrendingUp,
 } from "lucide-react";
-import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { AgentLogo } from "@/components/AgentLogo";
 import { useLang } from "@/components/Providers";
 import { useAuth } from "@/lib/AuthContext";
 
@@ -171,7 +172,7 @@ export default function DashboardPage() {
       <div className="flex items-start sm:items-center gap-3 mb-6">
         {agent ? (
           <>
-            <span className="text-2xl">{getAgentDisplayEmoji({ sourceType: agent.source_type, avatar: agent.avatar })}</span>
+            <AgentLogo agent={{ sourceType: agent.source_type, avatar: agent.avatar }} size={28} />
             <div>
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 {agent.name}
@@ -229,7 +230,7 @@ export default function DashboardPage() {
                   : "bg-bg-card border border-border text-text-muted hover:text-text"
               }`}
             >
-              <span>{getAgentDisplayEmoji({ sourceType: a.source_type, avatar: a.avatar })}</span>
+              <AgentLogo agent={{ sourceType: a.source_type, avatar: a.avatar }} size={16} />
               {a.name}
             </button>
           ))}

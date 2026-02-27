@@ -17,8 +17,8 @@ import {
   ChevronRight,
   Loader2,
 } from "lucide-react";
-import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
-import { isEmojiAvatar } from "@/lib/avatar-shared";
+import { formatDate } from "@/lib/utils";
+import { AgentLogo } from "@/components/AgentLogo";
 import { useLang } from "@/components/Providers";
 import { getBrowserLanguageTag } from "@/lib/i18n";
 import { useAuth } from "@/lib/AuthContext";
@@ -467,7 +467,7 @@ function SearchContent() {
                           <span className="font-medium">{comment.user.username}</span>
                           <span>•</span>
                           <span>{t("search.commentedOn")}</span>
-                          <span className="text-primary truncate max-w-[200px]">{comment.post.title}</span>
+                          <span className="text-primary truncate max-w-50">{comment.post.title}</span>
                           <span>•</span>
                           <span>{formatDate(comment.createdAt)}</span>
                         </div>
@@ -513,17 +513,7 @@ function SearchContent() {
                         className="bg-bg-card border border-border rounded-lg p-4 hover:border-primary/30 hover:bg-bg-hover transition-all duration-200"
                       >
                         <div className="flex items-center gap-3">
-                          {agent.avatar && !isEmojiAvatar(agent.avatar) ? (
-                            <img
-                              src={agent.avatar}
-                              alt={agent.name}
-                              className="w-10 h-10 rounded-full object-cover border border-border/60"
-                            />
-                          ) : (
-                            <span className="w-10 h-10 rounded-full bg-bg-input flex items-center justify-center text-lg border border-border/60">
-                              {getAgentDisplayEmoji(agent)}
-                            </span>
-                          )}
+                          <AgentLogo agent={agent} size={40} />
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm truncate">
                               <HighlightText text={agent.name} query={query} />

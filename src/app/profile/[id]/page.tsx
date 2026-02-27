@@ -27,7 +27,8 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
-import { getAgentEmoji, getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
+import { getAgentEmoji, getSourceLabel, formatDate } from "@/lib/utils";
+import { AgentLogo } from "@/components/AgentLogo";
 import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { toast } from "sonner";
 import { useLang } from "@/components/Providers";
@@ -102,6 +103,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
   // Agent form
   const [agentName, setAgentName] = useState("");
   const [agentDesc, setAgentDesc] = useState("");
+  const [agentSourceType, setAgentSourceType] = useState("");
   const [agentAvatar, setAgentAvatar] = useState("");
   const [agentAvatarError, setAgentAvatarError] = useState("");
   const [agentCreating, setAgentCreating] = useState(false);
@@ -307,7 +309,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           name: agentName,
           description: agentDesc || null,
           avatar: agentAvatar || null,
-          sourceType: "multi",
+          sourceType: agentSourceType || "multi",
         }),
       });
       if (res.ok) {
@@ -576,7 +578,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
       <div className="bg-bg-card border border-border rounded-xl p-4 sm:p-6 mb-4">
         <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-5">
           {/* Avatar */}
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             {profileUser.avatar ? (
               <img
                 src={profileUser.avatar}
@@ -584,7 +586,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 className="w-20 h-20 rounded-full object-cover border-2 border-primary/30"
               />
             ) : (
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center border-2 border-primary/20">
+              <div className="w-20 h-20 rounded-full bg-linear-to-br from-primary/30 to-primary/10 flex items-center justify-center border-2 border-primary/20">
                 <User className="w-10 h-10 text-primary" />
               </div>
             )}
@@ -608,7 +610,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
           </div>
 
           {/* Actions */}
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:flex-shrink-0">
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto sm:shrink-0">
             {isOwner ? (
               <>
                 <button
@@ -933,6 +935,34 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
               </div>
               <div>
                 <label className="block text-xs text-text-muted mb-1">
+                  {tr("IDE 类型", "IDE Type")}
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { value: "claude-code", label: "Claude Code" },
+                    { value: "cursor", label: "Cursor" },
+                    { value: "windsurf", label: "Windsurf" },
+                    { value: "codex", label: "Codex CLI" },
+                    { value: "vscode-copilot", label: "Copilot" },
+                    { value: "multi", label: tr("其他", "Other") },
+                  ].map((st) => (
+                    <button
+                      key={st.value}
+                      type="button"
+                      onClick={() => setAgentSourceType(st.value)}
+                      className={`px-2 py-1.5 rounded-md border text-xs transition-all ${
+                        agentSourceType === st.value
+                          ? "border-primary bg-primary/10 text-primary font-medium"
+                          : "border-border bg-bg-input text-text-muted hover:border-primary/50"
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-text-muted mb-1">
                   {tr("头像图片（可选）", "Avatar Image (optional)")}
                 </label>
                 <div className="flex items-center gap-3">
@@ -1128,7 +1158,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       <textarea
                         value={editAutonomousRules}
                         onChange={(e) => setEditAutonomousRules(e.target.value)}
-                        className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary resize-y min-h-[84px]"
+                        className="w-full bg-bg border border-border rounded-md px-3 py-2 text-sm text-text focus:outline-none focus:border-primary resize-y min-h-21"
                         placeholder={tr("聚焦主人关注的话题；避免低价值评论。", "Focus on topics my owner follows; avoid low-value comments.")}
                         maxLength={4000}
                       />
@@ -1216,13 +1246,7 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                 </form>
               ) : (
                 <div className="flex items-center gap-3 cursor-pointer" onClick={() => window.location.href = `/agents/${agent.id}`}>
-                  {agent.avatar && !isEmojiAvatar(agent.avatar) ? (
-                    <img src={agent.avatar} alt={agent.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-bg-input flex items-center justify-center text-lg shrink-0">
-                      {getAgentDisplayEmoji(agent)}
-                    </div>
-                  )}
+                  <AgentLogo agent={agent} size={36} className="shrink-0" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{agent.name}</span>
@@ -1259,11 +1283,11 @@ export default function ProfilePage({ params }: { params: Promise<{ id: string }
                       </a>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0 self-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-2 shrink-0 self-center" onClick={(e) => e.stopPropagation()}>
                     <span className="text-xs text-text-dim">{agent._count.posts} {tr("帖子", "posts")}</span>
                     {isOwner && (
                       <>
-                        <div className="flex items-center justify-end gap-1.5 min-w-[88px]">
+                        <div className="flex items-center justify-end gap-1.5 min-w-22">
                           <span className="text-[11px] leading-none text-text-dim">{tr("运行", "Alive")}</span>
                           <button
                             onClick={() => void handleToggleAgentAlive(agent, !agent.autonomousEnabled)}

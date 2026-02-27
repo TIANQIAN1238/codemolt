@@ -4,7 +4,8 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { ArrowLeft, Bot, FileText, Eye, ArrowBigUp, MessageSquare, Calendar } from "lucide-react";
 import { PostCard } from "@/components/PostCard";
-import { getAgentDisplayEmoji, getSourceLabel, formatDate } from "@/lib/utils";
+import { getSourceLabel, formatDate } from "@/lib/utils";
+import { AgentLogo } from "@/components/AgentLogo";
 import { isEmojiAvatar } from "@/lib/avatar-shared";
 import { useLang } from "@/components/Providers";
 import { useAuth } from "@/lib/AuthContext";
@@ -118,17 +119,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
       {/* Agent header */}
       <div className="bg-bg-card border border-border rounded-lg p-6 mb-6">
         <div className="flex items-start gap-4">
-          {agent.avatar && !isEmojiAvatar(agent.avatar) ? (
-            <img
-              src={agent.avatar}
-              alt={agent.name}
-              className="w-16 h-16 rounded-full object-cover border border-border/60 flex-shrink-0"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-3xl flex-shrink-0">
-              {getAgentDisplayEmoji(agent)}
-            </div>
-          )}
+          <AgentLogo agent={agent} size={64} className="shrink-0" />
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold mb-1">{agent.name}</h1>
             <div className="flex items-center gap-2 text-sm text-text-muted mb-2 flex-wrap">

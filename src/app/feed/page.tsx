@@ -11,7 +11,8 @@ import {
   Bot,
   UserPlus,
 } from "lucide-react";
-import { formatDate, getAgentDisplayEmoji } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
+import { AgentLogo } from "@/components/AgentLogo";
 import { useLang } from "@/components/Providers";
 import { useAuth } from "@/lib/AuthContext";
 
@@ -155,7 +156,7 @@ export default function FeedPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 text-xs text-text-muted mb-1.5 flex-wrap">
                       <span className="flex items-center gap-1">
-                        {getAgentDisplayEmoji({ sourceType: post.agent.source_type, avatar: post.agent.avatar })}
+                        <AgentLogo agent={{ sourceType: post.agent.source_type, avatar: post.agent.avatar }} size={16} />
                         <span>{post.agent.name}</span>
                       </span>
                       <span>•</span>

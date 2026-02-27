@@ -28,8 +28,8 @@ import {
   Package,
 } from "lucide-react";
 import { CodeBlogLogo } from "@/components/CodeBlogLogo";
-import { getAgentDisplayEmoji, formatDate } from "@/lib/utils";
-import { isEmojiAvatar } from "@/lib/avatar-shared";
+import { formatDate } from "@/lib/utils";
+import { AgentLogo } from "@/components/AgentLogo";
 import { useLang } from "@/components/Providers";
 import { useAuth } from "@/lib/AuthContext";
 
@@ -150,7 +150,7 @@ function HomeSkeleton() {
         </div>
 
         {/* Sidebar skeleton */}
-        <div className="hidden lg:block w-72 flex-shrink-0 space-y-4">
+        <div className="hidden lg:block w-72 shrink-0 space-y-4">
           <div className="bg-bg-card border border-border rounded-lg p-4 animate-pulse">
             <div className="h-4 bg-bg-input rounded w-1/2 mb-3" />
             <div className="h-3 bg-bg-input rounded w-full mb-2" />
@@ -198,9 +198,9 @@ function SkillMdCommand() {
       >
         <span className="text-sm flex-1 text-left text-text">{cmd}</span>
         {copied ? (
-          <Check className="w-4 h-4 text-accent-green flex-shrink-0" />
+          <Check className="w-4 h-4 text-accent-green shrink-0" />
         ) : (
-          <Copy className="w-4 h-4 text-text-dim group-hover/copy:text-primary flex-shrink-0 transition-colors" />
+          <Copy className="w-4 h-4 text-text-dim group-hover/copy:text-primary shrink-0 transition-colors" />
         )}
       </button>
       <p className="text-xs text-text-dim text-center mt-1.5">
@@ -481,20 +481,10 @@ function HomeContent() {
               <Link
                 key={agent.id}
                 href={`/agents/${agent.id}`}
-                className="flex-shrink-0 bg-bg-card border border-border rounded-lg px-3 py-2 hover:border-primary/40 transition-colors min-w-[160px]"
+                className="shrink-0 bg-bg-card border border-border rounded-lg px-3 py-2 hover:border-primary/40 transition-colors min-w-40"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  {agent.avatar && !isEmojiAvatar(agent.avatar) ? (
-                    <img
-                      src={agent.avatar}
-                      alt={agent.name}
-                      className="w-6 h-6 rounded-full object-cover border border-border/60"
-                    />
-                  ) : (
-                    <span className="w-6 h-6 rounded-full bg-bg-input flex items-center justify-center text-sm border border-border/60">
-                      {getAgentDisplayEmoji(agent)}
-                    </span>
-                  )}
+                  <AgentLogo agent={agent} size={24} />
                   <span className="text-sm font-medium truncate">
                     {agent.name}
                   </span>
@@ -623,7 +613,7 @@ function HomeContent() {
         </div>
 
         {/* Sidebar */}
-        <div className="hidden lg:block w-72 flex-shrink-0 space-y-4">
+        <div className="hidden lg:block w-72 shrink-0 space-y-4">
           {/* About */}
           <div className="bg-bg-card border border-border rounded-lg p-4">
             <h3 className="text-sm font-bold mb-2">{t("home.about")}</h3>
@@ -666,15 +656,7 @@ function HomeContent() {
                       className="flex items-center gap-2 text-xs hover:text-primary transition-colors"
                     >
                       <span className="text-text-dim w-4">{i + 1}</span>
-                      {agent.avatar && !isEmojiAvatar(agent.avatar) ? (
-                        <img
-                          src={agent.avatar}
-                          alt={agent.name}
-                          className="w-4 h-4 rounded-full object-cover border border-border/60"
-                        />
-                      ) : (
-                        <span>{getAgentDisplayEmoji(agent)}</span>
-                      )}
+                      <AgentLogo agent={agent} size={16} />
                       <span className="font-medium truncate flex-1">
                         {agent.name}
                       </span>

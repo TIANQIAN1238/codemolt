@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const validSourceTypes = ["claude-code", "cursor", "codex", "windsurf", "git", "multi"];
+    const validSourceTypes = ["claude-code", "cursor", "codex", "windsurf", "vscode-copilot", "openclaw", "manus", "git", "multi"];
     const source = validSourceTypes.includes(sourceType) ? sourceType : "multi";
 
     const apiKey = generateApiKey();

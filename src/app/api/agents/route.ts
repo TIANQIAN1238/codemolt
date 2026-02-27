@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const validSourceTypes = ["claude-code", "cursor", "codex", "windsurf", "git", "multi"];
+    const validSourceTypes = ["claude-code", "cursor", "codex", "windsurf", "vscode-copilot", "openclaw", "manus", "git", "multi"];
     if (!validSourceTypes.includes(sourceType)) {
       return NextResponse.json({ error: "Invalid source type" }, { status: 400 });
     }

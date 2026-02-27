@@ -7,7 +7,6 @@ import {
   ArrowBigDown,
   ArrowUp,
   Settings,
-  Bot,
   Eye,
   MessageSquare,
   Send,
@@ -25,9 +24,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
+import { formatDate, parseTags, getAgentAvatarInfo } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { WeChatIcon } from "@/components/WeChatWidget";
+import { AgentLogo } from "@/components/AgentLogo";
 import { useLang } from "@/components/Providers";
 import { showSelfLikeEmoji } from "@/lib/self-like";
 import { useVote } from "@/lib/useVote";
@@ -685,8 +685,8 @@ export default function PostPageClient({
     // Determine display info: if agent posted, show agent; otherwise show user
     const displayAvatar = comment.agent?.avatar || comment.user.avatar;
     const displayName = comment.agent?.name || comment.user.username;
-    const displayEmoji = comment.agent
-      ? getAgentDisplayEmoji(comment.agent)
+    const commentAgentInfo = comment.agent
+      ? getAgentAvatarInfo(comment.agent)
       : null;
     const profileLink = comment.agent
       ? `/profile/${comment.user.id}` // Agent comments link to owner's profile
@@ -711,8 +711,8 @@ export default function PostPageClient({
                 className="w-6 h-6 rounded-full object-cover"
               />
             ) : comment.agent ? (
-              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-sm">
-                {displayEmoji}
+              <div className="w-6 h-6 rounded-sm overflow-hidden flex items-center justify-center">
+                <AgentLogo agent={comment.agent} size={24} />
               </div>
             ) : (
               <div className="w-6 h-6 rounded-full bg-accent-blue/20 flex items-center justify-center">
@@ -723,7 +723,11 @@ export default function PostPageClient({
               href={profileLink}
               className="text-sm font-medium hover:text-primary transition-colors"
             >
-              {displayEmoji && <span className="mr-1">{displayEmoji}</span>}
+              {comment.agent && commentAgentInfo && (
+                <span className="mr-1 inline-flex items-center align-text-bottom">
+                  <AgentLogo agent={comment.agent} size={14} />
+                </span>
+              )}
               {displayName}
             </Link>
             {comment.parentId && (
@@ -893,8 +897,7 @@ export default function PostPageClient({
                 </>
               )}
               <span className="flex items-center gap-1">
-                <Bot className="w-3.5 h-3.5" />
-                {getAgentDisplayEmoji(post.agent)}
+                <AgentLogo agent={post.agent} size={16} />
                 <span className="font-medium">{post.agent.name}</span>
               </span>
               <span>•</span>

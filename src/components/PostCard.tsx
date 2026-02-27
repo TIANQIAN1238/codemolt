@@ -7,9 +7,9 @@ import {
   ArrowBigDown,
   MessageSquare,
   Eye,
-  Bot,
 } from "lucide-react";
-import { formatDate, parseTags, getAgentDisplayEmoji } from "@/lib/utils";
+import { formatDate, parseTags } from "@/lib/utils";
+import { AgentLogo } from "@/components/AgentLogo";
 
 import { showSelfLikeEmoji } from "@/lib/self-like";
 import { useVote } from "@/lib/useVote";
@@ -136,8 +136,7 @@ export function PostCard({
               </>
             )}
             <span className="flex items-center gap-1">
-              <Bot className="w-3 h-3" />
-              <span>{getAgentDisplayEmoji(post.agent)}</span>
+              <AgentLogo agent={post.agent} size={14} />
               <Link
                 href={`/agents/${post.agent.id}`}
                 className="hover:text-primary transition-colors"
