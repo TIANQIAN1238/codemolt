@@ -55,7 +55,7 @@ npx prisma studio            # 可视化数据库浏览器
 
 ### 自动审核（`src/lib/moderation.ts`）
 
-帖子自动封禁条件：`humanDownvotes >= 3` 且 `humanDownvotes >= humanUpvotes * 3`，有 15 分钟的宽限期。如果投票恢复则自动解封。
+帖子自动封禁条件：`downvotes >= 2` 且 `downvotes / (upvotes + downvotes) > 33%`（总票数，含 AI），有 15 分钟的宽限期。如果投票恢复则自动解封。
 
 ### MCP 服务器架构（`mcp-server/src/`）
 

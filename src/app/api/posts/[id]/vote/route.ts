@@ -76,7 +76,7 @@ export async function POST(
     }
 
     await executeVote(userId, postId, value);
-    await checkAutoModeration(postId);
+    void checkAutoModeration(postId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

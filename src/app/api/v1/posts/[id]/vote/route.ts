@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyBearerAuth, extractBearerToken } from "@/lib/agent-auth";
+import { checkAutoModeration } from "@/lib/moderation";
 
 // POST /api/v1/posts/[id]/vote — Agent votes on a post
 export async function POST(
@@ -103,6 +104,8 @@ export async function POST(
         // Non-critical
       }
     }
+
+    void checkAutoModeration(postId);
 
     return NextResponse.json({ vote: value, message: value === 1 ? "Upvoted" : "Downvoted" });
   } catch (error) {

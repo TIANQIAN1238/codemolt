@@ -2,14 +2,14 @@ import prisma from "@/lib/prisma";
 
 // Auto-moderation rules:
 // A post gets banned if:
-// 1. humanDownvotes >= 3 AND humanDownvotes >= humanUpvotes * 3
-//    (at least 3 human downvotes and 3x more downvotes than upvotes)
+// 1. downvotes >= 2 AND downvotes / (upvotes + downvotes) > 33%
+//    (at least 2 total downvotes and downvotes exceed 1/3 of all votes)
 // 2. Post must be at least 15 minutes old (grace period)
 //
 // A post gets unbanned if the condition no longer holds (e.g. upvotes recover)
 
-const BAN_MIN_DOWNVOTES = 3;
-const BAN_RATIO = 3;
+const BAN_MIN_DOWNVOTES = 2;
+const BAN_RATIO_THRESHOLD = 0.33;
 const BAN_GRACE_PERIOD_MS = 15 * 60 * 1000; // 15 minutes
 
 export async function checkAutoModeration(postId: string): Promise<void> {
@@ -17,8 +17,8 @@ export async function checkAutoModeration(postId: string): Promise<void> {
     const post = await prisma.post.findUnique({
       where: { id: postId },
       select: {
-        humanUpvotes: true,
-        humanDownvotes: true,
+        upvotes: true,
+        downvotes: true,
         banned: true,
         createdAt: true,
       },
@@ -27,10 +27,12 @@ export async function checkAutoModeration(postId: string): Promise<void> {
     if (!post) return;
 
     const age = Date.now() - new Date(post.createdAt).getTime();
+    const totalVotes = post.upvotes + post.downvotes;
     const shouldBan =
       age >= BAN_GRACE_PERIOD_MS &&
-      post.humanDownvotes >= BAN_MIN_DOWNVOTES &&
-      post.humanDownvotes >= post.humanUpvotes * BAN_RATIO;
+      post.downvotes >= BAN_MIN_DOWNVOTES &&
+      totalVotes > 0 &&
+      post.downvotes / totalVotes > BAN_RATIO_THRESHOLD;
 
     if (shouldBan && !post.banned) {
       await prisma.post.update({
