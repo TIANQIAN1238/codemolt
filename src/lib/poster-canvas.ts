@@ -4,6 +4,7 @@
  */
 
 import QRCode from "qrcode";
+import type { Locale } from "@/lib/i18n";
 
 export interface PosterOptions {
   selectedText: string;
@@ -13,7 +14,13 @@ export interface PosterOptions {
   authorAvatar?: string | null;
   postUrl?: string;
   theme: "light" | "dark";
+  locale?: Locale;
 }
+
+const POSTER_SLOGAN: Record<Locale, string> = {
+  en: "Share the knowledge you learn with AI at any time",
+  zh: "随时分享你和 AI 一起学到的新知识",
+};
 
 interface ThemeColors {
   bg: string;
@@ -246,7 +253,9 @@ export async function renderPoster(
     authorAvatar,
     postUrl,
     theme,
+    locale = "en",
   } = options;
+  const slogan = POSTER_SLOGAN[locale];
   const colors = THEMES[theme];
 
   const ctx = canvas.getContext("2d");
@@ -289,10 +298,15 @@ export async function renderPoster(
   const authorHeight = 36;
   const authorToFooter = 28;
   const qrSize = 64;
-  const footerHeight = postUrl ? qrSize : 24;
+  const sloganFontSize = 11;
+  const sloganGap = 6; // gap between logo and slogan
+  const isLongText = selectedText.length > 300;
+  const logoBlockHeight = isLongText ? 28 : 24;
+  const logoAreaHeight = postUrl ? qrSize : logoBlockHeight; // original logo area (logo vertically centered here)
+  const footerHeight = logoAreaHeight + sloganGap + sloganFontSize;
   const bottomPadding = PADDING_Y;
 
-  const minHeight = selectedText.length > 300 ? 960 : 600;
+  const minHeight = isLongText ? 960 : 600;
   const totalHeight = Math.max(
     minHeight,
     topPadding +
@@ -420,17 +434,16 @@ export async function renderPoster(
 
   cursorY += authorHeight + authorToFooter;
 
-  // 6. Footer — logo (left) + QR code (right)
+  // 6. Footer — logo + slogan (left) + QR code (right)
   const footerY = totalHeight - bottomPadding - footerHeight;
 
-  // Logo (left)
-  const logoHeight = selectedText.length > 300 ? 28 : 24;
+  // Logo (left) — vertically centered in logoAreaHeight (same as before)
   const logoImg = await getLogoImage();
+  const logoY = footerY + (logoAreaHeight - logoBlockHeight) / 2;
   if (logoImg) {
     const logoWidth =
-      (logoImg.naturalWidth / logoImg.naturalHeight) * logoHeight;
+      (logoImg.naturalWidth / logoImg.naturalHeight) * logoBlockHeight;
     const logoX = PADDING_X;
-    const logoY = footerY + (footerHeight - logoHeight) / 2;
 
     if (theme === "dark") {
       // SVG is black — tint to white for dark mode
@@ -443,21 +456,27 @@ export async function renderPoster(
         offCtx.globalCompositeOperation = "source-in";
         offCtx.fillStyle = "#ffffff";
         offCtx.fillRect(0, 0, offscreen.width, offscreen.height);
-        ctx.drawImage(offscreen, logoX, logoY, logoWidth, logoHeight);
+        ctx.drawImage(offscreen, logoX, logoY, logoWidth, logoBlockHeight);
       }
     } else {
       // Light mode — draw directly (black on white)
-      ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
+      ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoBlockHeight);
     }
   }
 
-  // QR code (right)
+  // Slogan below logo
+  ctx.font = `400 ${sloganFontSize}px ${FONT_FAMILY}`;
+  ctx.fillStyle = colors.textDim;
+  ctx.textBaseline = "top";
+  ctx.fillText(slogan, PADDING_X, logoY + logoBlockHeight + sloganGap);
+
+  // QR code (right) — vertically centered in logoAreaHeight
   if (postUrl) {
     drawQRCode(
       ctx,
       postUrl,
       width - PADDING_X - qrSize,
-      footerY,
+      footerY + (logoAreaHeight - qrSize) / 2,
       qrSize,
       theme === "dark" ? "#d0d0d6" : "#2a2a2e",
     );

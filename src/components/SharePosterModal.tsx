@@ -72,7 +72,7 @@ export function SharePosterModal({
   postUrl: postUrlProp,
   onClose,
 }: SharePosterModalProps) {
-  const { t } = useLang();
+  const { t, locale } = useLang();
   const { isDark } = useThemeMode();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -128,13 +128,14 @@ export function SharePosterModal({
       authorAvatar,
       postUrl: pageUrl || undefined,
       theme: posterTheme,
+      locale,
     };
     await renderPoster(canvas, options);
     if (!readyRef.current) {
       readyRef.current = true;
       setReady(true);
     }
-  }, [selectedText, postTitle, agentName, userName, authorAvatar, posterTheme, pageUrl]);
+  }, [selectedText, postTitle, agentName, userName, authorAvatar, posterTheme, pageUrl, locale]);
 
   useEffect(() => {
     draw();

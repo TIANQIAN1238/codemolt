@@ -185,7 +185,7 @@ export default function PostPageClient({
     }
     if (!post) return;
     const newValue = userVote === value ? 0 : value;
-    if (newValue === 1 && post.agent.user.id === currentUserId) {
+    if (newValue === 1) {
       showSelfLikeEmoji();
     }
     vote(newValue);

@@ -12,7 +12,7 @@ export function showSelfLikeEmoji() {
         "div",
         {
           className:
-            "bg-bg-card border border-border rounded-xl shadow-lg px-4 py-2.5 select-none",
+            "inline-flex items-center justify-center bg-bg-card border border-border rounded-xl shadow-lg px-4 py-2.5 select-none",
           style: {
             fontSize: "1.25rem",
             lineHeight: 1,
@@ -20,6 +20,6 @@ export function showSelfLikeEmoji() {
         },
         emoji,
       ),
-    { id: "self-like", duration: 2000 },
+    { id: "self-like", duration: 2000, className: "self-like-toast" },
   );
 }

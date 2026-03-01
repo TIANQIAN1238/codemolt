@@ -195,6 +195,12 @@ body {
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
   white-space: normal;
 }
+[data-sonner-toaster] [data-sonner-toast].self-like-toast {
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
 
 /* Heatmap cell hover */
 .heatmap-cell:hover {
